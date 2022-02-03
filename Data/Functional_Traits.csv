@@ -1,0 +1,40 @@
+﻿Taxa,Taxon_Group,Morphology,Solitary_Colonial,Energetic_Resource,Feeding_Mode,Calcification,Growth_Rate,lifespan,Potential sp
+Pocillopora acuta,Coral,Branched,Colonial,Photo-heterotroph,Filter-feeder,Calcified,high,long,yes
+Pocillopora eydouxi,Coral,Branched,Colonial,Photo-heterotroph,Filter-feeder,Calcified,high,,
+Amansia rhodantha,Rhodophyte,Branched,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,,yes
+Dictyota,Phaeophyte,Branched,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,,yes
+Galaxaura,Rhodophyte,Branched,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,,
+Sargassum,Phaeophyte,Branched,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,,
+Turbinaria ornata,Phaeophyte,Branched,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,,yes
+Montipora,Coral,Branched; Tabular,Colonial,Photo-heterotroph,Filter-feeder,Calcified,moderate,long,yes
+Anemone,Other Invert,Cup-like,Solitary,Photo-heterotroph,Filter-feeder,Non-Calcified,,,
+Soft Coral,Coral,Cup-like,Solitary,Photo-heterotroph,Filter-feeder,Non-Calcified,unk,,
+Cyphastrea microphthalma,Coral,Encrusting,Colonial,Photo-heterotroph,Filter-feeder,Calcified,moderate,,
+Pavona varians,Coral,Encrusting,Colonial,Photo-heterotroph,Filter-feeder,Calcified,moderate,,
+Ascidian,Other Invert,Encrusting,Colonial,Heterotroph,Filter-feeder,Non-Calcified,,,
+Sponge,Sponge,Encrusting,Colonial,Photo-heterotroph,Filter-feeder,Non-Calcified,moderate,,
+Crustose Corallines,CCA,Encrusting,Solitary,Autotroph,Photosynthesis,Calcified,moderate,long,yes
+Peyssonnelia,Rhodophyte,Encrusting; Foliose,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,,
+Algal Turf,Algae,Filamentous,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,,
+Filamentous Green Algae,Chlorophyte,Filamentous,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,short,yes
+Padina,Phaeophyte,Foliose,Solitary,Autotroph,Photosynthesis,Non-Calcified,high,modeate,yes
+Leptastrea transversa,Coral,Massive,Colonial,Photo-heterotroph,Filter-feeder,Calcified,low,,
+Lobed Porites,Coral,Massive,Colonial,Photo-heterotroph,Filter-feeder,Calcified,low,long,yes
+Porites rus,Coral,Massive; Branched,Colonial,Photo-heterotroph,Filter-feeder,Calcified,low,long,yes
+Seastar,Other Invert,NA,Solitary,Heterotroph,Carnivorous,Non-Calcified,,,
+Halimeda,Chlorophyte,Stolonial,Gregarious,Autotroph,Photosynthesis,Calcified,moderate,moderate,yes
+Caulerpa,Chlorophyte,Stolonial,Colonial,Autotroph,Photosynthesis,Non-Calcified,high,,
+Dictyosphaeria versluysii,Chlorophyte,Tabular,Gregarious,Autotroph,Photosynthesis,Non-Calcified,moderate,,
+Valonia,Chlorophyte,Tabular,Gregarious,Autotroph,Photosynthesis,Non-Calcified,moderate,,
+,,,,,,,,,
+,,,,,,,,,
+,,,,,,,,,
+,,Filamentous,Solitary,autotroph,Photosynthesis,Non-Calcified,high,,
+,,Branched,Colonial,photo-heterotroph,Filter-feeder,Calcified,moderate,,
+,,Cup-like,Gregarious,heterotroph,Carnivorous,,low,,
+,,Encrusting,,,,,,,
+,,Stolonial,,,,,,,
+,,Tabular,,,,,,,
+,,Foliose,,,,,,,
+,,Massive ,,,,,,,
+,,8,3,2,2,2,3,,
