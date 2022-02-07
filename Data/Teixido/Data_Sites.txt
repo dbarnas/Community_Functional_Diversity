@@ -1,0 +1,73 @@
+Quadrats	Site	pH conditions	Site and pH
+1N3	North	Extreme Low	Extreme Low_N
+2N3	North	Extreme Low	Extreme Low_N
+3N3	North	Extreme Low	Extreme Low_N
+4N3	North	Extreme Low	Extreme Low_N
+5N3	North	Extreme Low	Extreme Low_N
+6N3	North	Extreme Low	Extreme Low_N
+7N3	North	Extreme Low	Extreme Low_N
+8N3	North	Extreme Low	Extreme Low_N
+9N3	North	Extreme Low	Extreme Low_N
+10N3	North	Extreme Low	Extreme Low_N
+11N3	North	Extreme Low	Extreme Low_N
+12N3	North	Extreme Low	Extreme Low_N
+1N2	North	Low	Low_N
+2N2	North	Low	Low_N
+3N2	North	Low	Low_N
+4N2	North	Low	Low_N
+5N2	North	Low	Low_N
+6N2	North	Low	Low_N
+7N2	North	Low	Low_N
+8N2	North	Low	Low_N
+9N2	North	Low	Low_N
+10N2	North	Low	Low_N
+11N2	North	Low	Low_N
+12N2	North	Low	Low_N
+1N1	North	Ambient	Ambient_N
+2N1	North	Ambient	Ambient_N
+3N1	North	Ambient	Ambient_N
+4N1	North	Ambient	Ambient_N
+5N1	North	Ambient	Ambient_N
+6N1	North	Ambient	Ambient_N
+7N1	North	Ambient	Ambient_N
+8N1	North	Ambient	Ambient_N
+9N1	North	Ambient	Ambient_N
+10N1	North	Ambient	Ambient_N
+11N1	North	Ambient	Ambient_N
+12N1	North	Ambient	Ambient_N
+1S1	South	Ambient	Ambient_S
+2S1	South	Ambient	Ambient_S
+3S1	South	Ambient	Ambient_S
+4S1	South	Ambient	Ambient_S
+5S1	South	Ambient	Ambient_S
+6S1	South	Ambient	Ambient_S
+7S1	South	Ambient	Ambient_S
+9S1	South	Ambient	Ambient_S
+10S1	South	Ambient	Ambient_S
+11S1	South	Ambient	Ambient_S
+12S1	South	Ambient	Ambient_S
+13S1	South	Ambient	Ambient_S
+1S2	South	Low	Low_S
+2S2	South	Low	Low_S
+3S2	South	Low	Low_S
+4S2	South	Low	Low_S
+5S2	South	Low	Low_S
+6S2	South	Low	Low_S
+7S2	South	Low	Low_S
+8S2	South	Low	Low_S
+9S2	South	Low	Low_S
+10S2	South	Low	Low_S
+11S2	South	Low	Low_S
+12S2	South	Low	Low_S
+1S3	South	Extreme Low	Extreme Low_S
+2S3	South	Extreme Low	Extreme Low_S
+3S3	South	Extreme Low	Extreme Low_S
+4S3	South	Extreme Low	Extreme Low_S
+5S3	South	Extreme Low	Extreme Low_S
+6S3	South	Extreme Low	Extreme Low_S
+7S3	South	Extreme Low	Extreme Low_S
+8S3	South	Extreme Low	Extreme Low_S
+9S3	South	Extreme Low	Extreme Low_S
+10S3	South	Extreme Low	Extreme Low_S
+11S3	South	Extreme Low	Extreme Low_S
+12S3	South	Extreme Low	Extreme Low_S

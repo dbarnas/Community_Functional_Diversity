@@ -1,0 +1,432 @@
+---
+title: "SGD Clustering"
+author: "Danielle Barnas"
+date: "2/6/2022"
+output: html_document
+---
+
+### Clustering Analysis
+
+
+Load Libraries
+```{r, warning=FALSE, results='hide', message=FALSE}
+
+#options('repos' = c(options('repos')$repos, RSPM = "https://my-repo.com/all/latest"))
+
+library(tidyverse)
+library(VarSelLCM) # LCM
+library(ggmap)
+library(PNWColors)
+library(here)
+library(curl)
+ 
+API<-names(read_table(here("Data","API.txt")))
+register_google(key = API) ### uses my API in separate txt file
+
+set.seed(7) # set the seed to get the same one every time
+```
+
+Read in Data
+```{r, warning = FALSE}
+## Read in data
+
+AllChemData<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/August2021/Allbiogeochemdata_QC.csv'))
+
+turb<-read_csv(here("Data","Biogeochem","Turb_NC.csv"))
+```
+
+
+Clean Data for analysis
+```{r, warning=FALSE}
+turb <- turb %>% 
+  rename_all(~paste0(.,"_turb")) %>% # rename all columns with _turb to identify better in large df
+  rename(CowTagID = CowTagID_turb) # keep cow tag id the same for join
+
+## Join Biogeochem with Turb data
+Full_data <- AllChemData %>% 
+  full_join(turb, by = 'CowTagID') %>% 
+  # only keep Plate and Seep data
+  filter(Plate_Seep == "Plate" | Plate_Seep == "Seep") %>% # ignores springs and wells
+  # remove turbinaria sample weight (don't want to include in cluster analysis)
+  select(-c('Sample_Weight_turb'))
+
+V_data <-Full_data %>% filter(Location == "Varari")
+C_data <-Full_data %>% filter(Location == "Cabral")
+
+## Force type data.frame
+class(V_data) = "data.frame" 
+class(C_data) = "data.frame"
+
+head(Full_data)
+```
+
+
+Remove outlier  values (will add in during mapping later as a separate cluster) and join with metadata (ignoring for now)
+```{r, warning=FALSE, eval = F}
+## remove outlier silicate values
+cleanData<-Data %>% 
+  filter(Silicate_May < 1.5,
+         Silicate_August < 1.5) %>% 
+  dplyr::select(-c(Lat, Lon, Date_May, Time_May))
+
+## parse into character vecter
+cleanData$Site_Number<-as.character(cleanData$Site_Number)
+
+## join with metadata by site number
+cleanData<-cleanData %>% 
+  dplyr::left_join(cleanMeta, 
+                   by = c('Site_Number')) %>% 
+  unite("Shore_Habitat", Island_shore, Habitat, sep = "_", remove = T) # unite the shore and habitat information as one column
+
+head(cleanData)
+
+```
+
+
+Log Transform and Scale the data (ignoring for now)
+```{r, warning = FALSE, eval = F}
+## log transform
+logData <- cleanData %>%
+  select_if(is.numeric) %>% 
+  select(-c("Lat","Lon")) %>% 
+  mutate_all(.funs = ~log(.x + 0.01))
+
+## scale data
+logData <- scale(logData,center=T,scale=T)
+
+```
+
+
+
+- Clustering is done with and without variable selection. Here ICL and MICL criteria are used because the number of observations is less than the number of features (thus, BIC is not relevant).
+```{r, warning = FALSE}
+### Taking from the VarSelLCM.R script
+
+# Please indicate the number of cores you want to use for parallelization
+nb.CPU <- 4 # cores on my computer dedicated to the process (want to use like half)
+
+
+```
+
+# Mixed-type data analysis
+## Clustering
+This section performs a clustering analysis of the *biogeochemistry and turbinaria nutrient* data set. 
+
+*Warning the univariate margin distribution are defined by class of the features: numeric columns imply Gaussian distributions, integer columns imply Poisson distribution while factor (or ordered) columns imply multinomial distribution*
+```{r, warning = FALSE}
+
+# Data loading:
+# x contains the observed variables
+# z the known status (i.e. 1: Plate and 2: Seep)
+
+
+ztrue_V <- V_data[,'Tide'] # compare clustering with tides
+ztrue_C <- C_data[,'Tide']
+x_V <- V_data[,14:35] # all biogeochemical and turb nutrient data
+x_C <- C_data[,14:35]
+
+```
+
+
+Clustering is performed with variable selection. 
+Model selection is done with BIC because the number of observations is large (compared to the number of features).
+The number of components is between 1 and 3.
+Do not hesitate to use parallelization (here only four cores are used).
+
+```{r, comment="", warning=FALSE}
+# Cluster analysis without variable selection
+res_without_V <- VarSelCluster(x_V, # matrix/data frame (only the numerical data for now) 
+                             gvals = 1:22, # defines number of components (clusters) to consider
+                             vbleSelec = FALSE, # indicates if a variable selection is done
+                             crit.varsel = "BIC") # defines the info criterion used for model selection
+res_without_C <- VarSelCluster(x_C, 
+                             gvals = 1:22, 
+                             vbleSelec = FALSE, 
+                             crit.varsel = "BIC")
+
+
+# Cluster analysis with variable selection (with parallelization)
+res_with_V <- VarSelCluster(x_V, 
+                          gvals = 1:22, 
+                          vbleSelec = TRUE, # indicates if a variable selection is done 
+                          crit.varsel = "BIC")
+res_with_C <- VarSelCluster(x_C, 
+                          gvals = 1:22, 
+                          vbleSelec = TRUE,
+                          crit.varsel = "BIC")
+
+
+```
+
+Comparison of the BIC for both models: variable selection permits to improve the BIC
+```{r, comment="", warning=FALSE}
+## Varari
+BIC(res_without_V) 
+BIC(res_with_V) # this is lower
+
+## Cabral
+BIC(res_without_C) 
+BIC(res_with_C) # this is lower
+```
+
+Variable Selection yielded a lower BIC value for both sites, so I'll carry on with res_with for the remainder of this analysis.
+
+
+Evaluation of the partition accuracy: Adjusted Rand Index (ARI) is computed between the true partition (ztrue) and its estimators.
+The expectation of ARI is zero if the two partitions are independent. 
+The ARI is equal to one if the partitions are equals.
+Variable selection permits to improve the ARI.
+Note that ARI cannot be used for model selection in clustering, because there is no true partition.
+
+Partition near 0 indicates that the clusters are very related to the Plate_Seep factors we related the matrix to.
+Can compare other factors in the future (ie. bacteria communities or coral counts, etc.)
+```{r, comment="", warning=FALSE}
+## Varari
+ARI(ztrue_V, fitted(res_with_V))
+## Cabral
+ARI(ztrue_C, fitted(res_with_C))
+
+```
+
+To obtained the partition and the probabilities of classification
+```{r, comment="", warning=FALSE}
+# Estimated partition
+V_cluster<-fitted(res_with_V)
+C_cluster<-fitted(res_with_C)
+
+# Estimated probabilities of classification
+head(fitted(res_with_V, type="probability"))
+head(fitted(res_with_C, type="probability"))
+```
+
+To get a summary of the selected model.
+```{r, comment="", warning=FALSE}
+# Summary of the best model
+summary(V_cluster)
+summary(C_cluster)
+
+summary(res_with_V) # 6 clusters, 16 variables (72.73 %) are relevant for clustering
+summary(res_with_C) # 5 clusters, 15 variables (68.18 %) are relevatn for clustering
+```
+
+
+Distribution of the most discriminative variable per clusters
+```{r, comment="", warning=FALSE}
+# Boxplot for the continuous variable MaxHeartRate
+#desplot <- 
+
+#plot(x = res_with_V, y = 1:22) # error
+plot(x = res_with_C, y = 1:22)
+
+
+#par(bg="white")
+#ggsave(here("Output","DiscriminativePowerBarnas.png"),desplot, height = 10, width = 10)
+#desplot
+```
+
+Empirical and theoretical distributions of the most discriminative variable (to check that the distribution is well-fitted)
+```{r, comment="", warning=FALSE}
+# Empirical and theoretical distributions (to check that the distribution is well-fitted)
+
+plot(res_with_V, y="Salinity", type="cdf")
+plot(res_with_C, y="Silicate_umolL", type="cdf")
+
+
+```
+
+Distribution of a categorical variable per clusters
+(when we have categorical)
+```{r, comment="", warning=FALSE}
+# Summary of categorical variable
+# plot(res_with, y="Shore_Habitat")
+```
+
+To have details about the selected model
+```{r, comment="", warning=FALSE}
+# More detailed output
+print(res_with_V)
+print(res_with_C)
+```
+
+To print the parameters
+```{r, comment="", warning=FALSE}
+# Print model parameter
+coef(res_with_C)
+coef(res_with_V)
+```
+
+
+```{r, comment="", warning=FALSE, echo=F}
+# Probabilities of classification for new observations 
+#(I don't know what this is)
+
+# Probabilities of classification for new observations 
+# predict(res_with, newdata = x[1:3,])
+```
+
+
+
+### Graph
+
+Add site locations to cluster value df
+```{r, warning=FALSE}
+# make cluster vector dataframe type to join to full_data
+V_cluster<-as.data.frame(V_cluster)
+C_cluster<-as.data.frame(C_cluster)
+
+# join cluster ID's to full_data
+V_Cluster_data<-V_data %>% 
+  cbind(V_cluster) %>% 
+  mutate(V_cluster = as.factor(V_cluster))
+C_Cluster_data<-C_data %>% 
+  cbind(C_cluster) %>% 
+  mutate(C_cluster = as.factor(C_cluster))
+
+```  
+
+*Map Clusters*
+Create Base Maps for Varari and Cabral
+```{r}
+# mean lat and long for the maps
+MeanGPS <- Full_data %>%
+  group_by(Location) %>% # varari vs cabral
+  summarise(lon = median(lon, na.rm = TRUE),
+            lat = median(lat, na.rm = TRUE))
+
+SiteGPS <- Full_data %>%
+  group_by(Location, CowTagID) %>%
+  summarise(lon = mean(lon, na.rm = TRUE),
+            lat = mean(lat, na.rm = TRUE))
+
+
+# Varari
+VarariBaseMap<-get_map(MeanGPS %>% filter(Location == "Varari") %>% select(lon,lat), maptype = 'satellite', zoom = 18)
+# Cabral
+CabralBaseMap<-get_map(MeanGPS %>% filter(Location == "Cabral") %>% select(lon,lat), maptype = 'satellite', zoom = 18)
+```
+
+```{r, warning=FALSE}
+
+  ### Map Varari clusters
+cluster_varari_map <- ggmap(VarariBaseMap) +
+  geom_point(data = V_Cluster_data,
+             aes(x = lon, y = lat,
+                 color = V_cluster),
+            size = 3) + # set alpha and color aesthetics
+  # scale_color_manual(values = pnw_palette("Moth", 4)) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari, Clusters (LCM) \n Danielle Barnas")
+
+ggsave(here("Output","Varari_Cluster_Map.png"),cluster_varari_map,height = 10, width = 10)
+
+cluster_varari_map
+
+```
+
+```{r, warning=FALSE}
+
+  ### Map Cabral clusters
+cluster_cabral_map <- ggmap(CabralBaseMap) +
+  geom_point(data = C_Cluster_data,
+             aes(x = lon, y = lat,
+                 color = C_cluster),
+            size = 3) + # set alpha and color aesthetics
+  # scale_color_manual(values = pnw_palette("Moth", 4)) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Cabral, Clusters (LCM) \n Danielle Barnas")
+
+ggsave(here("Output","Capral_Cluster_Map.png"),cluster_cabral_map,height = 10, width = 10)
+
+cluster_cabral_map
+
+```
+
+
+```{r, warning=FALSE, eval = F}
+
+  ### Map clusters (full Mo'orea map)
+moorea <- data.frame(lon = -149.84, lat = -17.53) #set map coordinates
+map1 <- get_map(moorea, zoom = 12, maptype = "satellite") #set map zoom and type
+
+cluster_largemap <- ggmap(map1) +
+  geom_point(data = Cluster_data,
+             aes(x = lon, y = lat,
+                 color = cluster),
+            size = 3) + # set alpha and color aesthetics
+  # scale_color_manual(values = pnw_palette("Moth", 4)) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "LCM, Variables Selected \n Danielle Barnas")
+
+#ggsave(here("Output","Map_w_VariableSelection.png"),cluster_largemap,height = 10, width = 10)
+
+cluster_largemap
+
+```
+
+
+*Create boxplot faceted by clusters*
+```{r, warning=FALSE, eval=F}
+
+### Create boxplot faceted by clusters
+#First, pivot longer
+full_data1_longer <- clusterData %>%
+  pivot_longer(cols = c(2:11),
+               names_to = "Nut_parameters",
+               values_to = "Nut_values")
+
+mybox<-ggplot(full_data1_longer, mapping = aes(x = Nut_parameters,
+                                 y= Nut_values + .1, color = cluster)) +
+  geom_boxplot()+
+  coord_trans(y = "log") +
+  facet_wrap(~cluster)  +
+  ylab("Concentration") +
+  xlab("") +
+  # scale_color_manual(values = pnw_palette("Moth", 5)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = -.1))
+#ggsave(here("Output","Boxplots_w_VariableSelection.png"), mybox, height = 10, width = 8)
+  
+mybox
+
+```
+
+
+
+
+
+```{r, echo=F}
+# 
+# Other cluster analysis considerations
+# 
+# Following youtube to get a practice dataset (nevermind, used LCM)
+# - following youtube: https://www.youtube.com/watch?v=0qp7p98Su6U
+# - practice<-read_csv("https://www.kaggle.com/carolzhangdc/imdb-5000-movie-dataset?select=movie_metadata.csv")
+# 
+# # ## following youtube: https://www.youtube.com/watch?v=0qp7p98Su6U
+# # practice<-read_csv("https://www.kaggle.com/carolzhangdc/imdb-5000-movie-dataset?select=movie_metadata.csv")
+# # 
+# # practice<-practice %>% 
+# #   practice[,sapply(practice,is.numeric)|sapply(practice,)]
+# # 
+# # 
+# # ## Daisy()
+# # daisy(practice,metric = "manhattan") # this isn't giving what I expected
+
+```
+
+
+```{r, echo=F}
+# Let's try UET dissimilarities using treeClust (nevermind, used LCM)
+# cleanData
+# 
+# a<-treeClust(cleanData, 
+#           d.num = 4,
+#           control = treeClust.control(return.trees = TRUE,
+#                                       return.dists = TRUE),
+#           final.algorithm = "pam", 
+#           k = 10)
+# plot(a)
+# summary(a)
+```
+
+
+
