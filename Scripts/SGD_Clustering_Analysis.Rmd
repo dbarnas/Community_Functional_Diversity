@@ -38,17 +38,39 @@ turb<-read_csv(here("Data","Biogeochem","Turb_NC.csv"))
 
 Clean Data for analysis
 ```{r, warning=FALSE}
+# remove unnecessary/redundant turbinaria data to not include in cluster analysis
 turb <- turb %>% 
-  rename_all(~paste0(.,"_turb")) %>% # rename all columns with _turb to identify better in large df
-  rename(CowTagID = CowTagID_turb) # keep cow tag id the same for join
+  select(CowTagID, del15N, N_percent)
+
+ReducedChemData <- AllChemData %>% 
+  select(-c(Temperature)) %>%  # maybe not relevant for clustering
+  unite(Date,Tide,Day_Night, col = date_tide_day, sep = "_", remove = F) %>% 
+  filter(date_tide_day != '2021-08-06_Low_Day') %>%  # this was a very high 'low tide' so only use 2022-08-08 samples
+  # only keep Plate and Seep data
+  filter(Plate_Seep == "Plate" | Plate_Seep == "Seep") %>%  # ignores springs and well
+  select(-c(Date,Time,DateTime, date_tide_day, Bottom_Plate_ID, Jamie_Plate_ID)) # remove unnecessary columns
+  
+  # some mismatched information; need to remove conflicting columns and rejoin
+tempA <- ReducedChemData %>% 
+  filter(is.na(Salinity)) %>% 
+  select(-c(Salinity,TA,pH)) # isolate data where salinity, ta, and pH are NA and remove empty cols
+tempB <- ReducedChemData %>% 
+  filter(is.na(Phosphate_umolL)) %>% 
+  select(-c(12:22)) # isolate data where phosphate:lignin_like are NA and remove empty cols
+temp <- tempA %>% 
+  full_join(tempB) # join by cowtagID to combine previously mismatched row information
+
+ReducedChemData <- ReducedChemData %>% 
+  filter(!is.na(Salinity)) %>% 
+  filter(!is.na(Phosphate_umolL)) %>% 
+  full_join(temp) %>% # rejoin all rows together
+  group_by(Location, CowTagID) %>%
+  summarise_if(.vars = 9:22, .predicate = is.numeric, .funs = mean, na.rm=T) # get mean across sampling periods by site and plate
 
 ## Join Biogeochem with Turb data
-Full_data <- AllChemData %>% 
-  full_join(turb, by = 'CowTagID') %>% 
-  # only keep Plate and Seep data
-  filter(Plate_Seep == "Plate" | Plate_Seep == "Seep") %>% # ignores springs and wells
-  # remove turbinaria sample weight (don't want to include in cluster analysis)
-  select(-c('Sample_Weight_turb'))
+Full_data <- ReducedChemData %>% 
+  full_join(turb, by = 'CowTagID')
+  
 
 V_data <-Full_data %>% filter(Location == "Varari")
 C_data <-Full_data %>% filter(Location == "Cabral")
@@ -62,7 +84,7 @@ head(Full_data)
 
 
 Remove outlier  values (will add in during mapping later as a separate cluster) and join with metadata (ignoring for now)
-```{r, warning=FALSE, eval = F}
+```{r, warning=FALSE, eval = F, echo=F}
 ## remove outlier silicate values
 cleanData<-Data %>% 
   filter(Silicate_May < 1.5,
@@ -84,7 +106,7 @@ head(cleanData)
 
 
 Log Transform and Scale the data (ignoring for now)
-```{r, warning = FALSE, eval = F}
+```{r, warning = FALSE, eval = F, echo=F}
 ## log transform
 logData <- cleanData %>%
   select_if(is.numeric) %>% 
@@ -120,10 +142,10 @@ This section performs a clustering analysis of the *biogeochemistry and turbinar
 # z the known status (i.e. 1: Plate and 2: Seep)
 
 
-ztrue_V <- V_data[,'Tide'] # compare clustering with tides
-ztrue_C <- C_data[,'Tide']
-x_V <- V_data[,14:35] # all biogeochemical and turb nutrient data
-x_C <- C_data[,14:35]
+ztrue_V <- V_data[,'CowTagID'] # compare clustering with plate
+ztrue_C <- C_data[,'CowTagID']
+x_V <- V_data[,5:20] # all biogeochemical and turb nutrient data
+x_C <- C_data[,5:20]
 
 ```
 
@@ -136,22 +158,22 @@ Do not hesitate to use parallelization (here only four cores are used).
 ```{r, comment="", warning=FALSE}
 # Cluster analysis without variable selection
 res_without_V <- VarSelCluster(x_V, # matrix/data frame (only the numerical data for now) 
-                             gvals = 1:22, # defines number of components (clusters) to consider
+                             gvals = 1:16, # defines number of components (clusters) to consider
                              vbleSelec = FALSE, # indicates if a variable selection is done
                              crit.varsel = "BIC") # defines the info criterion used for model selection
 res_without_C <- VarSelCluster(x_C, 
-                             gvals = 1:22, 
+                             gvals = 1:16, 
                              vbleSelec = FALSE, 
                              crit.varsel = "BIC")
 
 
 # Cluster analysis with variable selection (with parallelization)
 res_with_V <- VarSelCluster(x_V, 
-                          gvals = 1:22, 
+                          gvals = 1:16, 
                           vbleSelec = TRUE, # indicates if a variable selection is done 
                           crit.varsel = "BIC")
 res_with_C <- VarSelCluster(x_C, 
-                          gvals = 1:22, 
+                          gvals = 1:16, 
                           vbleSelec = TRUE,
                           crit.varsel = "BIC")
 
@@ -161,15 +183,15 @@ res_with_C <- VarSelCluster(x_C,
 Comparison of the BIC for both models: variable selection permits to improve the BIC
 ```{r, comment="", warning=FALSE}
 ## Varari
-BIC(res_without_V) 
-BIC(res_with_V) # this is lower
+BIC(res_without_V) # this is lower
+BIC(res_with_V) 
 
 ## Cabral
-BIC(res_without_C) 
-BIC(res_with_C) # this is lower
+BIC(res_without_C) # this is lower
+BIC(res_with_C) 
 ```
 
-Variable Selection yielded a lower BIC value for both sites, so I'll carry on with res_with for the remainder of this analysis.
+No Variable Selection yielded a lower BIC value for both sites, so I'll carry on with no VS for the remainder of this analysis.
 
 
 Evaluation of the partition accuracy: Adjusted Rand Index (ARI) is computed between the true partition (ztrue) and its estimators.
@@ -182,21 +204,21 @@ Partition near 0 indicates that the clusters are very related to the Plate_Seep 
 Can compare other factors in the future (ie. bacteria communities or coral counts, etc.)
 ```{r, comment="", warning=FALSE}
 ## Varari
-ARI(ztrue_V, fitted(res_with_V))
+ARI(ztrue_V, fitted(res_without_V))
 ## Cabral
-ARI(ztrue_C, fitted(res_with_C))
+ARI(ztrue_C, fitted(res_without_C))
 
 ```
 
 To obtained the partition and the probabilities of classification
 ```{r, comment="", warning=FALSE}
 # Estimated partition
-V_cluster<-fitted(res_with_V)
-C_cluster<-fitted(res_with_C)
+V_cluster<-fitted(res_without_V)
+C_cluster<-fitted(res_without_C)
 
 # Estimated probabilities of classification
-head(fitted(res_with_V, type="probability"))
-head(fitted(res_with_C, type="probability"))
+head(fitted(res_without_V, type="probability"))
+head(fitted(res_without_C, type="probability"))
 ```
 
 To get a summary of the selected model.
@@ -205,31 +227,30 @@ To get a summary of the selected model.
 summary(V_cluster)
 summary(C_cluster)
 
-summary(res_with_V) # 6 clusters, 16 variables (72.73 %) are relevant for clustering
-summary(res_with_C) # 5 clusters, 15 variables (68.18 %) are relevatn for clustering
+summary(res_without_V) # 2 clusters
+summary(res_without_C) # 4 clusters
 ```
 
 
 Distribution of the most discriminative variable per clusters
 ```{r, comment="", warning=FALSE}
 # Boxplot for the continuous variable MaxHeartRate
-#desplot <- 
 
-#plot(x = res_with_V, y = 1:22) # error
-plot(x = res_with_C, y = 1:22)
+Vdes<-plot(x = res_without_V, y = 1:16)
+Cdes<-plot(x = res_without_C, y = 1:16)
 
-
-#par(bg="white")
-#ggsave(here("Output","DiscriminativePowerBarnas.png"),desplot, height = 10, width = 10)
-#desplot
+#ggsave(here("Output","DiscriminativePower_Varari_meanVals.png"),Vdes, height = 10, width = 10)
+#ggsave(here("Output","DiscriminativePower_Cabral_meanVals.png"),Cdes, height = 10, width = 10)
+Vdes
+Cdes
 ```
 
-Empirical and theoretical distributions of the most discriminative variable (to check that the distribution is well-fitted)
+Example empirical and theoretical distributions of the most discriminative variable (to check that the distribution is well-fitted)
 ```{r, comment="", warning=FALSE}
 # Empirical and theoretical distributions (to check that the distribution is well-fitted)
 
-plot(res_with_V, y="Salinity", type="cdf")
-plot(res_with_C, y="Silicate_umolL", type="cdf")
+plot(res_without_V, y="Salinity", type="cdf")
+plot(res_without_C, y="Silicate_umolL", type="cdf")
 
 
 ```
@@ -244,19 +265,19 @@ Distribution of a categorical variable per clusters
 To have details about the selected model
 ```{r, comment="", warning=FALSE}
 # More detailed output
-print(res_with_V)
-print(res_with_C)
+print(res_without_V)
+print(res_without_C)
 ```
 
 To print the parameters
 ```{r, comment="", warning=FALSE}
 # Print model parameter
-coef(res_with_C)
-coef(res_with_V)
+coef(res_without_C)
+coef(res_without_V)
 ```
 
 
-```{r, comment="", warning=FALSE, echo=F}
+```{r, comment="", warning=FALSE, eval=F, echo=F}
 # Probabilities of classification for new observations 
 #(I don't know what this is)
 
@@ -317,7 +338,7 @@ cluster_varari_map <- ggmap(VarariBaseMap) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
         title = "Varari, Clusters (LCM) \n Danielle Barnas")
 
-ggsave(here("Output","Varari_Cluster_Map.png"),cluster_varari_map,height = 10, width = 10)
+#ggsave(here("Output","Varari_Cluster_Map_meanVals.png"),cluster_varari_map,height = 10, width = 10)
 
 cluster_varari_map
 
@@ -335,7 +356,7 @@ cluster_cabral_map <- ggmap(CabralBaseMap) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
         title = "Cabral, Clusters (LCM) \n Danielle Barnas")
 
-ggsave(here("Output","Capral_Cluster_Map.png"),cluster_cabral_map,height = 10, width = 10)
+#ggsave(here("Output","Cabral_Cluster_Map_meanVals.png"),cluster_cabral_map,height = 10, width = 10)
 
 cluster_cabral_map
 
@@ -365,67 +386,50 @@ cluster_largemap
 
 
 *Create boxplot faceted by clusters*
-```{r, warning=FALSE, eval=F}
+```{r, warning=FALSE}
 
 ### Create boxplot faceted by clusters
 #First, pivot longer
-full_data1_longer <- clusterData %>%
-  pivot_longer(cols = c(2:11),
-               names_to = "Nut_parameters",
-               values_to = "Nut_values")
+V_cluster_long <- V_Cluster_data %>%
+  pivot_longer(cols = c(5:20),
+               names_to = "Nutrient_parameters",
+               values_to = "Nutrient_values")
 
-mybox<-ggplot(full_data1_longer, mapping = aes(x = Nut_parameters,
-                                 y= Nut_values + .1, color = cluster)) +
+Vbox<-ggplot(V_cluster_long, 
+              mapping = aes(x = Nutrient_parameters,
+                            y= Nutrient_values + .1, 
+                            color = V_cluster)) +
   geom_boxplot()+
   coord_trans(y = "log") +
-  facet_wrap(~cluster)  +
+  facet_wrap(~V_cluster)  +
   ylab("Concentration") +
   xlab("") +
-  # scale_color_manual(values = pnw_palette("Moth", 5)) +
   theme(axis.text.x = element_text(angle = 90, vjust = -.1))
-#ggsave(here("Output","Boxplots_w_VariableSelection.png"), mybox, height = 10, width = 8)
-  
-mybox
+  # scale_color_manual(values = pnw_palette("Moth", 5))
 
-```
+C_cluster_long <- C_Cluster_data %>%
+  pivot_longer(cols = c(5:20),
+               names_to = "Nutrient_parameters",
+               values_to = "Nutrient_values")
 
+Cbox<-ggplot(C_cluster_long, 
+              mapping = aes(x = Nutrient_parameters,
+                            y= Nutrient_values + .1, 
+                            color = C_cluster)) +
+  geom_boxplot()+
+  coord_trans(y = "log") +
+  facet_wrap(~C_cluster)  +
+  ylab("Concentration") +
+  xlab("") +
+  theme(axis.text.x = element_text(angle = 90, vjust = -.1))
+  # scale_color_manual(values = pnw_palette("Moth", 5))
 
+#ggsave(here("Output","Boxplots_Varari_meanVals.png"), Vbox, height = 10, width = 8)
+#ggsave(here("Output","Boxplots_Cabral_meanVals.png"), Cbox, height = 10, width = 8)
 
+Vbox
+Cbox
 
-
-```{r, echo=F}
-# 
-# Other cluster analysis considerations
-# 
-# Following youtube to get a practice dataset (nevermind, used LCM)
-# - following youtube: https://www.youtube.com/watch?v=0qp7p98Su6U
-# - practice<-read_csv("https://www.kaggle.com/carolzhangdc/imdb-5000-movie-dataset?select=movie_metadata.csv")
-# 
-# # ## following youtube: https://www.youtube.com/watch?v=0qp7p98Su6U
-# # practice<-read_csv("https://www.kaggle.com/carolzhangdc/imdb-5000-movie-dataset?select=movie_metadata.csv")
-# # 
-# # practice<-practice %>% 
-# #   practice[,sapply(practice,is.numeric)|sapply(practice,)]
-# # 
-# # 
-# # ## Daisy()
-# # daisy(practice,metric = "manhattan") # this isn't giving what I expected
-
-```
-
-
-```{r, echo=F}
-# Let's try UET dissimilarities using treeClust (nevermind, used LCM)
-# cleanData
-# 
-# a<-treeClust(cleanData, 
-#           d.num = 4,
-#           control = treeClust.control(return.trees = TRUE,
-#                                       return.dists = TRUE),
-#           final.algorithm = "pam", 
-#           k = 10)
-# plot(a)
-# summary(a)
 ```
 
 
