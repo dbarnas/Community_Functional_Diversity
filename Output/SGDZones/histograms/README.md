@@ -1,0 +1,18 @@
+## Histograms
+
+![Silicate](histograms/raw_Silicate_umolL_hist.png)  
+![Salinity](histograms/raw_Salinity_hist.png)  
+![TA](histograms/raw_TA_hist.png)  
+![pH](histograms/raw_pH_hist.png)  
+![NN](histograms/raw_NN_umolL_hist.png)  
+![Ammonia](histograms/raw_Ammonia_umolL_hist.png)  
+![Phosphate](histograms/raw_Phosphate_umolL_hist.png)  
+![dN15](histograms/raw_del15N_hist.png)  
+![Percent N](histograms/raw_N_percent_hist.png)  
+![HIX](histograms/raw_HIX_hist.png)  
+![Lignin-Like](histograms/raw_Lignin_Like_hist.png)  
+![MC](histograms/raw_M_C_hist.png)  
+![Marine Humic-Like](histograms/raw_MarineHumic_Like_hist.png)  
+![Tryptophan-Like](histograms/raw_Tryptophan_Like_hist.png)  
+![Tyrosine-Like](histograms/raw_Tyrosine_Like_hist.png)  
+![Visible Humidic-Like](histograms/raw_VisibleHumidic_Like_hist.png)  
