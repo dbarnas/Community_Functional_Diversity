@@ -5,77 +5,232 @@ date: "2/6/2022"
 output: html_document
 ---
 
-### Clustering Analysis
+# Clustering Analysis
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
 
 
-
-Load Libraries
-```{r, warning=FALSE, results='hide', message=FALSE}
+## Load Libraries
+```{r, results='hide', message=FALSE}
 
 #options('repos' = c(options('repos')$repos, RSPM = "https://my-repo.com/all/latest"))
 
 library(tidyverse)
-library(VarSelLCM) # LCM
+library(lubridate)
+library(VarSelLCM) # LCM - cluster modeling
 library(ggmap)
-library(ggridges)
 library(PNWColors)
 library(here)
-library(curl)
+library(curl) # pull data from url
+library(tidytext) # arrange data in a facet_wrap
+library(kableExtra) # create neat tables
+library(ggrepel) # labeling
+library(ggpmisc) # add R2 to figures
+library(patchwork)
  
-API<-names(read_table(here("Data","API.txt")))
-register_google(key = API) ### uses my API in separate txt file
+# API<-names(read_table(here("Data","API.txt")))
+# register_google(key = API) ### uses my API in separate txt file
 
 set.seed(7) # set the seed to get the same one every time
 ```
 
-Read in Data
-```{r, warning = FALSE}
+## Read in Data
+```{r}
 ## Read in data
 
 AllChemData<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/August2021/Allbiogeochemdata_QC.csv'))
 
-turb<-read_csv(here("Data","Biogeochem","Turb_NC.csv"))
+turb1<-read_csv(here("Data","Biogeochem","Turb_NC.csv"))
 ```
 
 
-Clean Data for analysis
-```{r, warning=FALSE}
+## Clean Data for analysis
+```{r}
 ## remove unnecessary/redundant turbinaria data to not include in cluster analysis
-turb <- turb %>% 
+turb <- turb1 %>% 
   select(CowTagID, del15N, N_percent)
 
 
+## There seems to be a contaminated nutrient sample for V2 Low tide on the 8/8/2021.  Remove this point
+remove <- AllChemData %>% filter(CowTagID=="V2", Tide ==" Low",Day_Night=="Day", Date == ymd("2021-08-08"))
+
+remove2 <- AllChemData %>% filter(CowTagID== "C4", Tide =="Low", Day_Night=="Night", Date == ymd("2021-08-09"))
+
+## Filter out redundant low tide day sample, first 'low tide' was super high
+remove3 <- AllChemData %>%  filter(Tide == "Low", Day_Night == "Day", Date == ymd("2021-08-06"))
+
 ## Filter out unnecessary/redundant data
 ReducedChemData <- AllChemData %>% 
-  unite(Date,Tide,Day_Night, col = date_tide_day, sep = "_", remove = F) %>% 
-  filter(date_tide_day != '2021-08-06_Low_Day') %>%  # remove redundant sampling. this was a very high 'low tide' so only use 2022-08-08 samples
+  # remove outlier data and bad sampling date
+  anti_join(remove) %>% 
+  anti_join(remove2) %>% 
+  anti_join(remove3) %>% 
   # only keep Plate and Seep data
   filter(Plate_Seep == "Plate" | Plate_Seep == "Seep") %>%  # ignores springs and well
   # remove unnecessary columns
   select(-c(Date,
             Time,
             DateTime, 
-            date_tide_day, 
             Top_Plate_ID,
             Bottom_Plate_ID, 
             Jamie_Plate_ID,
-            Temperature)) 
+            Temperature,
+            MarineHumic_Like, Lignin_Like)) # Craig recommends to remove "because we don't hypothesize them to be orthogonal to any of the other fDOM we're using"
+
+
+head(ReducedChemData)
 ```
 
-Histograms
+## Histograms
 
-- do ggridges or histogram to see distribution and log whatever isn't normal
+- create a histogram to see distribution and transform whatever isn't normal
 - ggridges shows distribution of means vs raw data if I input the means (but raw data can help determine if I should use means or medians or max's etc.)
 - summarise, log10 what needs it, then standardize and center, then select important variables
-```{r, warning=F, message = F}
-# add turb data for histograms
-Full_data <- ReducedChemData %>% 
-  full_join(turb, by = 'CowTagID')
+
+
+Summarise
+```{r}
+## Set summarise parameter
+#sumParam <- "Median_Max_MinSalinity" # used to label saved files
+sumParam <- "Median" # used to label saved files
+
+
+# Single summary
+Full_data <- ReducedChemData %>%
+  #select(-c(del15N,N_percent)) %>%
+  group_by(Location, CowTagID, lat, lon) %>%
+  summarise_at(vars(Salinity:Tyrosine_Like), .funs = median, na.rm=T) %>%  # get mean across sampling periods by site and plate
+  ungroup() %>%
+  full_join(turb, by = 'CowTagID') # join with turb
+
+
+# ## Separate summaries
+# medData <- ReducedChemData %>% 
+#   group_by(Location, CowTagID, lat, lon) %>%
+#   summarise_at(vars(TA:pH, Tryptophan_Like:Tyrosine_Like), .funs = median, na.rm=T) %>%
+#   ungroup()
+# maxData <- ReducedChemData %>%
+#   group_by(Location, CowTagID, lat, lon) %>%
+#   summarise_at(vars(Phosphate_umolL:Ammonia_umolL, HIX, VisibleHumidic_Like), .funs = max, na.rm=T) %>%
+#   ungroup()
+# minData <- ReducedChemData %>%
+#   group_by(Location, CowTagID, lat, lon) %>%
+#   summarise_at(vars(Salinity, M_C), .funs = min, na.rm=T) %>%
+#   ungroup()
+# 
+# Full_data <- minData %>% # join all summaries together
+#   full_join(medData) %>%
+#   full_join(maxData) %>%
+#   full_join(turb, by = 'CowTagID') # join with turb
+  
+
+Full_data
+
+```  
+
+
+## Check for relationships to silicate
+```{r}
+## first check linear relationships with silicate
+ReducedChemData %>% 
+  full_join(turb, by = 'CowTagID') %>% 
+  pivot_longer(cols = c(Salinity:Phosphate_umolL, NN_umolL:N_percent), names_to = "Parameters", values_to = "Values") %>% 
+  filter(Silicate_umolL < 15) %>% # for now remove C2 and seep silicate data
+  ggplot(aes(x = Silicate_umolL, 
+             y = Values,
+             color = Location)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free")
+
+Full_data %>% 
+  pivot_longer(cols = c(Salinity:Phosphate_umolL, NN_umolL:N_percent), names_to = "Parameters", values_to = "Values") %>% 
+  filter(Silicate_umolL < 15) %>% # remove seep data for now and C2
+  ggplot(aes(x = Silicate_umolL, 
+             y = Values,
+             color = Location)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free")
+```
+
+%N ~ Silicate
+```{r}
+## N_percent ~ Silicate
+# linear model of del15N with respect to silicate
+Vdata <- Full_data %>% 
+  filter(Location == "Varari") %>% 
+  filter(CowTagID != "VSEEP")
+Vmodel <- lm(data = Vdata, N_percent ~ Silicate_umolL)
+Cdata <- Full_data %>%
+  filter(Location == "Cabral") %>% 
+  filter(CowTagID != "CSEEP")
+Cmodel <- lm(data = Cdata, N_percent ~ Silicate_umolL)
+
+# display r squared values for lm
+Vsum <- summary(Vmodel)$r.squared
+Csum <- summary(Cmodel)$r.squared
+
+# graph relationsip
+Full_data %>% 
+  filter(CowTagID != "VSEEP" & CowTagID != "CSEEP") %>% 
+  select(Location, CowTagID, Silicate_umolL, N_percent) %>% 
+  ggplot(aes(x=Silicate_umolL,
+             y = N_percent,
+             color = Location)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(caption = paste("Varari R-squared:",round(Vsum, 2), "\n",
+                       "Cabral R-squared:", round(Csum, 2))) +
+  facet_wrap(~Location, scales = "free") +
+  theme(strip.background = element_rect(fill = "white"),
+        )
+```
+
+del15N ~ Silicate
+```{r}
+## del15N ~ Silicate
+# linear model of del15N with respect to silicate
+Vdata <- Full_data %>% 
+  filter(Location == "Varari") %>% 
+  filter(CowTagID != "VSEEP")
+Vmodel <- lm(data = Vdata, del15N ~ Silicate_umolL)
+Cdata <- Full_data %>%
+  filter(Location == "Cabral") %>% 
+  filter(CowTagID != "CSEEP")
+Cmodel <- lm(data = Cdata, del15N ~ Silicate_umolL)
+
+# display r squared values for lm
+Vsum <- summary(Vmodel)$r.squared
+Csum <- summary(Cmodel)$r.squared
+
+# graph relationship
+Full_data %>% 
+  filter(CowTagID != "VSEEP" & CowTagID != "CSEEP") %>% 
+  select(Location, CowTagID, Silicate_umolL, del15N) %>% 
+  ggplot(aes(x=Silicate_umolL,
+             y = del15N,
+             color = Location)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(caption = paste("Varari R-squared:",round(Vsum, 2), "\n",
+                       "Cabral R-squared:", round(Csum, 2))) +
+  facet_wrap(~Location, scales = "free")
+```
+
+
+## Test for normality
+```{r, message = F}
 
 # get column names and total # cols
 numbData <- Full_data %>% 
   select_at(vars(Salinity:N_percent))
 numbNames <- colnames(numbData)
+
+# create list to put plots into
+q <- list()
 
 # save hist for each variable
 for(i in 1:ncol(numbData)){
@@ -90,45 +245,63 @@ signif <- ifelse(norm[[2]] >= 0.05, "Normal", "Not Normal")
    ggplot(aes(x = Full_data[[numbNames[i]]])) + 
    geom_histogram() +
    labs(x = numbNames[i],
-        title = paste0("Raw ",numbNames[i],": ",signif),
+        title = paste0(sumParam," ",numbNames[i],": ",signif),
         subtitle = paste("p =",norm[[2]], "(Shapiro Wilk Test)")) +
    theme_bw()
- #ggsave(here("Output","SGDZones","histograms",paste0("raw_",numbNames[i],"_hist.png")),p) # save in hist folder
+ #ggsave(here("Output","SGDZones","histograms","meanValues",paste0("mean_",numbNames[i],"_hist.png")),p) # save in hist folder
+ 
+ # to save as single pdf:
+ # Create Plot and save to list p
+  q[[i]] <- p
 }
+
+# Save all plots in a single dated pdf
+pdf(here("Output","SGDZones","histograms",paste0(sumParam,"_Histograms.pdf")), onefile = TRUE)
+for (i in seq(length(q))) {
+  tplot <- q[[i]]
+  print(tplot)
+}
+dev.off()
 
 ```
 
-Transform not normal data
 
-- log10 transform left-skewed data (not exponential)
-- ln transform left-skewed data (exponential)
+## Transform and scale data
+
+- ln transform left-skewed data
 - square root transform right-skewed data
-```{r, warning=F, message= F}
+```{r, message= F}
 Trans_data <- Full_data %>% 
   mutate_at(.vars = c('Silicate_umolL',
                       'NN_umolL',
                       'Phosphate_umolL',
-                      'Tryptophan_Like'),
-            .funs = ~log(.x + 0.01)) %>%  # ln transform for exponential left-skewed
-  mutate_at(.vars = c('TA',
+                      'Tryptophan_Like',
+                      'TA',
                       'Ammonia_umolL',
                       'del15N',
                       'N_percent',
                       'HIX',
-                      'Lignin_Like',
+                    #  'Lignin_Like',
                       'M_C',
-                      'MarineHumic_Like',
+                    #  'MarineHumic_Like',
                       'Tyrosine_Like',
                       'VisibleHumidic_Like'),
-            .funs = ~log10(.x + 0.01)) %>%  # log base 10 transform for left-skewed
-  mutate_at(.vars = c('pH'),
-            .funs = ~sqrt(.x + 0.01))
+            .funs = ~log(.x + 0.01)) %>%  # ln transform for left-skewed
+  mutate_at(.vars = c('Salinity',
+                      'pH'),
+            .funs = ~sqrt(.x + 0.01)) # square root transform for right-skewed
+```
 
 
+Test for normality
+```{r, message = F}
 # get column names and total # cols
 numbData <- Trans_data %>% 
   select_at(vars(Salinity:N_percent))
 numbNames <- colnames(numbData)
+
+# create list to put plots into
+q <- list()
 
 # save hist for each variable
 for(i in 1:ncol(numbData)){
@@ -143,17 +316,29 @@ signif <- ifelse(norm[[2]] >= 0.05, "Normal", "Not Normal")
    ggplot(aes(x = Trans_data[[numbNames[i]]])) + 
    geom_histogram() +
    labs(x = numbNames[i],
-        title = paste0("Transformed ",numbNames[i],": ",signif),
+        title = paste0("Transformed ",sumParam," ",numbNames[i],": ",signif),
         subtitle = paste("p =",norm[[2]], "(Shapiro Wilk Test)")) +
    theme_bw()
- #ggsave(here("Output","SGDZones","histograms",paste0("transformed_",numbNames[i],"_hist.png")),p) # save in hist folder
+ #ggsave(here("Output","SGDZones","histograms","meanValues",paste0("transformed_mean_",numbNames[i],"_hist.png")),p) # save in hist folder
+ 
+ # to save as single pdf:
+ # Create Plot and save to list p
+  q[[i]] <- p
 }
+
+# Save all plots in a single dated pdf
+pdf(here("Output","SGDZones","histograms",paste0("Transformed_",sumParam,"_Histograms.pdf")), onefile = TRUE)
+for (i in seq(length(q))) {
+  tplot <- q[[i]]
+  print(tplot)
+}
+dev.off()
   
 ```
 
 
-Scale the data
-```{r, warning = FALSE}
+Scale the data (and maybe center it?)
+```{r}
 ## scale data
 Scale_data <- Trans_data %>% 
   mutate_at(vars(Salinity:N_percent),
@@ -164,32 +349,9 @@ Scale_data <- Trans_data %>%
 
 
 
-```{r}
-## Summarise data
-Scale_turb <- Scale_data %>% 
-  select(CowTagID, del15N, N_percent)
+## Prepare for Clustering
 
-Scale_data <- Scale_data %>% 
-  select(-c(del15N,N_percent)) %>% 
-  group_by(Location, CowTagID, lat, lon) %>%
-  summarise_at(vars(Salinity:Lignin_Like), .funs = mean, na.rm=T) %>%  # get mean across sampling periods by site and plate
-  full_join(Scale_turb, by = 'CowTagID')
-
-head(Scale_data)
-```  
-
-
-Select only variables believed to be SGD influences
-```{r, eval = F}
-
-# Full_data <- Full_data %>% 
-#   select(-c(
-#     pH
-#   ))
-
-```
-
-
+Taking from the VarSelLCM.R script
 
 Separate data for Varari and Cabral locations
 ```{r}
@@ -204,34 +366,24 @@ class(C_data) = "data.frame"
 
 
 
-
-
-
-
-- Clustering is done with and without variable selection. Here ICL and MICL criteria are used because the number of observations is less than the number of features (thus, BIC is not relevant).
-```{r, warning = FALSE}
-### Taking from the VarSelLCM.R script
-
-# Please indicate the number of cores you want to use for parallelization
-nb.CPU <- 4 # cores on my computer dedicated to the process (want to use like half)
-
-
+Indicate the number of cores you want to use for parallelization
+```{r}
+nb.CPU <- 4 # cores on my computer dedicated to the process (want to use ~ half)
 ```
 
-# Mixed-type data analysis
+
 ## Clustering
-This section performs a clustering analysis of the *biogeochemistry and turbinaria nutrient* data set. 
+This section performs a clustering analysis of the *biogeochemistry and* **Turbinaria ornata** *nutrient* data set. 
 
 *Warning the univariate margin distribution are defined by class of the features: numeric columns imply Gaussian distributions, integer columns imply Poisson distribution while factor (or ordered) columns imply multinomial distribution*
-```{r, warning = FALSE}
-
+```{r}
 # Data loading:
 # x contains the observed variables
 # z the known status (i.e. 1: Plate and 2: Seep)
 
 
-ztrue_V <- V_data[,'CowTagID'] # compare clustering with plate
-ztrue_C <- C_data[,'CowTagID']
+ztrue_V <- V_data[,'N_percent'] # compare clustering with del15N in turb
+ztrue_C <- C_data[,'N_percent']
 x_V <- V_data[,5:ncol(V_data)] # all biogeochemical and turb nutrient data
 x_C <- C_data[,5:ncol(V_data)]
 
@@ -244,12 +396,10 @@ x_C <- x_C %>%
 ```
 
 
-Clustering is performed with variable selection. 
+Clustering is performed with or without variable selection. 
 Model selection is done with BIC because the number of observations is large (compared to the number of features).
-The number of components is between 1 and 3.
-Do not hesitate to use parallelization (here only four cores are used).
 
-```{r, comment="", warning=FALSE}
+```{r, comment=""}
 # Cluster analysis without variable selection
 res_without_V <- VarSelCluster(x_V, # matrix/data frame (only the numerical data for now) 
                              gvals = 1:ncol(x_V), # defines number of components (clusters) to consider
@@ -275,17 +425,25 @@ res_with_C <- VarSelCluster(x_C,
 ```
 
 Comparison of the BIC for both models: variable selection permits to improve the BIC
-```{r, comment="", warning=FALSE}
+```{r, comment=""}
 ## Varari
-BIC(res_without_V) # this is lower
+BIC(res_without_V)
 BIC(res_with_V) 
 
-## Cabral
-BIC(res_without_C) # this is lower
-BIC(res_with_C) 
-```
+if(abs(BIC(res_without_V)) < abs(BIC(res_with_V))){ # choose lowest BIC
+  res_V <- res_without_V} else {
+  res_V <- res_with_V
+  }
 
-No Variable Selection yielded a lower BIC value for both sites, so I'll carry on with no VS for the remainder of this analysis.
+## Cabral
+BIC(res_without_C)
+BIC(res_with_C) 
+
+if(abs(BIC(res_without_C)) < abs(BIC(res_with_C))){ # choose lowest BIC
+  res_C <- res_without_C} else {
+  res_C <- res_with_C
+  }
+```
 
 
 Evaluation of the partition accuracy: Adjusted Rand Index (ARI) is computed between the true partition (ztrue) and its estimators.
@@ -294,64 +452,67 @@ The ARI is equal to one if the partitions are equals.
 Variable selection permits to improve the ARI.
 Note that ARI cannot be used for model selection in clustering, because there is no true partition.
 
-Partition near 0 indicates that the clusters are very related to the Plate_Seep factors we related the matrix to.
+Partition near 0 indicates that the clusters are very related to the factor we related the matrix to.
 Can compare other factors in the future (ie. bacteria communities or coral counts, etc.)
-```{r, comment="", warning=FALSE}
+```{r, comment=""}
 ## Varari
-ARI(ztrue_V, fitted(res_without_V))
+ARI(ztrue_V, fitted(res_V))
 ## Cabral
-ARI(ztrue_C, fitted(res_without_C))
+ARI(ztrue_C, fitted(res_C))
 
 ```
 
 To obtained the partition and the probabilities of classification
-```{r, comment="", warning=FALSE}
-# Estimated partition
-V_cluster<-fitted(res_without_V)
-C_cluster<-fitted(res_without_C)
+```{r, comment=""}
+# Estimated partition - pulls out cluster enumerations in order of parameters
+V_cluster<-fitted(res_V)
+C_cluster<-fitted(res_C)
 
 # Estimated probabilities of classification
-head(fitted(res_without_V, type="probability"))
-head(fitted(res_without_C, type="probability"))
+#head(fitted(res_V, type="probability"))
+#head(fitted(res_C, type="probability"))
 ```
 
-To get a summary of the selected model.
-```{r, comment="", warning=FALSE}
+```{r, comment="", echo=F, eval=F}
+## To get a summary of the selected model.
+
 # Summary of the best model
-summary(V_cluster)
-summary(C_cluster)
+#summary(V_cluster)
+#summary(C_cluster)
 
-summary(res_without_V) # 2 clusters
-summary(res_without_C) # 4 clusters
+#summary(res_V) 
+#summary(res_C) 
 ```
 
+
+## Discriminative Power Barplots
 
 Distribution of the most discriminative variable per clusters
-```{r, comment="", warning=FALSE}
-# Boxplot for the continuous variable MaxHeartRate
+```{r, comment=""}
+# Barplots
 
-Vdes<-plot(x = res_without_V, y = 1:ncol(x_V))
-Cdes<-plot(x = res_without_C, y = 1:ncol(x_C))
+Vdes<-plot(x = res_V, y = 1:ncol(x_V))
+Cdes<-plot(x = res_C, y = 1:ncol(x_C))
 
-#ggsave(here("Output","DiscriminativePower_Varari_TransScale.png"),Vdes, height = 10, width = 10)
-#ggsave(here("Output","DiscriminativePower_Cabral_TransScale.png"),Cdes, height = 10, width = 10)
+ggsave(here("Output","SGDZones","Varari",paste0("DiscriminativePower_Varari_",sumParam,".png")),Vdes, height = 10, width = 10)
+ggsave(here("Output","SGDZones","Cabral",paste0("DiscriminativePower_Cabral_",sumParam,".png")),Cdes, height = 10, width = 10)
 
-Vdes
-Cdes
 ```
 
+## Empirical vs Theoretical distributions (quick check for good fit)
+
 Example empirical and theoretical distributions of the most discriminative variable (to check that the distribution is well-fitted)
-```{r, comment="", warning=FALSE}
+```{r, comment=""}
 # Empirical and theoretical distributions (to check that the distribution is well-fitted)
 
-plot(res_without_V, y="Salinity", type="cdf")
-plot(res_without_C, y="Silicate_umolL", type="cdf")
+plot(res_V, y="del15N", type="cdf")
+plot(res_C, y="Silicate_umolL", type="cdf")
 
 ```
 
 Distribution of a categorical variable per clusters
 (when we have categorical)
-```{r, comment="", warning=FALSE}
+```{r, comment=""}
 # Summary of categorical variable
 # plot(res_with, y="Shore_Habitat")
 ```
@@ -359,20 +520,20 @@ Distribution of a categorical variable per clusters
 To have details about the selected model
 ```{r, comment="", warning=FALSE}
 # More detailed output
-print(res_without_V)
-print(res_without_C)
+print(res_V)
+print(res_C)
 ```
 
 To print the parameters
-```{r, comment="", warning=FALSE}
+```{r, comment=""}
 # Print model parameter
-coef(res_without_C)
-coef(res_without_V)
+# coef(res_C)
+# coef(res_V)
 ```
 
 
-```{r, comment="", warning=FALSE, eval=F, echo=F}
-# Probabilities of classification for new observations 
+```{r, comment="", eval=F, echo=F}
+## Probabilities of classification for new observations 
 #(I don't know what this is)
 
 # Probabilities of classification for new observations 
@@ -381,10 +542,10 @@ coef(res_without_V)
 
 
 
-### Graph
+## Graph
 
 Add site locations to cluster value df
-```{r, warning=FALSE}
+```{r}
 # make cluster vector dataframe type to join to full_data
 V_cluster<-as.data.frame(V_cluster)
 C_cluster<-as.data.frame(C_cluster)
@@ -399,8 +560,8 @@ C_Cluster_data<-C_data %>%
 
 ```  
 
-*Map Clusters*
-Create Base Maps for Varari and Cabral
+
+### Create Base Maps for Varari and Cabral
 ```{r}
 # mean lat and long for the maps
 MeanGPS <- Full_data %>%
@@ -420,46 +581,178 @@ VarariBaseMap<-get_map(MeanGPS %>% filter(Location == "Varari") %>% select(lon,l
 CabralBaseMap<-get_map(MeanGPS %>% filter(Location == "Cabral") %>% select(lon,lat), maptype = 'satellite', zoom = 18)
 ```
 
-```{r, warning=FALSE}
+### Show basemaps
+```{r}
+# Moorea
+MooreaMap<-get_map('Moorea', maptype = 'satellite', zoom = 12)
+MooreaMapPlot <- ggmap(MooreaMap) +
+  geom_rect(data=MeanGPS, aes(xmin=lon[1] - 0.006, xmax=lon[1] + 0.006, ymin=lat[1] - 0.01, ymax=lat[1] + 0.01), color="white", alpha=0, size = 2) + # Cabral square
+  geom_rect(data=MeanGPS, aes(xmin=lon[2] - 0.006, xmax=lon[2] + 0.006, ymin=lat[2] - 0.01, ymax=lat[2] + 0.01), color="white", alpha=0, size = 2) + # Varari square
+  geom_point(data=MeanGPS, aes(x = lon, y = lat, label = Location), # adds star at center of Location
+             shape = 18, color = "white", fill = "white", size = 8) +
+  labs(x = "Longitude", y = "Latitude") +
+  geom_text(data = MeanGPS, aes(label = Location), color = "white", hjust = -1, size = 10) + # adds Location names to the right of the boxes
+  geom_segment(x = MeanGPS$lon[1] + 0.006, y = MeanGPS$lat[1], xend = MeanGPS$lon[1] + 0.023, yend = MeanGPS$lat[1], color = "white", size = 2) + # adds horizontal line from edge of box to Location name
+  geom_segment(x = MeanGPS$lon[2] + 0.006, y = MeanGPS$lat[2], xend = MeanGPS$lon[2] + 0.023, yend = MeanGPS$lat[2], color = "white", size = 2)
+
+ggsave(here("Output","SGDZones","Moorea_Map.png"),MooreaMapPlot,height = 10, width = 10)
+```
+
+```{r}
+# Varari
+VmapSites <- ggmap(VarariBaseMap) +
+  geom_point(data = ReducedChemData,
+             aes(x = lon, y = lat),
+             color = "white",
+             size = 2) + 
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari Sample Locations") +
+  geom_label(data = AllChemData,
+             aes(x = lon, y = lat,
+                 label = CowTagID),
+             size = 2, alpha = 0.2) #,
+#             color = "white")
+VmapSites
+ggsave(here("Output","SGDZones","Varari","Varari_CowTagID_Map.png"),VmapSites,height = 10, width = 10)
+
+# cabral
+CmapSites <- ggmap(CabralBaseMap) +
+  geom_point(data = ReducedChemData,
+             aes(x = lon, y = lat),
+             color = "white",
+             size = 2) + 
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Cabral Sample Locations") +
+  geom_label(data = AllChemData,
+             aes(x = lon, y = lat,
+                 label = CowTagID),
+             size = 2, alpha = 0.2)
+CmapSites
+ggsave(here("Output","SGDZones","Cabral","Cabral_CowTagID_Map.png"),CmapSites,height = 10, width = 10)
+```
+
+
+## Show clusters on maps
+```{r}
+
+## create palette
+V_cluster_palette <- c("#fad02c", "white", "brown3") #1 is dark yellow #2 is baby blue #3 is red
 
   ### Map Varari clusters
+VSeepPt <- V_Cluster_data %>% filter(CowTagID == "VSEEP") # isolate Varari seep
+
 cluster_varari_map <- ggmap(VarariBaseMap) +
   geom_point(data = V_Cluster_data,
              aes(x = lon, y = lat,
-                 color = V_cluster),
-            size = 3) + # set alpha and color aesthetics
+                 fill = V_cluster),
+             shape = 21,
+             color = "black",
+             size = 3) + # set alpha and color aesthetics
+  geom_point(data = VSeepPt, # star the seepage point
+             aes(x = lon, y = lat),
+             shape = 24,
+             fill = "#fad02c",
+             color = "black",
+             size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
-        title = "Varari, Clusters (LCM) \n Transformed and Scaled")
-
-#ggsave(here("Output","SGDZones","Varari","Varari_Cluster_Map_TransScale.png"),cluster_varari_map,height = 10, width = 10)
+        title = "Varari, Clusters (LCM) \n Transformed and Scaled",
+       subtitle = sumParam,
+       fill = "Varari Clusters") +
+  scale_fill_manual(values = V_cluster_palette)
 
 cluster_varari_map
 
+ggsave(here("Output","SGDZones","Varari",paste0("Varari_Cluster_Map_TransScale_",sumParam,".png")),cluster_varari_map,height = 10, width = 10)
+
 ```
 
-```{r, warning=FALSE}
+```{r}
+## create palette
+C_cluster_palette <- c("#fad02c", "limegreen", "white", "brown3") # seep is red
 
   ### Map Cabral clusters
+CSeepPt <- C_Cluster_data %>% filter(CowTagID == "CSEEP") # isolate Varari seep
+
 cluster_cabral_map <- ggmap(CabralBaseMap) +
   geom_point(data = C_Cluster_data,
              aes(x = lon, y = lat,
-                 color = C_cluster),
+                 fill = C_cluster),
+             shape = 21,
+             color = "black",
             size = 3) + # set alpha and color aesthetics
+    geom_point(data = CSeepPt, # star the seepage point
+             aes(x = lon, y = lat),
+             shape = 24,
+             fill = "brown3",
+             color = "black",
+             size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
-        title = "Cabral, Clusters (LCM) \n Transformed and Scaled")
-
-#ggsave(here("Output","SGDZones","Cabral","Cabral_Cluster_Map_TransScale.png"),cluster_cabral_map,height = 10, width = 10)
+      title = "Cabral, Clusters (LCM) \n Transformed and Scaled",
+       subtitle = sumParam,
+       color = "Cabral Clusters") +
+  scale_fill_manual(values = C_cluster_palette)
 
 cluster_cabral_map
 
+ggsave(here("Output","SGDZones","Cabral",paste0("Cabral_Cluster_Map_TransScale_",sumParam,".png")),cluster_cabral_map,height = 10, width = 10)
+
+
+```
+
+*Triangles showing seepage points*
+
+Save maps together
+```{r}
+  ### Map Varari clusters
+cluster_varari_map_noLab <- ggmap(VarariBaseMap) +
+  geom_point(data = V_Cluster_data,aes(x = lon, y = lat,fill = V_cluster),
+             shape = 21,color = "black",size = 4) + 
+  geom_point(data = VSeepPt, # star the seepage point
+             aes(x = lon, y = lat),
+             shape = 24,
+             fill = "#fad02c",
+             color = "black",
+             size = 4) +
+  # scale_color_manual(values = pnw_palette("Moth", 4)) +
+  labs(x = "Longitude", y = "Latitude", fill = "Varari Clusters") +
+  scale_fill_manual(values = V_cluster_palette) +
+  labs(title = "Varari")
+  ### Map Cabral clusters
+cluster_cabral_map_noLab <- ggmap(CabralBaseMap) +
+  geom_point(data = C_Cluster_data,aes(x = lon, y = lat,fill = C_cluster),
+             shape = 21,color = "black",size = 4) + 
+  geom_point(data = CSeepPt, # star the seepage point
+             aes(x = lon, y = lat),
+             shape = 24,
+             fill = "brown3",
+             color = "black",
+             size = 4) +
+  # scale_color_manual(values = pnw_palette("Moth", 4)) +
+  labs(x = "Longitude", y = "Latitude", fill = "Cabral Clusters") +
+  scale_fill_manual(values = C_cluster_palette) +
+  labs(title = "Cabral")
+
+
+
+ClusterMaps<-cluster_varari_map_noLab + cluster_cabral_map_noLab + 
+  plot_layout(nrow = 1,
+              guides = "collect") + # put both legends in same area of plot
+  patchwork::plot_annotation(tag_levels = 'A',
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+ClusterMaps
+
+ggsave(plot = ClusterMaps, filename = here("Output","SGDZones","Cluster_Maps.png"), width = 14, height = 10)
 ```
 
 
-
-*Create boxplot faceted by clusters*
-```{r, warning=FALSE}
+## Boxplots showing driving factors
+```{r}
 
 ### Create boxplot faceted by clusters
 #First, pivot longer
@@ -469,16 +762,22 @@ V_cluster_long <- V_Cluster_data %>%
                values_to = "Nutrient_values")
 
 Vbox<-ggplot(V_cluster_long, 
-              mapping = aes(x = Nutrient_parameters,
+              mapping = aes(x = reorder_within(Nutrient_parameters,desc(Nutrient_values), V_cluster, sep = ": "), # tidytext::reorder_within allows reordering while using facet_wrap if scales = 'free_x'
                             y= Nutrient_values, 
                             color = V_cluster)) +
-  geom_boxplot()+
-  #coord_trans(y = "log") +
-  facet_wrap(~V_cluster)  +
+  geom_boxplot(fill = "azure4")+
+  facet_wrap(~V_cluster, scales = "free_x", nrow = 1) +
   ylab("Concentration") +
   xlab("") +
-  theme(axis.text.x = element_text(angle = 90, vjust = -.1))
-  # scale_color_manual(values = pnw_palette("Moth", 5))
+  labs(color = "Varari Clusters") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = -.1),
+        panel.background = element_rect(fill = "azure4"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank()) +
+  scale_color_manual(values = V_cluster_palette)
+Vbox
 
 C_cluster_long <- C_Cluster_data %>%
   pivot_longer(cols = c(Salinity:N_percent),
@@ -486,24 +785,430 @@ C_cluster_long <- C_Cluster_data %>%
                values_to = "Nutrient_values")
 
 Cbox<-ggplot(C_cluster_long, 
-              mapping = aes(x = Nutrient_parameters,
+              mapping = aes(x = reorder_within(Nutrient_parameters,desc(Nutrient_values), C_cluster, sep = ": "),
                             y= Nutrient_values, 
                             color = C_cluster)) +
-  geom_boxplot()+
-  #coord_trans(y = "log") +
-  facet_wrap(~C_cluster)  +
+  geom_boxplot(fill = "azure4")+
+  facet_wrap(~C_cluster, scales = "free_x", nrow = 1) +
   ylab("Concentration") +
   xlab("") +
-  theme(axis.text.x = element_text(angle = 90, vjust = -.1))
-  # scale_color_manual(values = pnw_palette("Moth", 5))
-
-#ggsave(here("Output","SGDZones","Varari","Boxplots_Varari_TransScale.png"), Vbox, height = 10, width = 8)
-#ggsave(here("Output","SGDZones","Cabral","Boxplots_Cabral_TransScale.png"), Cbox, height = 10, width = 8)
-
-Vbox
+  labs(color = "Cabral Clusters") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = -.1),
+        panel.background = element_rect(fill = "azure4"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank()) +
+  scale_color_manual(values = C_cluster_palette)
 Cbox
+
+ggsave(here("Output","SGDZones","Varari",paste0("Boxplots_Varari_TransScale_",sumParam,".png")), Vbox, height = 20, width = 8)
+
+ggsave(here("Output","SGDZones","Cabral",paste0("Boxplots_Cabral_TransScale_",sumParam,".png")), Cbox, height = 20, width = 8)
+
+
+ClusterBoxPlots<-Vbox + Cbox + 
+  plot_layout(nrow = 2,
+              guides = "collect") + # put both legends in same area of plot
+  patchwork::plot_annotation(tag_levels = 'A',
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+ClusterBoxPlots
+
+ggsave(plot = ClusterBoxPlots, filename = here("Output","SGDZones","Cluster_BoxPlots.png"), width = 10, height = 14)
 
 ```
 
 
+
+## PCA for clustering
+```{r}
+V_Cluster_data
+C_Cluster_data
+
+# extract parameters for the PCA
+V_pca_data <-V_Cluster_data %>% 
+  filter(CowTagID !="VSEEP") %>% 
+  select(-(Location:lon),-V_cluster)
+
+C_pca_data <-C_Cluster_data %>% 
+  filter(CowTagID !="CSEEP") %>% 
+  select(-(Location:lon),-C_cluster)
+
+# Run the PCA
+pca_V <- prcomp(V_pca_data) # , scale. = TRUE, center = TRUE) # data is alraedy scaled and centered
+pca_C <- prcomp(C_pca_data)
+
+# Extract the scores and loadings
+PC_scores_V <-as_tibble(pca_V$x[,1:2])
+PC_loadings_V<-as_tibble(pca_V$rotation) %>%
+  bind_cols(labels = rownames(pca_V$rotation))
+
+PC_scores_C <-as_tibble(pca_C$x[,1:2])
+PC_loadings_C<-as_tibble(pca_C$rotation) %>%
+  bind_cols(labels = rownames(pca_C$rotation))
+
+# Put it with all the original data
+V_pca_data_all<-V_Cluster_data %>%
+  filter(CowTagID !="VSEEP") %>% 
+  bind_cols(PC_scores_V)
+
+C_pca_data_all<-C_Cluster_data %>%
+  filter(CowTagID !="CSEEP") %>% 
+  bind_cols(PC_scores_C)
+```
+
+## scores plot
+```{r}
+p1_V<-V_pca_data_all %>%
+  ggplot(aes(x = PC1, 
+             y = PC2, 
+             fill = V_cluster))+
+  geom_point(shape = 21,
+             color = "white",
+             size = 3) +
+  coord_cartesian(xlim = c(-4, 7), ylim = c(-6, 4)) +
+  #scale_shape_manual(values = c(22,16))+
+  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45)+ 
+  scale_fill_manual(values = V_cluster_palette) +
+  ggforce::geom_mark_ellipse(
+    aes(fill = V_cluster, label = V_cluster), 
+    alpha = .15, show.legend = FALSE,  label.buffer = unit(1, "mm"))+
+  theme_bw()+
+  theme(legend.position = "none", panel.background = element_rect(fill = "azure4"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  labs(title = "Varari Scores Plot")
+
+p1_C<-C_pca_data_all %>%
+  ggplot(aes(x = PC1, 
+             y = PC2, 
+             fill = C_cluster))+
+  geom_point(shape = 21,
+             color = "white",
+             size = 3) +
+  coord_cartesian(xlim = c(-4, 7), ylim = c(-6, 4)) +
+  #scale_shape_manual(values = c(22,16))+
+  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45)+ 
+  scale_fill_manual(values = C_cluster_palette) +
+  ggforce::geom_mark_ellipse(
+    aes(fill = C_cluster, label = C_cluster), 
+    alpha = .15, show.legend = FALSE,  label.buffer = unit(1, "mm"))+
+  theme_bw()+
+  theme(legend.position = "none", panel.background = element_rect(fill = "azure4"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  labs(title = "Cabral Scores Plot")
+
+p1_V / p1_C # patchwork plot
+
+```
+
+## loadings plot
+```{r}
+# loadings plot 
+p2_V<-PC_loadings_V %>%
+  ggplot(aes(x=PC1, y=PC1, label=labels))+ # labels are the parameters
+    geom_segment(aes(x=0,y=0,xend=PC1*10,yend=PC2*10),
+      arrow=arrow(length=unit(0.1,"cm")), color = "grey")+
+  annotate("text", x = PC_loadings_V$PC1*10+0.1, y = PC_loadings_V$PC2*10+.1,
+           label = PC_loadings_V$labels)+
+  coord_cartesian(xlim = c(-8, 3), ylim = c(-7, 5)) +
+   theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  labs(title = "Varari Loadings")
+
+p2_C<-PC_loadings_C %>%
+  ggplot(aes(x=PC1, y=PC1, label=labels))+ # labels are the parameters
+    geom_segment(aes(x=0,y=0,xend=PC1*10,yend=PC2*10),
+      arrow=arrow(length=unit(0.1,"cm")), color = "grey")+
+  annotate("text", x = PC_loadings_C$PC1*10+0.1, y = PC_loadings_C$PC2*10+.1,
+           label = PC_loadings_C$labels)+
+  coord_cartesian(xlim = c(-8, 4), ylim = c(-7, 5)) +
+   theme_bw()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+  labs(title = "Cabral Loadings")
+
+VarariPCA<-p1_V+p2_V+ 
+  patchwork::plot_annotation("Varari Clusters", 
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+CabralPCA<-p1_C+p2_C+ 
+  patchwork::plot_annotation("Cabral Clusters", 
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+
+ggsave(plot = VarariPCA, filename = here("Output","SGDZones","Varari","VarariPCA.pdf"), width = 14, height = 6)
+ggsave(plot = CabralPCA, filename = here("Output","SGDZones","Cabral","CabralPCA.pdf"), width = 14, height = 6)
+
+```
+
+
+
+
+# Turbinaria ornata clustering
+
+## Run clusters again only using _Turbinaria ornata_ data to check clusters against full biogeochemical swath
+
+```{r}
+## Use Scale_data and remove all but turb data
+to_join_turb <- turb1 %>% 
+  select(CowTagID, C_N)
+Turb_cluster_data <- Scale_data %>% 
+  left_join(to_join_turb, by = 'CowTagID') %>% 
+  select(Location, CowTagID, lat, lon, del15N, C_N, N_percent)
+
+
+```
+
+
+
+```{r}
+V_data_turb <-Turb_cluster_data %>% filter(Location == "Varari")
+C_data_turb <-Turb_cluster_data %>% filter(Location == "Cabral")
+
+## Force type data.frame
+class(V_data_turb) = "data.frame" 
+class(C_data_turb) = "data.frame"
+
+```
+
+
+
+## Clustering
+This section performs a clustering analysis of the *biogeochemistry and* **Turbinaria ornata** *nutrient* data set. 
+
+*Warning the univariate margin distribution are defined by class of the features: numeric columns imply Gaussian distributions, integer columns imply Poisson distribution while factor (or ordered) columns imply multinomial distribution*
+```{r}
+# Data loading:
+# x contains the observed variables
+# z the known status (i.e. 1: Plate and 2: Seep)
+
+
+# ztrue_V_turb <- V_data_turb[,'N_percent'] # compare clustering with %N in turb
+# ztrue_C_turb <- C_data_turb[,'N_percent']
+x_V_turb <- V_data_turb[,5:ncol(V_data_turb)] # only turbinaria data
+x_C_turb <- C_data_turb[,5:ncol(C_data_turb)]
+
+x_V_turb <- x_V_turb %>% 
+  mutate_all(.funs = as.numeric)
+  
+x_C_turb <- x_C_turb %>% 
+  mutate_all(.funs = as.numeric)
+
+```
+
+
+Clustering is performed with or without variable selection. 
+Model selection is done with BIC because the number of observations is large (compared to the number of features).
+
+```{r, comment=""}
+# Cluster analysis without variable selection
+res_without_V_turb <- VarSelCluster(x_V_turb, # matrix/data frame (only the numerical data for now) 
+                             gvals = 1:ncol(x_V_turb), # defines number of components (clusters) to consider
+                             vbleSelec = FALSE, # indicates if a variable selection is done
+                             crit.varsel = "BIC") # defines the info criterion used for model selection
+res_without_C_turb <- VarSelCluster(x_C_turb, 
+                             gvals = 1:ncol(x_C_turb), 
+                             vbleSelec = FALSE, 
+                             crit.varsel = "BIC")
+
+
+# Cluster analysis with variable selection (with parallelization)
+res_with_V_turb <- VarSelCluster(x_V_turb, 
+                          gvals = 1:ncol(x_V_turb), 
+                          vbleSelec = TRUE, # indicates if a variable selection is done 
+                          crit.varsel = "BIC")
+res_with_C_turb <- VarSelCluster(x_C_turb, 
+                          gvals = 1:ncol(x_C_turb), 
+                          vbleSelec = TRUE,
+                          crit.varsel = "BIC")
+
+
+```
+
+Comparison of the BIC for both models: variable selection permits to improve the BIC
+```{r, comment=""}
+## Varari
+BIC(res_without_V_turb)
+BIC(res_with_V_turb) 
+
+if(abs(BIC(res_without_V_turb)) < abs(BIC(res_with_V_turb))){ # choose lowest BIC
+  res_V_turb <- res_without_V_turb} else {
+  res_V_turb <- res_with_V_turb
+  }
+
+## Cabral
+BIC(res_without_C_turb)
+BIC(res_with_C_turb) 
+
+if(abs(BIC(res_without_C_turb)) < abs(BIC(res_with_C_turb))){ # choose lowest BIC
+  res_C_turb <- res_without_C_turb} else {
+  res_C_turb <- res_with_C_turb
+  }
+```
+
+
+
+To obtained the partition and the probabilities of classification
+```{r, comment=""}
+# Estimated partition - pulls out cluster enumerations in order of parameters
+V_cluster_turb<-fitted(res_V_turb)
+C_cluster_turb<-fitted(res_C_turb)
+
+V_cluster_turb
+C_cluster_turb
+
+# Estimated probabilities of classification
+#head(fitted(res_V, type="probability"))
+#head(fitted(res_C, type="probability"))
+```
+
+
+## Discriminative Power Barplots
+
+Distribution of the most discriminative variable per clusters
+```{r, comment=""}
+# Barplots
+
+Vdes_turb<-plot(x = res_V_turb, y = 1:ncol(x_V_turb))
+Cdes_turb<-plot(x = res_C_turb, y = 1:ncol(x_C_turb))
+
+ggsave(here(paste0("Output","DiscriminativePower_Turb_Varari_",sumParam,".png")),Vdes_turb, height = 10, width = 10)
+ggsave(here(paste0("Output","DiscriminativePower_Turb_Cabral_",sumParam,".png")),Cdes_turb, height = 10, width = 10)
+
+```
+
+## Empirical vs Theoretical distributions (quick check for good fit)
+
+Example empirical and theoretical distributions of the most discriminative variable (to check that the distribution is well-fitted)
+```{r, comment=""}
+# Empirical and theoretical distributions (to check that the distribution is well-fitted)
+
+plot(res_V_turb, y="N_percent", type="cdf")
+plot(res_C_turb, y="del15N", type="cdf")
+plot(res_C_turb, y="C_N", type="cdf")
+
+```
+
+
+## Graph
+
+Add site locations to cluster value df
+```{r}
+# make cluster vector dataframe type to join to full_data
+V_cluster_turb<-as.data.frame(V_cluster_turb)
+C_cluster_turb<-as.data.frame(C_cluster_turb)
+
+# join cluster ID's to full_data
+V_Cluster_data_turb<-V_data_turb %>% 
+  cbind(V_cluster_turb) %>% 
+  mutate(V_cluster_turb = as.factor(V_cluster_turb))
+C_Cluster_data_turb<-C_data_turb %>% 
+  cbind(C_cluster_turb) %>% 
+  mutate(C_cluster_turb = as.factor(C_cluster_turb))
+
+```  
+
+
+
+## Show clusters on maps
+```{r}
+
+  ### Map Varari clusters
+cluster_varari_map_turb <- ggmap(VarariBaseMap) +
+  geom_point(data = V_Cluster_data_turb,
+             aes(x = lon, y = lat,
+                 color = V_cluster_turb),
+            size = 3) + # set alpha and color aesthetics
+  # scale_color_manual(values = pnw_palette("Moth", 4)) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari, T. ornata Clusters (LCM) \n Transformed and Scaled",
+       subtitle = sumParam,
+       color = "Varari Clusters")
+
+ggsave(here("Output","SGDZones","Varari",paste0("Varari_Turb_Cluster_Map_TransScale_",sumParam,".png")),cluster_varari_map_turb,height = 10, width = 10)
+
+cluster_varari_map_turb
+
+```
+
+```{r}
+
+  ### Map Cabral clusters
+cluster_cabral_map_turb <- ggmap(CabralBaseMap) +
+  geom_point(data = C_Cluster_data_turb,
+             aes(x = lon, y = lat,
+                 color = C_cluster_turb),
+            size = 3) + # set alpha and color aesthetics
+  # scale_color_manual(values = pnw_palette("Moth", 4)) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+      title = "Cabral, T. ornata Clusters (LCM) \n Transformed and Scaled",
+       subtitle = sumParam,
+       color = "Cabral Clusters")
+
+ggsave(here("Output","SGDZones","Cabral",paste0("Cabral_Turb_Cluster_Map_TransScale_",sumParam,".png")),cluster_cabral_map_turb,height = 10, width = 10)
+
+cluster_cabral_map_turb
+
+```
+
+
+
+## Boxplots showing driving factors
+```{r}
+
+### Create boxplot faceted by clusters
+#First, pivot longer
+V_cluster_long_turb <- V_Cluster_data_turb %>%
+  pivot_longer(cols = c(del15N:N_percent),
+               names_to = "Nutrient_parameters",
+               values_to = "Nutrient_values")
+
+Vbox_turb<-ggplot(V_cluster_long_turb, 
+              mapping = aes(x = reorder_within(Nutrient_parameters,desc(Nutrient_values), V_cluster_turb), # tidytext::reorder_within allows reordering while using facet_wrap if scales = 'free_x'
+                            y= Nutrient_values, 
+                            color = V_cluster_turb)) +
+  geom_boxplot()+
+  facet_wrap(~V_cluster_turb, scales = "free_x") +
+  ylab("Concentration") +
+  xlab("") +
+  labs(color = "Varari Clusters") +
+  theme(axis.text.x = element_text(angle = 90, vjust = -.1))
+
+
+C_cluster_long_turb <- C_Cluster_data_turb %>%
+  pivot_longer(cols = c(del15N:N_percent),
+               names_to = "Nutrient_parameters",
+               values_to = "Nutrient_values")
+
+Cbox_turb<-ggplot(C_cluster_long_turb, 
+              mapping = aes(x = reorder_within(Nutrient_parameters,desc(Nutrient_values), C_cluster_turb),
+                            y= Nutrient_values, 
+                            color = C_cluster_turb)) +
+  geom_boxplot()+
+  facet_wrap(~C_cluster_turb, scales = "free_x") +
+  ylab("Concentration") +
+  xlab("") +
+  labs(color = "Cabral Clusters") +
+  theme(axis.text.x = element_text(angle = 90, vjust = -.1))
+
+
+ggsave(here("Output","SGDZones","Varari",paste0("Boxplots_Turb_Varari_TransScale_",sumParam,".png")), Vbox_turb, height = 20, width = 8)
+
+ggsave(here("Output","SGDZones","Cabral",paste0("Boxplots_Turb_Cabral_TransScale_",sumParam,".png")), Cbox_turb, height = 20, width = 8)
+
+Vbox_turb
+Cbox_turb
+
+```
 
