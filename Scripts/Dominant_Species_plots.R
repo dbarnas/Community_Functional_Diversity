@@ -1,9 +1,9 @@
 #### Begin processing community composition Dominant Species surveys from Varari in August 2021
 #### Created by Danielle Barnas
 
-rm(list=ls())
 
-### INSTALL LIBRARIES AS NEEDED
+
+#### INSTALL LIBRARIES AS NEEDED ####
 ifelse('tidyverse' %in% rownames(installed.packages()),"",install.packages('tidyverse'))
 ifelse('here' %in% rownames(installed.packages()),"",install.packages('here'))
 ifelse('geosphere' %in% rownames(installed.packages()),"",install.packages('geosphere'))
@@ -20,7 +20,7 @@ ifelse('vegan' %in% rownames(installed.packages()),"",install.packages('vegan'))
 ifelse('pairwiseAdonis' %in% rownames(installed.packages()),"",devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis"))
 
 
-### LIBRARIES
+#### LIBRARIES ####
 library(tidyverse)
 library(here)
 library(geosphere)
@@ -38,10 +38,13 @@ library(curl)
 library(vegan)
 library(pairwiseAdonis)
 
-API<-names(read_table(here("Data","API.txt")))
-register_google(key = API) ### uses my API in separate txt file
 
-### READ IN DATA
+#### Load API if needed ####
+#API<-names(read_table(here("Data","API.txt")))
+#ggmap::register_google(key = API) ### uses my API in separate txt file
+
+
+#### READ IN DATA ####
 survey<-read_csv(here("Data","Surveys","Varari_CC_Survey_reduced_taxon.csv"))
 traits<-read_csv(here("Data","Functional_Traits.csv"))
 turb<-read_csv(here("Data","Biogeochem","Turb_NC.csv"))
@@ -49,9 +52,28 @@ AllChemData<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaS
 
 
 
-### PERCENT COVER OF DOMINANT SUBSTRATE
+#### PERCENT COVER OF DOMINANT SUBSTRATE ####
 
 ## Calculate percentages by quad
+
+survey %>%
+  pivot_longer(cols = DS.1:DS.25, names_to = 'quadID', values_to = 'Taxa') %>%
+  count(Taxa) %>%
+  ggplot(aes(x = fct_reorder(Taxa,n), # reorder taxa by n
+             y = n)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = "Taxa", y = "Total observations")
+
+## Plan to use macroalgae and coral - therefore disregarding turf
+## T. ornata (brown algae)
+## P. rus
+## Halimeda (calcifying green algae)
+## P. acuta
+## Lobed Porites (Use Porites lobata)
+## Padina (foliose brown algae)
+## Amansia rhodantha
+
 
 sp_count<-survey %>%
   pivot_longer(cols = DS.1:DS.25, names_to = 'quadID', values_to = 'Taxa') %>%
@@ -87,7 +109,7 @@ full_data <- sp_count %>%
 
 # isolate seep lat and lon at Varari
 seepData <- AllChemData %>%
-  filter(Plate_Seep == 'Seep' | Plate_Seep == 'Spring',
+  filter(Plate_Seep == 'Seep',
          Location == 'Varari') %>%
   select(CowTagID, lat, lon, Top_Plate_ID, Plate_Seep)
 
@@ -114,8 +136,8 @@ distData <- AllChemData %>%
 # isolate V13, which is in ambient upcurrent of SGD
 V13dist <- distData %>%
   filter(CowTagID == 'V13') %>%
-  mutate(dist_to_seep_m = -dist_to_seep_m)
-# remove V13 from distData to readd new value
+  mutate(dist_to_seep_m = -dist_to_seep_m) # get negative value because of opposite direction from other locations
+# remove V13 from distData then rejoin with new value from above
 distData <- distData %>%
   filter(CowTagID != 'V13') %>%
   rbind(V13dist)
@@ -171,6 +193,7 @@ full_data %>%
 # Nutrient content across plates
 # bar graph colored by tide and faceted by day/night
 # x axis is plate location ordered by distance to seep. Graph is distinct to specified nutrient
+# SILICATE umol L-1
 full_data %>%
   select(Top_Plate_ID,Silicate_umolL,Tide,Day_Night) %>%
   ggplot(aes(x = Top_Plate_ID, y = Silicate_umolL,
@@ -182,10 +205,21 @@ full_data %>%
         panel.grid.minor = element_blank(),
         axis.text.x = element_text(angle = 90))+
   labs(x = "Plate ID",
-       y = "Nutrient Concentration")
+       y = "Silicate Concentration (umol L-1)")
+# % NITROGEN
+full_data %>%
+  select(Top_Plate_ID,N_percent,Tide,Day_Night) %>%
+  ggplot(aes(x = Top_Plate_ID, y = N_percent))+
+  geom_col(position = 'dodge')+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text.x = element_text(angle = 90))+
+  labs(x = "Plate ID",
+       y = "Percent Nitrogen")
 
 # species richness across plates
-# bar graph with total richness above columb
+# bar graph with total richness above column
 # x axis is plate location ordered by distance to seep
 sp_richness<-full_data %>%
   select(Top_Plate_ID,Taxa) %>%
@@ -204,6 +238,7 @@ p1<-sp_richness %>%
         panel.grid.minor = element_blank())+
   labs(x = "Plate ID",
        y = "Species Richness")
+p1
 
 # functional richness
 # bar plot colored and grouped by functional groups
@@ -234,8 +269,7 @@ FR <- full_data %>%
        y = "Trait Richness",
        fill = "Functional Groups") +
   scale_fill_manual(values = mypalette)
-
-
+FR
 
 
 ###################################
@@ -271,7 +305,13 @@ sp_wide <- full_data %>%
 
 
 
-mds_data<-sp_wide[-c(1:2)] # numerical data only
+sp_wide_reduced<-sp_wide %>%
+  ungroup() %>%
+  select(-c(plate.num:dist_to_seep_m)) %>%  # numerical data only
+  distinct() # remove redundant data
+
+mds_data<-sp_wide_reduced %>%
+  select(-c(Top_Plate_ID))  # remove final non numerical column
 
 #create the ordination output using bray curtis dissimilarity matrix
 # numerical data only
@@ -291,12 +331,16 @@ ordiplot(ord) # dots represent sites (sandwich locations) and + represents subst
 ordiplot(ord, type = 'text')
 
 # add on plate ID's again
-mds_data<-mds_data %>%
-  cbind(sp_wide[c(1:2)])
+mds_data<-sp_wide %>%
+  ungroup() %>%
+  select(-c(plate.num:dist_to_seep_m)) %>%  # numerical data only
+  distinct() %>%  # remove redundant data
+  cbind(mds_data)
 
 ### Plot with ggplot
 ord_data<-data.frame(ord$points) %>% # bind with environmental data
-  cbind(sp_wide[c(1:2)]) %>%
+  cbind(sp_wide_reduced['Top_Plate_ID']) %>%
+  rename(CowTagID = 'Top_Plate_ID') %>%
   left_join(turb, by = "Top_Plate_ID") %>%
   left_join(morph, by = "Top_Plate_ID") %>%
   left_join(sp_richness, by = "Top_Plate_ID")
@@ -375,6 +419,7 @@ p5<-ggmap(myMap) +
 #This requires the adonis command in the vegan package
 
 #numeric data only
+## instead of rel_dist use the clusters
 permanovamodel<-adonis(mds_data[,1:28]~rel_dist, mds_data, permutations = 999,
                        method="bray")
 permanovamodel

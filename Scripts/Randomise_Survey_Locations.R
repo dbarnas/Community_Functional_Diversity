@@ -107,13 +107,14 @@ Cpts<-myrandomCpts %>%
   mutate(Location = "Cabral") %>%
   arrange(lat)
 Rpts<-Vpts %>%
-  full_join(Cpts) %>%
+  full_join(Cpts)
+Rpts <- Rpts %>%
   mutate(CowTagID = paste0("random_",rownames(Rpts)))
 Allpts <- Rpts %>%
   full_join(VGPS) %>%
   full_join(CGPS)
 
-write_csv(Allpts, here("Data","Randomized_Locations.csv"))
+#write_csv(Allpts, here("Data","Randomized_Locations.csv"))
 ## Import csv into Google Earth to visualize
 
 

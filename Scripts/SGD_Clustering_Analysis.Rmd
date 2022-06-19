@@ -595,7 +595,9 @@ MooreaMapPlot <- ggmap(MooreaMap) +
   geom_segment(x = MeanGPS$lon[1] + 0.006, y = MeanGPS$lat[1], xend = MeanGPS$lon[1] + 0.023, yend = MeanGPS$lat[1], color = "white", size = 2) + # adds horizontal line from edge of box to Location name
   geom_segment(x = MeanGPS$lon[2] + 0.006, y = MeanGPS$lat[2], xend = MeanGPS$lon[2] + 0.023, yend = MeanGPS$lat[2], color = "white", size = 2)
 
-ggsave(here("Output","SGDZones","Moorea_Map.png"),MooreaMapPlot,height = 10, width = 10)
+MooreaMapPlot
+
+ggsave(here("Output","Moorea_Map.png"),MooreaMapPlot,height = 10, width = 10)
 ```
 
 ```{r}
@@ -613,7 +615,7 @@ VmapSites <- ggmap(VarariBaseMap) +
              size = 2, alpha = 0.2) #,
 #             color = "white")
 VmapSites
-ggsave(here("Output","SGDZones","Varari","Varari_CowTagID_Map.png"),VmapSites,height = 10, width = 10)
+#ggsave(here("Output","SGDZones","Varari","Varari_CowTagID_Map.png"),VmapSites,height = 10, width = 10)
 
 # cabral
 CmapSites <- ggmap(CabralBaseMap) +
@@ -628,7 +630,7 @@ CmapSites <- ggmap(CabralBaseMap) +
                  label = CowTagID),
              size = 2, alpha = 0.2)
 CmapSites
-ggsave(here("Output","SGDZones","Cabral","Cabral_CowTagID_Map.png"),CmapSites,height = 10, width = 10)
+#ggsave(here("Output","SGDZones","Cabral","Cabral_CowTagID_Map.png"),CmapSites,height = 10, width = 10)
 ```
 
 
@@ -636,7 +638,7 @@ ggsave(here("Output","SGDZones","Cabral","Cabral_CowTagID_Map.png"),CmapSites,he
 ```{r}
 
 ## create palette
-V_cluster_palette <- c("#fad02c", "white", "brown3") #1 is dark yellow #2 is baby blue #3 is red
+V_cluster_palette <- c("brown3", "white", "#fad02c") #1 is dark yellow #2 is baby blue #3 is red
 
   ### Map Varari clusters
 VSeepPt <- V_Cluster_data %>% filter(CowTagID == "VSEEP") # isolate Varari seep
@@ -651,7 +653,7 @@ cluster_varari_map <- ggmap(VarariBaseMap) +
   geom_point(data = VSeepPt, # star the seepage point
              aes(x = lon, y = lat),
              shape = 24,
-             fill = "#fad02c",
+             fill = "brown3",
              color = "black",
              size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
@@ -678,12 +680,12 @@ cluster_cabral_map <- ggmap(CabralBaseMap) +
   geom_point(data = C_Cluster_data,
              aes(x = lon, y = lat,
                  fill = C_cluster),
-             shape = 21,
+             shape = 22,
              color = "black",
             size = 3) + # set alpha and color aesthetics
     geom_point(data = CSeepPt, # star the seepage point
              aes(x = lon, y = lat),
-             shape = 24,
+             shape = 25,
              fill = "brown3",
              color = "black",
              size = 4) +
@@ -712,7 +714,7 @@ cluster_varari_map_noLab <- ggmap(VarariBaseMap) +
   geom_point(data = VSeepPt, # star the seepage point
              aes(x = lon, y = lat),
              shape = 24,
-             fill = "#fad02c",
+             fill = "brown3",
              color = "black",
              size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
@@ -722,10 +724,10 @@ cluster_varari_map_noLab <- ggmap(VarariBaseMap) +
   ### Map Cabral clusters
 cluster_cabral_map_noLab <- ggmap(CabralBaseMap) +
   geom_point(data = C_Cluster_data,aes(x = lon, y = lat,fill = C_cluster),
-             shape = 21,color = "black",size = 4) + 
+             shape = 22,color = "black",size = 4) + 
   geom_point(data = CSeepPt, # star the seepage point
              aes(x = lon, y = lat),
-             shape = 24,
+             shape = 25,
              fill = "brown3",
              color = "black",
              size = 4) +

@@ -1,0 +1,31 @@
+CowTagID,RelativeSGD,Date,TimeStart,TimeEnd,PhotoIDStart,OtherNotes,Conditions
+V8,H,6/4/2022,8:48,9:26,5348,,"calm glassy, beautiful day, sunshine mixed with dark clouds"
+V19,L,6/4/2022,10:35,11:25,5383,,"calm glassy, beautiful day, sunshine mixed with dark clouds"
+V18,H,6/4/2022,9:35,10:26,5366,,"calm glassy, beautiful day, sunshine mixed with dark clouds"
+V9,L,6/4/2022,7:57,8:40,5338,,"calm glassy, beautiful day, sunshine mixed with dark clouds"
+V4,L,6/3/2022,10:26,11:36,5232,,"moderate winds, high waves offshore, fluctuated choppy surface, moderate current"
+V3,L,6/3/2022,7:40,10:16,5181,,"moderate winds, high waves offshore, fluctuated choppy surface, moderate current"
+V16,L,6/3/2022,15:05,15:57,5324,,"moderate winds, high waves offshore, fluctuated choppy surface, moderate current"
+V20,H,6/3/2022,13:50,14:20,,,"moderate winds, high waves offshore, fluctuated choppy surface, moderate current"
+V14,H,6/3/2022,13:00,13:48,5290,,"moderate winds, high waves offshore, fluctuated choppy surface, moderate current"
+V17,H,6/3/2022,14:20,14:50,,,"moderate winds, high waves offshore, fluctuated choppy surface, moderate current"
+V13,L,6/5/2022,10:47,11:24,5441,,calm conditions
+V11,H,6/5/2022,12:54,13:46,5475,,calm conditions
+V15,H,6/5/2022,11:44,12:45,5453,,calm conditions
+V12,M,6/13/2022,9:51,10:58,,,
+V5,M,6/13/2022,11:13,12:17,,,
+V10,M,6/13/2022,8:35,9:44,5772,,
+V2,M,6/14/2022,10:18,11:27,5915,,on-off high winds
+V6,M,6/14/2022,8:10,9:09,5883,,on-off high winds
+V1,M,6/14/2022,9:18,10:10,5908,,on-off high winds
+V7,M,6/13/2022,13:45,,5860,,
+Vseep,H,6/14/2022,12:05,12:15,,,on-off high winds
+C11,M,6/15/2022,7:06,8:41,6052,,"calm conditions, partly cloudy, mild wind at times"
+C5,M,6/15/2022,13:11,14:08,6158,,"calm conditions, partly cloudy, mild wind at times"
+C8,M,6/15/2022,11:55,13:03,6128,,"calm conditions, partly cloudy, mild wind at times"
+C10,M,6/15/2022,6:30,6:59,6038,,"calm conditions, partly cloudy, mild wind at times"
+C9,M,6/15/2022,10:10,11:33,6120,,"calm conditions, partly cloudy, mild wind at times"
+C7,M,6/15/2022,9:05,9:58,6114,,"calm conditions, partly cloudy, mild wind at times"
+C20,M,6/15/2022,14:23,14:56,6161,,"calm conditions, partly cloudy, mild wind at times"
+Reef_Ambient_2,L,6/14/2022,13:05,14:42,5985,,on-off high winds
+Reef_Ambient_1,L,6/14/2022,14:48,15:59,6018,,on-off high winds
