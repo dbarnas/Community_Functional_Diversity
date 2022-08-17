@@ -16,53 +16,6 @@ AugustChem<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSG
 MarchChem <-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/March2022/Nutrients/Nutrients_watersampling_Mar22.csv'))
 
 
-### CALCULATE DISTANCES TO SGD TREE
-
-# # isolate seep lat and lon at Varari
-# seepData <- locations %>%
-#   filter(Plate_Seep == 'Seep',
-#          Location == 'Varari') %>%
-#   select(CowTagID, lat, lon)
-#
-# # isolate single numeric value for lat and lon
-# seepLat <- as.numeric(seepData$lat[1])
-# seepLon <- as.numeric(seepData$lon[1])
-#
-# # select distinct points for each plate location to calculate distances
-# distData <- locations %>%
-#   filter(Plate_Seep == 'Plate',
-#          Location == 'Varari') %>%
-#   select(CowTagID, lat, lon) %>%
-#   distinct() %>%
-#   mutate(lat_seep = seepLat,
-#          lon_seep = seepLon) %>%
-#   # find Haversine distance
-#   mutate(dist_to_seep_m = distHaversine(cbind(lon_seep, lat_seep), cbind(lon, lat))) %>%
-#   # group by sample Site Number
-#   group_by(CowTagID) %>%
-#   # choose only minimum distances
-#   slice(which.min(dist_to_seep_m)) %>%
-#   select(-c(lat_seep, lon_seep))
-#
-# # isolate V13, which is in ambient upcurrent of SGD
-# V13dist <- distData %>%
-#   filter(CowTagID == 'V13') %>%
-#   mutate(dist_to_seep_m = -dist_to_seep_m) # get negative value because of opposite direction from other locations
-# # remove V13 from distData then rejoin with new value from above
-# distData <- distData %>%
-#   filter(CowTagID != 'V13') %>%
-#   rbind(V13dist)
-#
-#
-# # associate distance order to Top Plate ID order
-# orderPlates <- distData %>%
-#   ungroup() %>%
-#   select(dist_to_seep_m, CowTagID) %>%
-#   distinct() %>%
-#   arrange(dist_to_seep_m) %>%
-#   # as_factor creates levels based on current position
-#   mutate(CowTagID = as_factor(as.character(CowTagID)))
-
 
 ### CALCULATE MEAN VALUES (SALINITY AND SILICATE)
 
