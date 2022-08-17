@@ -12,64 +12,121 @@ library(curl)
 survey <- read_csv(here("Data","Surveys","Substrate_2022.csv"))
 meta <- read_csv(here("Data", "Surveys", "Survey_Metadata.csv"))
 locations<-read_csv(here("Data","Sandwich_Locations_Final.csv"))
-AllChemData<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/August2021/Allbiogeochemdata_QC.csv'))
+AugustChem<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/August2021/Allbiogeochemdata_QC.csv'))
+MarchChem <-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/March2022/Nutrients/Nutrients_watersampling_Mar22.csv'))
 
 
 ### CALCULATE DISTANCES TO SGD TREE
 
-# isolate seep lat and lon at Varari
-seepData <- locations %>%
-  filter(Plate_Seep == 'Seep',
-         Location == 'Varari') %>%
+# # isolate seep lat and lon at Varari
+# seepData <- locations %>%
+#   filter(Plate_Seep == 'Seep',
+#          Location == 'Varari') %>%
+#   select(CowTagID, lat, lon)
+#
+# # isolate single numeric value for lat and lon
+# seepLat <- as.numeric(seepData$lat[1])
+# seepLon <- as.numeric(seepData$lon[1])
+#
+# # select distinct points for each plate location to calculate distances
+# distData <- locations %>%
+#   filter(Plate_Seep == 'Plate',
+#          Location == 'Varari') %>%
+#   select(CowTagID, lat, lon) %>%
+#   distinct() %>%
+#   mutate(lat_seep = seepLat,
+#          lon_seep = seepLon) %>%
+#   # find Haversine distance
+#   mutate(dist_to_seep_m = distHaversine(cbind(lon_seep, lat_seep), cbind(lon, lat))) %>%
+#   # group by sample Site Number
+#   group_by(CowTagID) %>%
+#   # choose only minimum distances
+#   slice(which.min(dist_to_seep_m)) %>%
+#   select(-c(lat_seep, lon_seep))
+#
+# # isolate V13, which is in ambient upcurrent of SGD
+# V13dist <- distData %>%
+#   filter(CowTagID == 'V13') %>%
+#   mutate(dist_to_seep_m = -dist_to_seep_m) # get negative value because of opposite direction from other locations
+# # remove V13 from distData then rejoin with new value from above
+# distData <- distData %>%
+#   filter(CowTagID != 'V13') %>%
+#   rbind(V13dist)
+#
+#
+# # associate distance order to Top Plate ID order
+# orderPlates <- distData %>%
+#   ungroup() %>%
+#   select(dist_to_seep_m, CowTagID) %>%
+#   distinct() %>%
+#   arrange(dist_to_seep_m) %>%
+#   # as_factor creates levels based on current position
+#   mutate(CowTagID = as_factor(as.character(CowTagID)))
+
+
+### CALCULATE MEAN VALUES (SALINITY AND SILICATE)
+
+AugChem <- AugustChem %>%
+  #filter(Plate_Seep == 'Plate') %>%
+  filter(Location == 'Varari') %>%
+  select(CowTagID,
+         Date, Time, DateTime,
+         Tide, Day_Night,
+         Salinity, Silicate_umolL) %>%
+  #unite(Tide, Day_Night, col = Tide_DayNight, sep = "_") %>% # create unique ID for tide and time; remove columns
+  group_by(CowTagID) %>%
+  mutate(rangeSi = max(Silicate_umolL, na.rm = T) - min(Silicate_umolL, na.rm = T)) %>% # range of Silicate experienced across sample times/tides
+  mutate(rangeSal = max(Salinity, na.rm = T) - min(Salinity, na.rm = T)) %>% # range of salinities experienced across sample times/tides
+  distinct(CowTagID, rangeSi, rangeSal) %>%
+  filter(CowTagID != 'Varari_Well')
+
+MarchChem <- MarchChem %>%
+  #filter(Plate_Seep == 'Plate') %>%
+  #filter(Location == 'Varari') %>%
+  select(CowTagID,
+         Date,
+         Tide, Day_Night,
+         Silicate_umolL) %>%
+  #unite(Tide, Day_Night, col = Tide_DayNight, sep = "_") %>% # create unique ID for tide and time; remove columns
+  group_by(CowTagID) %>%
+  mutate(rangeSi = max(Silicate_umolL, na.rm = T) - min(Silicate_umolL, na.rm = T)) %>% # range of Silicate experienced across sample times/tides
+  distinct(CowTagID, rangeSi)
+
+remove <- MarchChem %>% # remove sample locations not in my surveys
+  filter(CowTagID %in% c('VSPRING', 'VRC', 'CRC', 'CPIT', 'CPIT_Bottom',
+                         'CSPRING_ROAD', 'CSPRING_BEACH', 'CSPRING_BEACH2'))
+MarchChem <- MarchChem %>%
+  anti_join(remove)
+
+### FACET ORDER CowTagID BY SILICATE or SALINITY RANGE
+
+# associate salinity range order to Top Plate ID order
+# orderSalinity <- AugChem %>%
+#   ungroup() %>%
+#   select(rangeSal, CowTagID) %>%
+#   distinct() %>%
+#   arrange(rangeSal) %>%
+#   mutate(CowTagID = as_factor(as.character(CowTagID))) # as_factor creates levels based on current position
+
+# associate silicate range order to Top Plate ID order
+orderSilicate <- MarchChem %>%
+  ungroup() %>%
+  select(rangeSi, CowTagID) %>%
+  distinct() %>%
+  arrange(rangeSi) %>%
+  mutate(CowTagID = as_factor(as.character(CowTagID))) # as_factor creates levels based on current position
+
+
+
+### Processing: percent cover and ordering by biogeochemistry
+
+# isolate latitude and longitude to join
+locations <- locations %>%
   select(CowTagID, lat, lon)
 
-# isolate single numeric value for lat and lon
-seepLat <- as.numeric(seepData$lat[1])
-seepLon <- as.numeric(seepData$lon[1])
-
-# select distinct points for each plate location to calculate distances
-distData <- locations %>%
-  filter(Plate_Seep == 'Plate',
-         Location == 'Varari') %>%
-  select(CowTagID, lat, lon) %>%
-  distinct() %>%
-  mutate(lat_seep = seepLat,
-         lon_seep = seepLon) %>%
-  # find Haversine distance
-  mutate(dist_to_seep_m = distHaversine(cbind(lon_seep, lat_seep), cbind(lon, lat))) %>%
-  # group by sample Site Number
-  group_by(CowTagID) %>%
-  # choose only minimum distances
-  slice(which.min(dist_to_seep_m)) %>%
-  select(-c(lat_seep, lon_seep))
-
-# isolate V13, which is in ambient upcurrent of SGD
-V13dist <- distData %>%
-  filter(CowTagID == 'V13') %>%
-  mutate(dist_to_seep_m = -dist_to_seep_m) # get negative value because of opposite direction from other locations
-# remove V13 from distData then rejoin with new value from above
-distData <- distData %>%
-  filter(CowTagID != 'V13') %>%
-  rbind(V13dist)
-
-
-# associate distance order to Top Plate ID order
-orderPlates <- distData %>%
-  ungroup() %>%
-  select(dist_to_seep_m, CowTagID) %>%
-  distinct() %>%
-  arrange(dist_to_seep_m) %>%
-  # as_factor creates levels based on current position
-  mutate(CowTagID = as_factor(as.character(CowTagID)))
-
-
-SiData <-
-
-
-### Processing
-
+# Calculate percent cover per quad
 percent <- survey %>%
-  left_join(distData) %>%
+  #left_join(locations) %>% # join with lat and lon data
   group_by(CowTagID) %>%
   mutate(TotalCounts = sum(LiveCoral, Rubble, DeadCoral, Sand)) %>%
   ungroup() %>%
@@ -77,18 +134,35 @@ percent <- survey %>%
   mutate(PercentSub = SubstrateCounts / TotalCounts * 100)
 
 
-# sort factor levels by distance
-# distLevels <- paste(sort(as.numeric(levels(full_data$dist_to_seep_m))))
-distLevels <- paste(levels(orderPlates$CowTagID))
+# sort factor levels by Salinity and Silicate
+#SalLevels <- paste(levels(orderSalinity$CowTagID))
+SiLevels <- paste(levels(orderSilicate$CowTagID))
 
-# assign order to factor levels by distance
-percent$CowTagID <- factor(percent$CowTagID, levels = distLevels)
+# assign order to factor levels by Salinity or Silicate
+#percent$CowTagID <- factor(percent$CowTagID, levels = SalLevels)
+percent$CowTagID <- factor(percent$CowTagID, levels = SiLevels)
 levels(percent$CowTagID) # check
+
+
+### Merge Silicate range with
+MarchChem <- MarchChem %>%
+  left_join(survey) %>%
+  select(Site, CowTagID, rangeSi) %>%
+  drop_na()
 
 
 ### Plotting
 
 percent %>%
+  drop_na() %>%
   ggplot(aes(x = CowTagID, y = PercentSub, fill = Substrate)) +
-  geom_col()
+  geom_col() +
+  facet_wrap(~Substrate, scales = "fixed") # same scale on x and y axes across plots
+
+MarchChem %>%
+  filter(CowTagID != 'CSEEP' & CowTagID != 'VSEEP') %>%
+  ggplot(aes(y = rangeSi, x = fct_reorder(.f = CowTagID, .x = rangeSi))) +
+  geom_point() +
+  theme_bw() +
+  labs(x = 'CowTagID')
 
