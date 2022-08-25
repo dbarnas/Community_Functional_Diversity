@@ -54,6 +54,7 @@ gps <- read_csv(here("Data","Sandwich_Locations_Final.csv"))
 turb <- turb1 %>% 
   select(CowTagID, del15N, N_percent)
 
+## isolate lat and lon to later join
 gps <- gps %>% 
   select(CowTagID, lat, lon)
 
@@ -133,7 +134,8 @@ Full_data %>%
   geom_point() +
   geom_smooth(method = "lm") +
   labs(x = "Range Silicate (umolL)") +
-  facet_wrap(~Parameters, scales = "free")
+  facet_wrap(~Parameters, scales = "free") +
+  theme(strip.background = element_rect(fill = "white"))
 ```
 
 %N ~ Silicate
@@ -180,8 +182,7 @@ Full_data %>%
                        "Cabral R-squared:", round(Csum, 2)),
        x = "Range Silicate (umolL)") +
   facet_wrap(~Location, scales = "free") +
-  theme(strip.background = element_rect(fill = "white")
-        )
+  theme(strip.background = element_rect(fill = "white"))
 ```
 
 del15N ~ Silicate
@@ -214,8 +215,7 @@ Full_data %>%
                        "Cabral R-squared:", round(Csum, 2)),
        x = "Range Silicate (umolL)") +
   facet_wrap(~Location, scales = "free")+
-  theme(strip.background = element_rect(fill = "white")
-        )
+  theme(strip.background = element_rect(fill = "white"))
 ```
 
 
