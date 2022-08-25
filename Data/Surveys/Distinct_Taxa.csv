@@ -1,76 +1,85 @@
-Taxa,Taxon_Group,Family,Calcification,Link
-Acropora pulchra,Coral,Acroporidae,calcified,NA
-Amansia rhodantha,Rhodophyta,Rhodomelaceae,non-calcified,NA
-Amphiroa fragilisma,Rhodophyta,Corallinaceae,calcified,NA
-Avrainvillea erecta,Chlorophyta,Dichotomosiphonaceae,non-calcified,https://www.marinespecies.org/aphia.php?p=taxdetails&id=221173
-Bare Rock,Abiotic,NA,NA,NA
-Bare Rock - exposed,Abiotic,NA,NA,NA
-Boodlea kaeneana,Chlorophyta,Boodleaceae,non-calcified,https://www.marinespecies.org/aphia.php?p=taxdetails&id=660992
-brown algae1,Phaeophyta,NA,NA,NA
-Caulerpa peltata,NA,NA,NA,NA
-Caulerpa racemosa,Chlorophyta,Caulerpaceae,non-calcified,https://www.marinespecies.org/aphia.php?p=taxdetails&id=144472
-Caulerpa serrulata,Chlorophyta,Caulerpaceae,non-calcified,https://www.marinespecies.org/aphia.php?p=taxdetails&id=211485
-coral1,Coral,NA,calcified,NA
-coral10,Coral,NA,calcified,NA
-coral11,Coral,NA,calcified,NA
-coral12,Coral,NA,calcified,NA
-coral13,Coral,NA,calcified,NA
-coral14,Coral,NA,calcified,NA
-coral2,Coral,NA,calcified,NA
-coral3,Coral,NA,calcified,NA
-coral4,Coral,NA,calcified,NA
-coral5,Coral,NA,calcified,NA
-coral6,Coral,NA,calcified,NA
-coral7,Coral,NA,calcified,NA
-coral8,Coral,NA,calcified,NA
-coral9,Coral,NA,calcified,NA
-Crustose Corallines,Rhodophyta,NA,calcified,NA
-Cyanobacteria,Cyanobacteria,Cyanobacteriaceae,non-calcified,NA
-Dictyosphaeria cavernosa,Chlorophyta,Siphonocladaceae,non-calcified,NA
-Dictyosphaeria versluysii,Chlorophyta,Siphonocladaceae,non-calcified,https://www.marinespecies.org/aphia.php?p=taxdetails&id=214397
-Dictyota bartayresiana,Phaeophyta,Dictyoaceae,non-calcified,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145363
-Dictyota friabilis,Phaeophyta,Dictyoaceae,non-calcified,https://www.marinespecies.org/aphia.php?p=taxdetails&id=220782
-Discosoma nummiforme,Corallimorph,Discosomidae,non-calcified,https://www.marinespecies.org/aphia.php?p=taxdetails&id=411031
-Fungiidae sp.,Coral,Fungiidae,calcified,NA
-Fuzz,Phaeophyta,NA,non-calcified,NA
-Galaxaura fasciculata,Rhodophyta,NA,NA,NA
-Galaxaura rugosa,Rhodophyta,NA,NA,NA
-Gracilaria verrucosa,Rhodophyta,NA,NA,NA
-Grey Sponge,Sponge,NA,NA,NA
-Halimeda distorta,Chlorophyta,NA,NA,NA
-Halimeda incrassata,Chlorophyta,NA,NA,NA
-Halimeda macroloba,Chlorophyta,NA,NA,NA
-Halimeda minima,Chlorophyta,NA,NA,NA
-Halimeda opuntia,Chlorophyta,NA,NA,NA
-Halimeda2,Chlorophyta,NA,NA,NA
-Heteractis magnifica,Anemone,Stichodactylidae,non-calcified,NA
-Hypnea pannosa,Rhodophyta,NA,NA,NA
-Lendenfeldia chondrodes,Sponge,NA,NA,NA
-Leptastrea transversa,Coral,NA,NA,NA
-Lithophyllum kotschyanum,CCA,NA,NA,NA
-Lobophora variegata,Phaeophyta,NA,NA,NA
-Montipora,Coral,NA,NA,NA
-Montipora capitata,Coral,NA,NA,NA
-Montipora efflorescans,Coral,NA,NA,NA
-Montipora setosa,Coral,NA,NA,NA
-Padina boryana,Phaeophyta,NA,NA,NA
-Pavona cactus,Coral,NA,NA,NA
-Pocillopora acuta,Coral,NA,NA,NA
-Pocillopora eydouxi,Coral,NA,NA,NA
-Porites irregularis,Coral,NA,NA,NA
-Porites lobata,Coral,NA,NA,NA
-Porites lutea,Coral,NA,NA,NA
-Porites rus,Coral,NA,NA,NA
-Psammocora,Coral,NA,NA,NA
-Psammocora stellata,Coral,NA,NA,NA
-Purple Sponge,Sponge,NA,NA,NA
-Rosenvingea intricata,Phaeophyta,NA,NA,NA
-Rubble,Abiotic,NA,NA,NA
-Sand,Abiotic,NA,NA,NA
-Sargassum mangarevense,Phaeophyta,NA,NA,NA
-Turbinaria ornata,Phaeophyta,NA,NA,NA
-Turf,Turf,NA,NA,NA
-Valonia fastigiata,Chlorophyta,NA,NA,NA
-Valonia macrophysa,Chlorophyta,NA,NA,NA
-Ventricaria ventricosa,Chlorophyta,NA,NA,NA
-Verongida sp.,Sponge,NA,NA,NA
+Taxa,Link,Taxon_Group,Family,Calcification,Morphology,Solitary_Colonial,Energetic_Resource,Feeding_Mode,Growth_Rate
+Acropora pulchra,https://www.marinespecies.org/aphia.php?p=taxdetails&id=207015,Coral,Acroporidae,calcified,Branched,,Photo-heterotroph,Filter-feeder,
+Amansia rhodantha,https://www.marinespecies.org/aphia.php?p=taxdetails&id=213667,Rhodophyta,Rhodomelaceae,non-calcified,,,Autotroph,Photosynthesis,
+Amphiroa fragilissima,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145099,Rhodophyta,Corallinaceae,calcified,,,Autotroph,Photosynthesis,
+Avrainvillea erecta,https://www.marinespecies.org/aphia.php?p=taxdetails&id=221173,Chlorophyta,Dichotomosiphonaceae,non-calcified,,,Autotroph,Photosynthesis,
+Bare Rock,NA,Abiotic,NA,NA,,,NA,,
+Bare Rock - exposed,NA,Abiotic,NA,NA,,,NA,,
+Boodlea kaeneana,https://www.marinespecies.org/aphia.php?p=taxdetails&id=660992,Chlorophyta,Boodleaceae,non-calcified,,,Autotroph,Photosynthesis,
+brown algae1,NA,Phaeophyta,NA,NA,,,Autotroph,Photosynthesis,
+Caulerpa peltata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=144470,Chlorophyta,Caulerpaceae,non-calcified,,,Autotroph,Photosynthesis,
+Caulerpa racemosa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=144472,Chlorophyta,Caulerpaceae,non-calcified,,,Autotroph,Photosynthesis,
+Caulerpa serrulata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=211485,Chlorophyta,Caulerpaceae,non-calcified,,,Autotroph,Photosynthesis,
+coral1,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral10,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral11,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral12,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral13,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral14,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral2,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral3,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral4,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral5,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral6,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral7,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral8,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+coral9,NA,Coral,NA,calcified,,,Photo-autotroph,Filter-feeder,
+Crustose Corallines,NA,Rhodophyta,NA,calcified,,,Autotroph,Photosynthesis,
+Cyanobacteria,NA,Cyanobacteria,Cyanobacteriaceae,non-calcified,,,Autotroph,Photosynthesis,
+Dictyosphaeria cavernosa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=214395,Chlorophyta,Siphonocladaceae,non-calcified,,,Autotroph,Photosynthesis,
+Dictyosphaeria versluysii,https://www.marinespecies.org/aphia.php?p=taxdetails&id=214397,Chlorophyta,Siphonocladaceae,non-calcified,,,Autotroph,Photosynthesis,
+Dictyota bartayresiana,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145363,Phaeophyta,Dictyoaceae,non-calcified,,,Autotroph,Photosynthesis,
+Dictyota friabilis,https://www.marinespecies.org/aphia.php?p=taxdetails&id=220782,Phaeophyta,Dictyoaceae,non-calcified,,,Autotroph,Photosynthesis,
+Discosoma nummiforme,https://www.marinespecies.org/aphia.php?p=taxdetails&id=411031,Corallimorph,Discosomidae,non-calcified,,,Photo-autotroph,Filter-feeder,
+Fungiidae sp.,NA,Coral,Fungiidae,calcified,,,Photo-autotroph,Filter-feeder,
+Fuzz,NA,Phaeophyta,NA,non-calcified,,,Autotroph,Photosynthesis,
+Galaxaura fasciculata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=211606,Rhodophyta,NA,NA,,,Autotroph,Photosynthesis,
+Galaxaura rugosa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145739,Rhodophyta,NA,NA,,,Autotroph,Photosynthesis,
+Gracilaria verrucosa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=163501,Rhodophyta,NA,NA,,,Autotroph,Photosynthesis,
+Grey Sponge,NA,Sponge,NA,non-calcified,,,,,
+Halimeda distorta,https://www.marinespecies.org/aphia.php?p=taxdetails&id=211520,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+Halimeda incrassata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=211519,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+Halimeda macroloba,https://www.marinespecies.org/aphia.php?p=taxdetails&id=211524,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+Halimeda minima,https://www.marinespecies.org/aphia.php?p=taxdetails&id=372306,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+Halimeda opuntia,https://www.marinespecies.org/aphia.php?p=taxdetails&id=144482,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+Heteractis magnifica,https://www.marinespecies.org/aphia.php?p=taxdetails&id=290090,Anemone,Stichodactylidae,non-calcified,,,Photo-autotroph,Filter-feeder,
+Hypnea pannosa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=220816,Rhodophyta,NA,NA,,,Autotroph,Photosynthesis,
+Lendenfeldia chondrodes,https://www.marinespecies.org/aphia.php?p=taxdetails&id=734491,Sponge,Thorectidae,NA,,,,,
+Leptastrea transversa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=207474,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Lithophyllum kotschyanum,https://www.marinespecies.org/aphia.php?p=taxdetails&id=213889,CCA,NA,NA,,,Autotroph,Photosynthesis,
+Lobophora variegata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145381,Phaeophyta,NA,NA,,,Autotroph,Photosynthesis,
+Montipora,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Montipora capitata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=287697,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Montipora efflorescens,https://www.marinespecies.org/aphia.php?p=taxdetails&id=207163,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Montipora setosa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=287726,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Padina boryana,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145383,Phaeophyta,NA,NA,,,Autotroph,Photosynthesis,
+Pavona cactus,https://www.marinespecies.org/aphia.php?p=taxdetails&id=207312,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Pocillopora acuta,https://www.marinespecies.org/aphia.php?p=taxdetails&id=759099,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Pocillopora eydouxi,https://www.marinespecies.org/aphia.php?p=taxdetails&id=206958,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Porites irregularis,Porites irregularis,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Porites lobata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=760319,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Porites lutea,https://www.marinespecies.org/aphia.php?p=taxdetails&id=760325,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Porites rus,https://www.marinespecies.org/aphia.php?p=taxdetails&id=1563441,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Psammocora,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Psammocora stellata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=766181,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Purple Sponge,NA,Sponge,NA,NA,,,,,
+Rosenvingea intricata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145866,Phaeophyta,NA,NA,,,Autotroph,Photosynthesis,
+Rubble,NA,Abiotic,NA,NA,,,,,
+Sand,NA,Abiotic,NA,NA,,,,,
+Sargassum mangarevense,https://www.marinespecies.org/aphia.php?p=taxdetails&id=376103,Phaeophyta,NA,NA,,,Autotroph,Photosynthesis,
+Turbinaria ornata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=221490,Phaeophyta,NA,NA,,,Autotroph,Photosynthesis,
+Turf,NA,Turf,NA,NA,,,,,
+Valonia fastigiata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=211681,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+Valonia macrophysa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145883,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+Ventricaria ventricosa,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145885,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+Verongida sp.,NA,Sponge,NA,NA,,,,,
+coral15,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Caulerpa fastigiata,https://www.marinespecies.org/aphia.php?p=taxdetails&id=211471,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+green algae1,NA,Chlorophyta,NA,NA,,,Autotroph,Photosynthesis,
+coral16,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+coral17,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+Hydroclathrus clathratus,https://www.marinespecies.org/aphia.php?p=taxdetails&id=145861,Phaeophyta,NA,NA,,,Autotroph,Photosynthesis,
+coral18,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+coral19,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+coral20,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
+coral21,NA,Coral,NA,NA,,,Photo-autotroph,Filter-feeder,
