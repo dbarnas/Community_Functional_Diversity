@@ -40,7 +40,7 @@ set.seed(7) # set the seed to get the same one every time
 ```{r}
 ## Read in data - biogeochem data processed in Nutrient_Processing script
 
-Full_data<-read_csv(here("Data","Biogeochem","AugNutrient_Processed.csv"))
+Full_data<-read_csv(here("Data","Biogeochem","MarchNutrient_Processed.csv"))
 ```
 
 
@@ -69,6 +69,7 @@ Full_data %>%
   labs(x = "Range Silicate (umolL)") +
   facet_wrap(~Parameters, scales = "free") +
   theme(strip.background = element_rect(fill = "white"))
+
 ```
 
 %N ~ Silicate
