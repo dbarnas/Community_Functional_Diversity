@@ -33,7 +33,7 @@ library(patchwork)
 # API<-names(read_table(here("Data","API.txt")))
 # register_google(key = API) ### uses my API in separate txt file
 
-set.seed(7) # set the seed to get the same one every time
+
 ```
 
 ## Read in Data
@@ -278,9 +278,7 @@ Trans_data <- Full_data %>%
                       'del15N',
                       'N_percent',
                       'HIX',
-                    #  'Lignin_Like',
                     #  'M_C',
-                    #  'MarineHumic_Like',
                     #  'Tyrosine_Like',
                       'VisibleHumidic_Like'),
             .funs = ~log(.x + 0.01))  # ln transform for left-skewed
@@ -364,6 +362,7 @@ class(C_data) = "data.frame"
 Indicate the number of cores you want to use for parallelization
 ```{r}
 nb.CPU <- 4 # cores on my computer dedicated to the process (want to use ~ half)
+
 ```
 
 
@@ -379,8 +378,9 @@ This section performs a clustering analysis of the *biogeochemistry and* **Turbi
 
 ztrue_V <- V_data[,'N_percent'] # compare clustering with del15N in turb
 ztrue_C <- C_data[,'N_percent']
-x_V <- V_data[,5:ncol(V_data)] # only biogeochemical and turb nutrient data
-x_C <- C_data[,5:ncol(V_data)]
+
+x_V <- V_data %>% select(Salinity:N_percent) # only biogeochemical and turb nutrient data
+x_C <- C_data %>% select(Salinity:N_percent)
 
 x_V <- x_V %>% 
   mutate_all(.funs = as.numeric)
@@ -395,24 +395,30 @@ Clustering is performed with or without variable selection.
 Model selection is done with BIC because the number of observations is large (compared to the number of features).
 
 ```{r, comment=""}
+set.seed(7) # set the seed to get the same one every time
+
 # Cluster analysis without variable selection
 res_without_V <- VarSelCluster(x_V, # matrix/data frame (only the numerical data for now) 
-                             gvals = 1:ncol(x_V), # defines number of components (clusters) to consider
+                             gvals = 3, # specify to use 3 clusters
+                             #gvals = 1:ncol(x_V), # defines number of components (clusters) to consider
                              vbleSelec = FALSE, # indicates if a variable selection is done
                              crit.varsel = "BIC") # defines the info criterion used for model selection
 res_without_C <- VarSelCluster(x_C, 
-                             gvals = 1:ncol(x_C), 
+                             gvals = 3,
+                             #gvals = 1:ncol(x_C), 
                              vbleSelec = FALSE, 
                              crit.varsel = "BIC")
 
 
 # Cluster analysis with variable selection (with parallelization)
 res_with_V <- VarSelCluster(x_V, 
-                          gvals = 1:ncol(x_V), 
+                          gvals = 3,
+                          #gvals = 1:ncol(x_V), 
                           vbleSelec = TRUE, # indicates if a variable selection is done 
                           crit.varsel = "BIC")
 res_with_C <- VarSelCluster(x_C, 
-                          gvals = 1:ncol(x_C), 
+                          gvals = 3,
+                          #gvals = 1:ncol(x_C), 
                           vbleSelec = TRUE,
                           crit.varsel = "BIC")
 
@@ -558,6 +564,7 @@ C_Cluster_data<-C_data %>%
 ```  
 
 
+
 ### Create Base Maps for Varari and Cabral
 ```{r}
 
@@ -645,10 +652,14 @@ CmapSites
 ```{r}
 
 ## create palette
-V_cluster_palette <- c("brown3", "white", "#fad02c", "limegreen") #1 is dark yellow #2 is baby blue #3 is red #4 is lime green
+V_cluster_palette <- c("brown3", "white", "#fad02c") #1 is dark yellow #2 is baby blue #3 is red 
 
 ### Map Varari clusters
 VSeepPt <- V_Cluster_data %>% filter(CowTagID == "VSEEP") # isolate Varari seep
+VSeepPtID<-VSeepPt %>% 
+  select(V_cluster) %>% 
+  as.numeric()
+  
 
 cluster_varari_map <- ggmap(VarariBaseMap) +
   geom_point(data = V_Cluster_data,
@@ -660,7 +671,7 @@ cluster_varari_map <- ggmap(VarariBaseMap) +
   geom_point(data = VSeepPt, # star the seepage point
              aes(x = lon, y = lat),
              shape = 24,
-             fill = "brown3",
+             fill = as.character(V_cluster_palette[VSeepPtID]), # selects the palette color corresponding to the associated cluster number
              color = "black",
              size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
@@ -682,6 +693,9 @@ C_cluster_palette <- c("#fad02c", "limegreen", "white", "brown3") # seep is red
 
 ### Map Cabral clusters
 CSeepPt <- C_Cluster_data %>% filter(CowTagID == "CSEEP") # isolate Varari seep
+CSeepPtID<-CSeepPt %>% 
+  select(C_cluster) %>% 
+  as.numeric()
 
 cluster_cabral_map <- ggmap(CabralBaseMap) +
   geom_point(data = C_Cluster_data,
@@ -693,7 +707,7 @@ cluster_cabral_map <- ggmap(CabralBaseMap) +
     geom_point(data = CSeepPt, # star the seepage point
              aes(x = lon, y = lat),
              shape = 25,
-             fill = "brown3",
+             fill = as.character(C_cluster_palette[CSeepPtID]), # selects the palette color corresponding to the associated cluster number
              color = "black",
              size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
