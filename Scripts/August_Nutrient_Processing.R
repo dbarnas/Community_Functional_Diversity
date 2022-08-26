@@ -12,10 +12,7 @@ library(curl) # pull data from url
 ## Read in data
 AllChemData<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/August2021/Allbiogeochemdata_QC.csv'))
 turb1<-read_csv(here("Data","Biogeochem","August2021","Turb_NC.csv"))
-
-
-# AllChemData<-read_csv(here("Data","Biogeochem","March2022"))
-# turb1<-read_csv(here("Data","Biogeochem","March2022","Turb_NC.csv"))
+gps <- read_csv(here("Data","Sandwich_Locations_Final.csv"))
 
 
 
@@ -74,7 +71,11 @@ Full_data <- ReducedChemData %>%
   ungroup() %>%
   left_join(turb, by = 'CowTagID') # join with turb
 
-Full_data
+## Join GPS to Full_data
+Full_data <- gps %>%
+  select(Location,CowTagID,lat,lon) %>%
+  right_join(Full_data)
+
 
 write_csv(Full_data, here("Data","Biogeochem","AugNutrient_Processed.csv"))
 

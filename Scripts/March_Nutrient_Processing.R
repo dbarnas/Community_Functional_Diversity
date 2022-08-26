@@ -20,10 +20,6 @@ gps <- read_csv(here("Data","Sandwich_Locations_Final.csv"))
 turb <- turb1 %>%
   select(CowTagID, del15N, N_percent)
 
-## isolate lat and lon to later join
-gps <- gps %>%
-  select(CowTagID, lat, lon)
-
 
 ## Filter out unnecessary/redundant data
 removeSite <- AllChemData %>%
@@ -59,11 +55,10 @@ Full_data <- ReducedChemData %>%
   # only keep Plate and Seep data
   anti_join(removeSite) # ignores springs, pits, and offshore samples
 
-
-
-
-
-
+## Join GPS to Full_data
+Full_data <- gps %>%
+  select(Location,CowTagID,lat,lon) %>%
+  right_join(Full_data)
 
 write_csv(Full_data, here("Data","Biogeochem","MarchNutrient_Processed.csv"))
 
