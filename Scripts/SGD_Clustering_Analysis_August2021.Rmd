@@ -41,7 +41,9 @@ set.seed(7) # set the seed to get the same one every time
 ## Read in data - biogeochem data processed in Nutrient_Processing script
 
 Full_data<-read_csv(here("Data","Biogeochem","AugNutrient_Processed.csv"))
+
 ```
+
 
 
 ## Histograms
@@ -140,6 +142,43 @@ Full_data %>%
   theme(strip.background = element_rect(fill = "white"))
 ```
 
+
+C:N Ratio ~ Silicate
+```{r}
+## C_N ~ Silicate
+# linear model of del15N with respect to silicate
+Vdata <- Full_data %>% 
+  filter(Location == "Varari") %>% 
+  filter(CowTagID != "VSEEP")
+Vmodel <- lm(data = Vdata, C_N ~ Silicate_umolL)
+Cdata <- Full_data %>%
+  filter(Location == "Cabral") %>% 
+  filter(CowTagID != "CSEEP")
+Cmodel <- lm(data = Cdata, C_N ~ Silicate_umolL)
+
+# display r squared values for lm
+Vsum <- summary(Vmodel)$r.squared
+Csum <- summary(Cmodel)$r.squared
+
+# graph relationship
+Full_data %>% 
+  filter(CowTagID != "VSEEP" & CowTagID != "CSEEP") %>% 
+  select(Location, CowTagID, Silicate_umolL, C_N) %>% 
+  ggplot(aes(x=Silicate_umolL,
+             y = C_N,
+             color = Location)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(x = "Range of Silicate (umolL)",
+       y = "Range of C:N Ratio",
+       caption = paste("Varari R-squared:",round(Vsum, 2), "\n",
+                       "Cabral R-squared:", round(Csum, 2))) +
+  facet_wrap(~Location, scales = "free") +
+  theme_bw() +
+  theme(strip.background = element_rect(fill = "white"))
+```
+
+
 del15N ~ Silicate
 ```{r}
 ## del15N ~ Silicate
@@ -210,16 +249,14 @@ signif <- ifelse(norm[[2]] >= 0.05, "Normal", "Not Normal")
   q[[i]] <- p
 }
 
-# Just view, do not save
-q
 
-# # Save all plots in a single dated pdf
-# pdf(here("Output","SGDZones","histograms",paste0(sumParam,"_Histograms.pdf")), onefile = TRUE)
-# for (i in seq(length(q))) {
-#   tplot <- q[[i]]
-#   print(tplot)
-# }
-# dev.off()
+# Save all plots in a single dated pdf
+pdf(here("Output","SGDZones","histograms",paste0("Range_Histograms.pdf")), onefile = TRUE)
+for (i in seq(length(q))) {
+  tplot <- q[[i]]
+  print(tplot)
+}
+dev.off()
 
 ```
 
@@ -230,24 +267,24 @@ q
 - square root transform right-skewed data
 ```{r, message= F}
 Trans_data <- Full_data %>% 
-  mutate_at(.vars = c('Silicate_umolL',
+  mutate_at(.vars = c('Salinity',
+                      'pH',
+                      'Silicate_umolL',
                       'NN_umolL',
                       'Phosphate_umolL',
-                      'Tryptophan_Like',
+                    #  'Tryptophan_Like',
                       'TA',
                       'Ammonia_umolL',
                       'del15N',
                       'N_percent',
                       'HIX',
                     #  'Lignin_Like',
-                      'M_C',
+                    #  'M_C',
                     #  'MarineHumic_Like',
-                      'Tyrosine_Like',
+                    #  'Tyrosine_Like',
                       'VisibleHumidic_Like'),
-            .funs = ~log(.x + 0.01)) %>%  # ln transform for left-skewed
-  mutate_at(.vars = c('Salinity',
-                      'pH'),
-            .funs = ~sqrt(.x + 0.01)) # square root transform for right-skewed
+            .funs = ~log(.x + 0.01))  # ln transform for left-skewed
+
 ```
 
 
@@ -274,7 +311,7 @@ signif <- ifelse(norm[[2]] >= 0.05, "Normal", "Not Normal")
    ggplot(aes(x = Trans_data[[numbNames[i]]])) + 
    geom_histogram() +
    labs(x = numbNames[i],
-        title = paste0("Transformed ",sumParam," ",numbNames[i],": ",signif),
+        title = paste0("Transformed ",numbNames[i],": ",signif),
         subtitle = paste("p =",norm[[2]], "(Shapiro Wilk Test)")) +
    theme_bw()
  #ggsave(here("Output","SGDZones","histograms","meanValues",paste0("transformed_mean_",numbNames[i],"_hist.png")),p) # save in hist folder
@@ -285,7 +322,7 @@ signif <- ifelse(norm[[2]] >= 0.05, "Normal", "Not Normal")
 }
 
 # Save all plots in a single dated pdf
-pdf(here("Output","SGDZones","histograms",paste0("Transformed_",sumParam,"_Histograms.pdf")), onefile = TRUE)
+pdf(here("Output","SGDZones","histograms",paste0("Transformed_Range_Histograms.pdf")), onefile = TRUE)
 for (i in seq(length(q))) {
   tplot <- q[[i]]
   print(tplot)
@@ -342,7 +379,7 @@ This section performs a clustering analysis of the *biogeochemistry and* **Turbi
 
 ztrue_V <- V_data[,'N_percent'] # compare clustering with del15N in turb
 ztrue_C <- C_data[,'N_percent']
-x_V <- V_data[,5:ncol(V_data)] # all biogeochemical and turb nutrient data
+x_V <- V_data[,5:ncol(V_data)] # only biogeochemical and turb nutrient data
 x_C <- C_data[,5:ncol(V_data)]
 
 x_V <- x_V %>% 
@@ -438,8 +475,8 @@ C_cluster<-fitted(res_C)
 #summary(V_cluster)
 #summary(C_cluster)
 
-#summary(res_V) 
-#summary(res_C) 
+summary(res_V) 
+summary(res_C) 
 ```
 
 
@@ -452,8 +489,8 @@ Distribution of the most discriminative variable per clusters
 Vdes<-plot(x = res_V, y = 1:ncol(x_V))
 Cdes<-plot(x = res_C, y = 1:ncol(x_C))
 
-ggsave(here("Output","SGDZones","Varari",paste0("DiscriminativePower_Varari_",sumParam,".png")),Vdes, height = 10, width = 10)
-ggsave(here("Output","SGDZones","Cabral",paste0("DiscriminativePower_Cabral_",sumParam,".png")),Cdes, height = 10, width = 10)
+# ggsave(here("Output","SGDZones","Varari",paste0("DiscPower_Varari_Range.png")),Vdes, height = 10, width = 10)
+# ggsave(here("Output","SGDZones","Cabral",paste0("DiscPower_Cabral_Range.png")),Cdes, height = 10, width = 10)
 
 ```
 
@@ -464,6 +501,8 @@ Example empirical and theoretical distributions of the most discriminative varia
 # Empirical and theoretical distributions (to check that the distribution is well-fitted)
 
 plot(res_V, y="del15N", type="cdf")
+plot(res_V, y="N_percent", type="cdf")
+plot(res_V, y="C_N", type="cdf")
 plot(res_C, y="Silicate_umolL", type="cdf")
 
 ```
@@ -475,7 +514,7 @@ Distribution of a categorical variable per clusters
 # plot(res_with, y="Shore_Habitat")
 ```
 
-To have details about the selected model
+To view details about the selected models
 ```{r, comment="", warning=FALSE}
 # More detailed output
 print(res_V)
@@ -502,7 +541,7 @@ To print the parameters
 
 ## Graph
 
-Add site locations to cluster value df
+Join site locations with respective cluster values
 ```{r}
 # make cluster vector dataframe type to join to full_data
 V_cluster<-as.data.frame(V_cluster)
@@ -521,72 +560,82 @@ C_Cluster_data<-C_data %>%
 
 ### Create Base Maps for Varari and Cabral
 ```{r}
+
 # mean lat and long for the maps
-MeanGPS <- Full_data %>%
+LocationGPS <- Full_data %>%
   group_by(Location) %>% # varari vs cabral
   summarise(lon = median(lon, na.rm = TRUE),
             lat = median(lat, na.rm = TRUE))
 
-SiteGPS <- Full_data %>%
-  group_by(Location, CowTagID) %>%
-  summarise(lon = mean(lon, na.rm = TRUE),
-            lat = mean(lat, na.rm = TRUE))
+# CowTagIDGPS <- Full_data %>%
+#   group_by(Location, CowTagID) %>%
+#   summarise(lon = mean(lon, na.rm = TRUE),
+#             lat = mean(lat, na.rm = TRUE))
 
 
 # Varari
-VarariBaseMap<-get_map(MeanGPS %>% filter(Location == "Varari") %>% select(lon,lat), maptype = 'satellite', zoom = 18)
+VarariBaseMap<-get_map(LocationGPS %>% filter(Location == "Varari") %>% select(lon,lat), maptype = 'satellite', zoom = 18)
 # Cabral
-CabralBaseMap<-get_map(MeanGPS %>% filter(Location == "Cabral") %>% select(lon,lat), maptype = 'satellite', zoom = 18)
+CabralBaseMap<-get_map(LocationGPS %>% filter(Location == "Cabral") %>% select(lon,lat), maptype = 'satellite', zoom = 18)
 ```
 
 ### Show basemaps
 ```{r}
 # Moorea
 MooreaMap<-get_map('Moorea', maptype = 'satellite', zoom = 12)
-MooreaMapPlot <- ggmap(MooreaMap) +
-  geom_rect(data=MeanGPS, aes(xmin=lon[1] - 0.006, xmax=lon[1] + 0.006, ymin=lat[1] - 0.01, ymax=lat[1] + 0.01), color="white", alpha=0, size = 2) + # Cabral square
-  geom_rect(data=MeanGPS, aes(xmin=lon[2] - 0.006, xmax=lon[2] + 0.006, ymin=lat[2] - 0.01, ymax=lat[2] + 0.01), color="white", alpha=0, size = 2) + # Varari square
-  geom_point(data=MeanGPS, aes(x = lon, y = lat, label = Location), # adds star at center of Location
-             shape = 18, color = "white", fill = "white", size = 8) +
+
+MooreaMapPlot <- ggmap(MooreaMap) + # base map
+  
+  geom_rect(data=LocationGPS, aes(xmin=lon[1] - 0.006, xmax=lon[1] + 0.006, ymin=lat[1] - 0.01, ymax=lat[1] + 0.01), color="white", alpha=0, size = 2) + # Cabral square
+  
+  geom_rect(data=LocationGPS, aes(xmin=lon[2] - 0.006, xmax=lon[2] + 0.006, ymin=lat[2] - 0.01, ymax=lat[2] + 0.01), color="white", alpha=0, size = 2) + # Varari square
+  
+  geom_point(data=LocationGPS, aes(x = lon, y = lat, label = Location), 
+             shape = 18, color = "white", fill = "white", size = 8) + # adds symbol at center of Location
+  
   labs(x = "Longitude", y = "Latitude") +
-  geom_text(data = MeanGPS, aes(label = Location), color = "white", hjust = -1, size = 10) + # adds Location names to the right of the boxes
-  geom_segment(x = MeanGPS$lon[1] + 0.006, y = MeanGPS$lat[1], xend = MeanGPS$lon[1] + 0.023, yend = MeanGPS$lat[1], color = "white", size = 2) + # adds horizontal line from edge of box to Location name
-  geom_segment(x = MeanGPS$lon[2] + 0.006, y = MeanGPS$lat[2], xend = MeanGPS$lon[2] + 0.023, yend = MeanGPS$lat[2], color = "white", size = 2)
+  
+  geom_text(data = LocationGPS, aes(label = Location), color = "white", hjust = -1, size = 10) + # adds Location names to the right of the boxes
+  
+  geom_segment(x = LocationGPS$lon[1] + 0.006, y = LocationGPS$lat[1], xend = LocationGPS$lon[1] + 0.023, yend = LocationGPS$lat[1], color = "white", size = 2) + # adds horizontal line from edge of box to Location name
+  
+  geom_segment(x = LocationGPS$lon[2] + 0.006, y = LocationGPS$lat[2], xend = LocationGPS$lon[2] + 0.023, yend = LocationGPS$lat[2], color = "white", size = 2)
 
 MooreaMapPlot
 
-ggsave(here("Output","Moorea_Map.png"),MooreaMapPlot,height = 10, width = 10)
+#ggsave(here("Output","Moorea_Map.png"),MooreaMapPlot,height = 10, width = 10)
 ```
 
 ```{r}
 # Varari
 VmapSites <- ggmap(VarariBaseMap) +
-  geom_point(data = ReducedChemData,
+  geom_point(data = Full_data,
              aes(x = lon, y = lat),
              color = "white",
              size = 2) + 
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
         title = "Varari Sample Locations") +
-  geom_label(data = AllChemData,
+  geom_label(data = Full_data,
              aes(x = lon, y = lat,
                  label = CowTagID),
-             size = 2, alpha = 0.2) #,
-#             color = "white")
+             size = 2, alpha = 0.2)
+
 VmapSites
 #ggsave(here("Output","SGDZones","Varari","Varari_CowTagID_Map.png"),VmapSites,height = 10, width = 10)
 
 # cabral
 CmapSites <- ggmap(CabralBaseMap) +
-  geom_point(data = ReducedChemData,
+  geom_point(data = Full_data,
              aes(x = lon, y = lat),
              color = "white",
              size = 2) + 
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
         title = "Cabral Sample Locations") +
-  geom_label(data = AllChemData,
+  geom_label(data = Full_data,
              aes(x = lon, y = lat,
                  label = CowTagID),
              size = 2, alpha = 0.2)
+
 CmapSites
 #ggsave(here("Output","SGDZones","Cabral","Cabral_CowTagID_Map.png"),CmapSites,height = 10, width = 10)
 ```
@@ -596,9 +645,9 @@ CmapSites
 ```{r}
 
 ## create palette
-V_cluster_palette <- c("brown3", "white", "#fad02c") #1 is dark yellow #2 is baby blue #3 is red
+V_cluster_palette <- c("brown3", "white", "#fad02c", "limegreen") #1 is dark yellow #2 is baby blue #3 is red #4 is lime green
 
-  ### Map Varari clusters
+### Map Varari clusters
 VSeepPt <- V_Cluster_data %>% filter(CowTagID == "VSEEP") # isolate Varari seep
 
 cluster_varari_map <- ggmap(VarariBaseMap) +
@@ -617,13 +666,13 @@ cluster_varari_map <- ggmap(VarariBaseMap) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
         title = "Varari, Clusters (LCM) \n Transformed and Scaled",
-       subtitle = sumParam,
+       subtitle = "Parameter Range",
        fill = "Varari Clusters") +
   scale_fill_manual(values = V_cluster_palette)
 
 cluster_varari_map
 
-ggsave(here("Output","SGDZones","Varari",paste0("Varari_Cluster_Map_TransScale_",sumParam,".png")),cluster_varari_map,height = 10, width = 10)
+#ggsave(here("Output","SGDZones","Varari",paste0("Varari_Cluster_Map_RangeTransScale.png")),cluster_varari_map,height = 10, width = 10)
 
 ```
 
@@ -631,7 +680,7 @@ ggsave(here("Output","SGDZones","Varari",paste0("Varari_Cluster_Map_TransScale_"
 ## create palette
 C_cluster_palette <- c("#fad02c", "limegreen", "white", "brown3") # seep is red
 
-  ### Map Cabral clusters
+### Map Cabral clusters
 CSeepPt <- C_Cluster_data %>% filter(CowTagID == "CSEEP") # isolate Varari seep
 
 cluster_cabral_map <- ggmap(CabralBaseMap) +
@@ -650,13 +699,13 @@ cluster_cabral_map <- ggmap(CabralBaseMap) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
       title = "Cabral, Clusters (LCM) \n Transformed and Scaled",
-       subtitle = sumParam,
+       subtitle = "Parameter Range",
        color = "Cabral Clusters") +
   scale_fill_manual(values = C_cluster_palette)
 
 cluster_cabral_map
 
-ggsave(here("Output","SGDZones","Cabral",paste0("Cabral_Cluster_Map_TransScale_",sumParam,".png")),cluster_cabral_map,height = 10, width = 10)
+#ggsave(here("Output","SGDZones","Cabral",paste0("Cabral_Cluster_Map_RangeTransScale.png")),cluster_cabral_map,height = 10, width = 10)
 
 
 ```
@@ -707,7 +756,7 @@ ClusterMaps<-cluster_varari_map_noLab + cluster_cabral_map_noLab +
                                                                                      unit = "pt"))))
 ClusterMaps
 
-ggsave(plot = ClusterMaps, filename = here("Output","SGDZones","Cluster_Maps.png"), width = 14, height = 10)
+#ggsave(plot = ClusterMaps, filename = here("Output","SGDZones","Cluster_Maps_Range.png"), width = 14, height = 10)
 ```
 
 
@@ -737,7 +786,6 @@ Vbox<-ggplot(V_cluster_long,
         panel.grid.minor = element_blank(),
         strip.background = element_blank()) +
   scale_color_manual(values = V_cluster_palette)
-Vbox
 
 C_cluster_long <- C_Cluster_data %>%
   pivot_longer(cols = c(Salinity:N_percent),
@@ -760,11 +808,13 @@ Cbox<-ggplot(C_cluster_long,
         panel.grid.minor = element_blank(),
         strip.background = element_blank()) +
   scale_color_manual(values = C_cluster_palette)
+
+Vbox
 Cbox
 
-ggsave(here("Output","SGDZones","Varari",paste0("Boxplots_Varari_TransScale_",sumParam,".png")), Vbox, height = 20, width = 8)
+#ggsave(here("Output","SGDZones","Varari",paste0("Boxplots_Varari_RangeTransScale.png")), Vbox, height = 20, width = 8)
 
-ggsave(here("Output","SGDZones","Cabral",paste0("Boxplots_Cabral_TransScale_",sumParam,".png")), Cbox, height = 20, width = 8)
+#ggsave(here("Output","SGDZones","Cabral",paste0("Boxplots_Cabral_RangeTransScale.png")), Cbox, height = 20, width = 8)
 
 
 ClusterBoxPlots<-Vbox + Cbox + 
@@ -778,7 +828,7 @@ ClusterBoxPlots<-Vbox + Cbox +
                                                                                      unit = "pt"))))
 ClusterBoxPlots
 
-ggsave(plot = ClusterBoxPlots, filename = here("Output","SGDZones","Cluster_BoxPlots.png"), width = 10, height = 14)
+#ggsave(plot = ClusterBoxPlots, filename = here("Output","SGDZones","Cluster_BoxPlots_Range.png"), width = 10, height = 14)
 
 ```
 
@@ -786,8 +836,8 @@ ggsave(plot = ClusterBoxPlots, filename = here("Output","SGDZones","Cluster_BoxP
 
 ## PCA for clustering
 ```{r}
-V_Cluster_data
-C_Cluster_data
+# V_Cluster_data
+# C_Cluster_data
 
 # extract parameters for the PCA
 V_pca_data <-V_Cluster_data %>% 
@@ -907,8 +957,8 @@ CabralPCA<-p1_C+p2_C+
                                                                      margin = margin(t = 10, b = 20,
                                                                                      unit = "pt"))))
 
-ggsave(plot = VarariPCA, filename = here("Output","SGDZones","Varari","VarariPCA.pdf"), width = 14, height = 6)
-ggsave(plot = CabralPCA, filename = here("Output","SGDZones","Cabral","CabralPCA.pdf"), width = 14, height = 6)
+#ggsave(plot = VarariPCA, filename = here("Output","SGDZones","Varari","VarariPCA_Range.pdf"), width = 14, height = 6)
+#ggsave(plot = CabralPCA, filename = here("Output","SGDZones","Cabral","CabralPCA_Range.pdf"), width = 14, height = 6)
 
 ```
 
@@ -921,12 +971,9 @@ ggsave(plot = CabralPCA, filename = here("Output","SGDZones","Cabral","CabralPCA
 
 ```{r}
 ## Use Scale_data and remove all but turb data
-to_join_turb <- turb1 %>% 
-  select(CowTagID, C_N)
-Turb_cluster_data <- Scale_data %>% 
-  left_join(to_join_turb, by = 'CowTagID') %>% 
-  select(Location, CowTagID, lat, lon, del15N, C_N, N_percent)
 
+Turb_cluster_data <- Scale_data %>% 
+  select(Location, CowTagID, lat, lon, del15N, C_N, N_percent)
 
 ```
 
@@ -935,6 +982,7 @@ Turb_cluster_data <- Scale_data %>%
 ```{r}
 V_data_turb <-Turb_cluster_data %>% filter(Location == "Varari")
 C_data_turb <-Turb_cluster_data %>% filter(Location == "Cabral")
+
 
 ## Force type data.frame
 class(V_data_turb) = "data.frame" 
@@ -1043,8 +1091,8 @@ Distribution of the most discriminative variable per clusters
 Vdes_turb<-plot(x = res_V_turb, y = 1:ncol(x_V_turb))
 Cdes_turb<-plot(x = res_C_turb, y = 1:ncol(x_C_turb))
 
-ggsave(here(paste0("Output","DiscriminativePower_Turb_Varari_",sumParam,".png")),Vdes_turb, height = 10, width = 10)
-ggsave(here(paste0("Output","DiscriminativePower_Turb_Cabral_",sumParam,".png")),Cdes_turb, height = 10, width = 10)
+#ggsave(here(paste0("Output","DiscPower_TurbRange_Varari.png")),Vdes_turb, height = 10, width = 10)
+#ggsave(here(paste0("Output","DiscPower_TurbRange_Cabral.png")),Cdes_turb, height = 10, width = 10)
 
 ```
 
@@ -1056,7 +1104,6 @@ Example empirical and theoretical distributions of the most discriminative varia
 
 plot(res_V_turb, y="N_percent", type="cdf")
 plot(res_C_turb, y="del15N", type="cdf")
-plot(res_C_turb, y="C_N", type="cdf")
 
 ```
 
@@ -1084,7 +1131,7 @@ C_Cluster_data_turb<-C_data_turb %>%
 ## Show clusters on maps
 ```{r}
 
-  ### Map Varari clusters
+### Map Varari clusters
 cluster_varari_map_turb <- ggmap(VarariBaseMap) +
   geom_point(data = V_Cluster_data_turb,
              aes(x = lon, y = lat,
@@ -1093,12 +1140,14 @@ cluster_varari_map_turb <- ggmap(VarariBaseMap) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
         title = "Varari, T. ornata Clusters (LCM) \n Transformed and Scaled",
-       subtitle = sumParam,
+       subtitle = "Parameter Range",
        color = "Varari Clusters")
 
-ggsave(here("Output","SGDZones","Varari",paste0("Varari_Turb_Cluster_Map_TransScale_",sumParam,".png")),cluster_varari_map_turb,height = 10, width = 10)
+#ggsave(here("Output","SGDZones","Varari",paste0("Varari_Turb_Cluster_Map_RangeTransScale.png")),cluster_varari_map_turb,height = 10, width = 10)
 
 cluster_varari_map_turb
+# compare
+cluster_varari_map
 
 ```
 
@@ -1113,12 +1162,14 @@ cluster_cabral_map_turb <- ggmap(CabralBaseMap) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
       title = "Cabral, T. ornata Clusters (LCM) \n Transformed and Scaled",
-       subtitle = sumParam,
+       subtitle = "Parameter Range",
        color = "Cabral Clusters")
 
-ggsave(here("Output","SGDZones","Cabral",paste0("Cabral_Turb_Cluster_Map_TransScale_",sumParam,".png")),cluster_cabral_map_turb,height = 10, width = 10)
+#ggsave(here("Output","SGDZones","Cabral",paste0("Cabral_Turb_Cluster_Map_RangeTransScale.png")),cluster_cabral_map_turb,height = 10, width = 10)
 
 cluster_cabral_map_turb
+# compare
+cluster_cabral_map
 
 ```
 
@@ -1163,9 +1214,8 @@ Cbox_turb<-ggplot(C_cluster_long_turb,
   theme(axis.text.x = element_text(angle = 90, vjust = -.1))
 
 
-ggsave(here("Output","SGDZones","Varari",paste0("Boxplots_Turb_Varari_TransScale_",sumParam,".png")), Vbox_turb, height = 20, width = 8)
-
-ggsave(here("Output","SGDZones","Cabral",paste0("Boxplots_Turb_Cabral_TransScale_",sumParam,".png")), Cbox_turb, height = 20, width = 8)
+#ggsave(here("Output","SGDZones","Varari",paste0("Boxplots_Turb_Varari_RangeTransScale.png")), Vbox_turb, height = 20, width = 8)
+#ggsave(here("Output","SGDZones","Cabral",paste0("Boxplots_Turb_Cabral_RangeTransScale.png")), Cbox_turb, height = 20, width = 8)
 
 Vbox_turb
 Cbox_turb
