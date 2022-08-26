@@ -18,7 +18,7 @@ gps <- read_csv(here("Data","Sandwich_Locations_Final.csv"))
 ## Clean Data
 ## remove unnecessary/redundant turbinaria data to not include in cluster analysis
 turb <- turb1 %>%
-  select(CowTagID, del15N, N_percent)
+  select(CowTagID, del15N, C_N, N_percent)
 
 
 ## Filter out unnecessary/redundant data
