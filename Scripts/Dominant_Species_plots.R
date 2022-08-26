@@ -444,3 +444,17 @@ pairwise.adonis(mds_data[,1:28], mds_data$rel_dist, perm=999)
 permanovamodel$coefficients
 
 
+
+
+######################33
+
+a <- full_data %>%
+  filter(Taxa != "Sand/Bare Rock") %>%
+  filter(Top_Plate_ID %in% c('V14', 'V7', 'V8', 'V4', 'V16', 'V3')) %>%
+  select(Top_Plate_ID, Taxa, percentCover) %>%
+  distinct() %>%
+  arrange(Top_Plate_ID, desc(percentCover))
+View(a)
+a %>%
+  ggplot(aes(x = Top_Plate_ID, y = percentCover, fill = Taxa)) +
+  geom_col()
