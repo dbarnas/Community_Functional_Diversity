@@ -577,7 +577,45 @@ V_Cluster_data<-V_data %>%
 #   cbind(C_cluster) %>% 
 #   mutate(C_cluster = as.factor(C_cluster))
 
+
+### Save clusters in csv
+Cluster_metadata <- V_Cluster_data %>% 
+  select(Location, CowTagID, lat, lon, V_cluster)
+write_csv(Cluster_metadata, here("Data","Surveys","Cluster_metadata.csv"))
+
 ```  
+
+Check if clusters are significantly distinct
+Incomplete script portion. Does not eval
+```{r, eval = F}
+# make cluster ID a factor
+V_Cluster_data$V_cluster <- as.factor(V_Cluster_data$V_cluster)
+
+# clustermodel <- lm(data = V_Cluster_data, V_cluster ~ Salinity * TA * pH * Phosphate_umolL * Silicate_umolL * NN_umolL * Ammonia_umolL * M_C * HIX * VisibleHumidic_Like * Tryptophan_Like * Tyrosine_Like * del15N * C_N * N_percent)
+
+clustermodel <- lm(data = V_Cluster_data, V_cluster ~ Silicate_umolL)
+
+anova(clustermodel)
+
+
+#Let's make a graph of those data
+#I'm going to gather my summary data using emmeans
+library(emmeans)
+graphdata<-as.data.frame(emmeans(clustermodel, ~ Silicate_umolL))
+graphdata
+
+library(ggplot2)
+ggplot(graphdata, aes(x=Location, y=emmean, fill=factor(TidalHeight), group=factor(TidalHeight))) + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))+
+  geom_bar(stat="identity", position="dodge", size=0.6) + #determines the bar width
+  geom_errorbar(aes(ymax=emmean+SE, ymin=emmean-SE), stat="identity", position=position_dodge(width=0.9), width=0.1) + #adds error bars
+  labs(x="Location", y="Snail Length", fill="TidalHeight") + #labels the x and y axes
+  scale_fill_manual(values=c("Low"="tomato","High"="dodgerblue2")) #fill colors for the bars
+
+
+
+```
 
 
 
@@ -1132,7 +1170,7 @@ Distribution of the most discriminative variable per clusters
 Vdes_turb<-plot(x = res_V_turb, y = 1:ncol(x_V_turb))
 #Cdes_turb<-plot(x = res_C_turb, y = 1:ncol(x_C_turb))
 
-ggsave(here(paste0("Output","DiscPower_TurbRange_Varari.png")),Vdes_turb, height = 10, width = 10)
+ggsave(here("Output","SGDZones","Varari","DiscPower_TurbRange_Varari.png"),Vdes_turb, height = 10, width = 10)
 #ggsave(here(paste0("Output","DiscPower_TurbRange_Cabral.png")),Cdes_turb, height = 10, width = 10)
 
 ```
@@ -1165,6 +1203,11 @@ V_Cluster_data_turb<-V_data_turb %>%
 # C_Cluster_data_turb<-C_data_turb %>% 
 #   cbind(C_cluster_turb) %>% 
 #   mutate(C_cluster_turb = as.factor(C_cluster_turb))
+
+### Save clusters in csv
+Cluster_metadata_turb <- V_Cluster_data_turb %>% 
+  select(Location, CowTagID, lat, lon, V_cluster_turb)
+write_csv(Cluster_metadata_turb, here("Data","Surveys","Cluster_turb_metadata.csv"))
 
 ```  
 
@@ -1204,7 +1247,7 @@ cluster_varari_map_turb <- ggmap(VarariBaseMap) +
 
 
 
-ggsave(here("Output","SGDZones","Varari",paste0("Varari_Turb_Cluster_Map_Range.png")),cluster_varari_map_turb,height = 10, width = 10)
+ggsave(here("Output","SGDZones","Varari","Varari_Turb_Cluster_Map_Range.png"),cluster_varari_map_turb,height = 10, width = 10)
 
 # compare
 cluster_varari_map_turb
@@ -1278,7 +1321,7 @@ Vbox_turb<-ggplot(V_cluster_long_turb,
 #   theme(axis.text.x = element_text(angle = 90, vjust = -.1))
 
 
-ggsave(here("Output","SGDZones","Varari",paste0("Boxplots_Turb_Varari_Range.png")), Vbox_turb, height = 20, width = 8)
+ggsave(here("Output","SGDZones","Varari","Boxplots_Turb_Varari_Range.png"), Vbox_turb, height = 20, width = 8)
 #ggsave(here("Output","SGDZones","Cabral",paste0("Boxplots_Turb_Cabral_RangeTransScale.png")), Cbox_turb, height = 20, width = 8)
 
 Vbox_turb
