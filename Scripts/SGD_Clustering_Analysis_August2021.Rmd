@@ -579,9 +579,9 @@ V_Cluster_data<-V_data %>%
 
 
 ### Save clusters in csv
-Cluster_metadata <- V_Cluster_data %>% 
-  select(Location, CowTagID, lat, lon, V_cluster)
-write_csv(Cluster_metadata, here("Data","Surveys","Cluster_metadata.csv"))
+SaveTransScale <- V_Cluster_data %>% 
+  mutate_at(vars(Salinity:N_percent), .funs = as.numeric)
+write_csv(SaveTransScale, here("Data","Surveys","Cluster_metadata.csv"))
 
 ```  
 
@@ -1205,9 +1205,9 @@ V_Cluster_data_turb<-V_data_turb %>%
 #   mutate(C_cluster_turb = as.factor(C_cluster_turb))
 
 ### Save clusters in csv
-Cluster_metadata_turb <- V_Cluster_data_turb %>% 
-  select(Location, CowTagID, lat, lon, V_cluster_turb)
-write_csv(Cluster_metadata_turb, here("Data","Surveys","Cluster_turb_metadata.csv"))
+SaveTransScale_turb <- V_Cluster_data_turb %>% 
+  mutate_at(vars(del15N:N_percent), .funs = as.numeric)
+write_csv(SaveTransScale_turb, here("Data","Surveys","Cluster_turb_metadata.csv"))
 
 ```  
 
