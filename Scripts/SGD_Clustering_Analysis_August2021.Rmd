@@ -572,7 +572,13 @@ V_cluster<-as.data.frame(V_cluster)
 # join cluster ID's to full_data
 V_Cluster_data<-V_data %>% 
   cbind(V_cluster) %>% 
-  mutate(V_cluster = as.factor(V_cluster))
+  # relabel cluster ID's
+  mutate(V_cluster = ifelse(V_cluster == 1, "High", V_cluster)) %>% 
+  mutate(V_cluster = ifelse(V_cluster == 2, "Low", V_cluster)) %>% 
+  mutate(V_cluster = ifelse(V_cluster == 3, "Mid", V_cluster)) %>% 
+  # as.factor and relevel cluster ID's
+  mutate(V_cluster = as.factor(V_cluster)) %>% 
+  mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
 # C_Cluster_data<-C_data %>% 
 #   cbind(C_cluster) %>% 
 #   mutate(C_cluster = as.factor(C_cluster))
@@ -587,7 +593,7 @@ write_csv(SaveTransScale, here("Data","Surveys","Cluster_metadata.csv"))
 
 Check if clusters are significantly distinct
 Incomplete script portion. Does not eval
-```{r, eval = F}
+```{r, eval = F, echo = F}
 # make cluster ID a factor
 V_Cluster_data$V_cluster <- as.factor(V_Cluster_data$V_cluster)
 
@@ -709,10 +715,12 @@ VmapSites
 V_cluster_palette <- c("brown3", "white", "#fad02c") #1 is dark yellow #2 is baby blue #3 is red 
 
 ### Map Varari clusters
-VSeepPt <- V_Cluster_data %>% filter(CowTagID == "VSEEP") # isolate Varari seep
-VSeepPtID<-VSeepPt %>% 
-  select(V_cluster) %>% 
-  as.numeric()
+
+# isolate Varari seep
+VSeepPt <- V_Cluster_data %>% filter(CowTagID == "VSEEP") 
+VSeepPtID <- VSeepPt %>% 
+  select(V_cluster)
+VSeepPtID <- as.factor(VSeepPtID[1,1])
   
 
 cluster_varari_map <- ggmap(VarariBaseMap) +
@@ -730,9 +738,9 @@ cluster_varari_map <- ggmap(VarariBaseMap) +
              size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
-        title = "Varari, Clusters (LCM) \n Transformed and Scaled",
-       subtitle = "Parameter Range",
-       fill = "Varari Clusters") +
+        title = "Varari Clusters (LCM)",
+       subtitle = "Transformed and Scaled Parameter Ranges",
+       fill = "Relative SGD Influence") +
   scale_fill_manual(values = V_cluster_palette)
 
 cluster_varari_map
