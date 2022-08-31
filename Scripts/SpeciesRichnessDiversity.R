@@ -23,6 +23,15 @@ spcluster <- spcomp %>%
   left_join(cluster)
 head(spcluster)
 
+# relabel cluster ID's
+spcluster <- spcluster %>%
+  mutate(V_cluster = ifelse(V_cluster == 1, "High", V_cluster)) %>%
+  mutate(V_cluster = ifelse(V_cluster == 2, "Low", V_cluster)) %>%
+  mutate(V_cluster = ifelse(V_cluster == 3, "Mid", V_cluster)) %>%
+  # as.factor and relevel cluster ID's
+  mutate(V_cluster = as.factor(V_cluster)) %>%
+  mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
+
 
 ### calculate species richness ###
 richness <- spcluster %>%
@@ -32,8 +41,7 @@ richness <- spcluster %>%
   mutate(spR = sum(spR)) %>%
   ungroup() %>%
   select(-Taxa) %>%
-  distinct() %>%
-  mutate(V_cluster = as.factor(V_cluster))
+  distinct()
 head(richness)
 
 
@@ -44,25 +52,29 @@ anova(model1)
 summary(model1)
 
 
-#If I  wanted to do Tukey post-hoc tests
+# Tukey post-hoc tests
 TukeyHSD(model1)
-# 3 is distinct from 1 & 2
-# 1 and 2 are not distinct from each other
+# Mid is distinct from Low & High
+# Low and High are not distinct from each other
 
 # associate significant difference indicator with cluster ID
 richness <- richness %>%
-  mutate(sigdif = ifelse(V_cluster == 3, "a", "b"))
+  mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b"))
 
 
 ### make a graph of those data ###
 # gather summary data using emmeans
 graphdata1<-as.data.frame(emmeans(model1, ~ V_cluster))
 graphdata1<-graphdata1 %>%
-  mutate(sigdif = ifelse(V_cluster == 3, "a", "b")) # as above, associate significant difference indicator with cluster ID
+  mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b")) # as above, associate significant difference indicator with cluster ID
 graphdata1
 
+## create palette
+V_cluster_palette <- c("brown3", "white", "#fad02c")
+#1 is dark yellow #2 is baby blue #3 is red
+
 # graph
-ggplot(graphdata1,
+plot1 <- ggplot(graphdata1,
        aes(x=V_cluster,
            y=emmean,
            fill = V_cluster)) +
@@ -71,19 +83,25 @@ ggplot(graphdata1,
            position="dodge",
            size=0.6) + #determines the bar width
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+        panel.background = element_rect(fill = "grey"), axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
   geom_errorbar(aes(ymax=emmean+SE, ymin=emmean-SE),
                 stat="identity",
                 position=position_dodge(width=0.9),
                 width=0.1) + #adds error bars
   geom_text(aes(label = sigdif),
-                vjust = c(-4, -3, -2)) +
+                vjust = c(-14, -6, -8),
+            size = 5) +
   labs(x="Varari Cluster",
-       y="Species Richness") + #labels the x and y axes
-  scale_fill_manual(values=c("red2", "dodgerblue2", "green4")) #fill colors for the bars
+       y="Mean Species Richness",
+       fill = "Relative SGD Influence") + #labels the x and y axes
+  scale_x_discrete(labels = c("High", "Mid", "Low")) +
+  scale_fill_manual(values=V_cluster_palette, labels = c("High", "Mid", "Low")) #fill colors for the bars
 
+plot1
 
-
+ggsave(here("Output","V_richness_barplot.png"), plot1, height = 10, width = 10, device = "png")
 
 
 #### CLUSTERS FROM TURBINARIA CLUSTERS ####
