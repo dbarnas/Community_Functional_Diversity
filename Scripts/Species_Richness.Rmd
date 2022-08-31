@@ -1,0 +1,354 @@
+---
+title: "Species Richness across SGD zones"
+author: "Danielle Barnas"
+date: "8/29/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+```
+
+### Load Libraries ###
+```{r}
+
+library(tidyverse)
+library(here)
+library(stats) # lm() and anova()
+library(emmeans)
+library(agricolae) # HSD.test()
+
+```
+
+### Read in Data ###
+```{r}
+
+spcomp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
+
+cluster <- read_csv(here("Data", "Surveys", "Cluster_metadata.csv"))
+
+turbcluster <- read_csv(here("Data", "Surveys", "Cluster_turb_metadata.csv"))
+
+## nutrients, not transformed or scaled
+nutrients <- read_csv(here("Data", "Biogeochem", "AugNutrient_Processed.csv"))
+
+```
+
+### CLUSTERS FROM FULL BIOGEOCHEM ###
+```{r}
+
+### Clean data ###
+spcluster <- spcomp %>%
+  filter(Location == "Varari") %>%
+  select(-c(PhotoNum, Notes)) %>%
+  left_join(cluster)
+
+# as.factor and relevel cluster ID's
+spcluster <- spcluster %>%
+  mutate(V_cluster = as.factor(V_cluster)) %>%
+  mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
+
+
+### calculate species richness ###
+richness <- spcluster %>%
+  select(Location, CowTagID, Taxa, V_cluster) %>%
+  group_by(Location, CowTagID, V_cluster) %>%
+  count(name = 'spR', Taxa) %>%
+  mutate(spR = sum(spR)) %>%
+  ungroup() %>%
+  select(-Taxa) %>%
+  distinct()
+
+```
+
+```{r}
+### richness anova model ###
+
+model1 <- aov(data = richness, spR ~ V_cluster)
+anova(model1)
+summary(model1)
+
+# Tukey post-hoc tests
+TukeyHSD(model1)
+
+```
+
+```{r}
+# associate significant difference indicator with cluster ID
+# richness <- richness %>%
+#   mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b"))
+
+
+### make a graph of those data ###
+# gather summary data using emmeans
+graphdata1<-as.data.frame(emmeans(model1, ~ V_cluster))
+# graphdata1<-graphdata1 %>%
+#   mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b")) # as above, associate significant difference indicator with cluster ID
+graphdata1
+
+## create palette
+V_cluster_palette <- c("brown3", "white", "#fad02c")
+#1 is dark yellow #2 is baby blue #3 is red
+
+# graph
+plot1 <- ggplot(graphdata1,
+       aes(x=V_cluster,
+           y=emmean,
+           fill = V_cluster)) +
+           #group=factorV_cluster)) +
+  geom_bar(stat="identity",
+           position="dodge",
+           size=0.6) + #determines the bar width
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "azure4"),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  geom_errorbar(aes(ymax=emmean+SE, ymin=emmean-SE),
+                stat="identity",
+                position=position_dodge(width=0.9),
+                width=0.1) + #adds error bars
+  # geom_text(aes(label = sigdif),
+  #               vjust = c(-14, -6, -8),
+  #           size = 5) +
+  labs(x="Varari Cluster",
+       y="Mean Species Richness",
+       fill = "Relative SGD Influence") + #labels the x and y axes
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot1
+
+#ggsave(here("Output","V_richness_barplot.png"), plot1, height = 10, width = 10, device = "png")
+```
+
+```{r}
+# percent cover
+
+### Clean data ###
+sp_cover <- spcomp %>%
+  filter(Location == "Varari") %>%
+  select(-c(Date, PhotoNum, Notes)) %>%
+  group_by(Location, CowTagID) %>% 
+  mutate(totalCount = sum(SpeciesCounts),
+         percentCover = SpeciesCounts/totalCount * 100) %>% # percent cover
+  select(Location, CowTagID, Taxa, percentCover)
+
+sp_cover <- cluster %>% 
+  select(CowTagID, V_cluster) %>% 
+  right_join(sp_cover) %>% 
+    # as.factor and relevel cluster ID's
+  mutate(V_cluster = as.factor(V_cluster)) %>%
+  mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
+```
+
+```{r}
+### percent cover anova model ###
+
+model2 <- aov(data = sp_cover, percentCover ~ V_cluster)
+anova(model2)
+summary(model2)
+
+# Tukey post-hoc tests
+TukeyHSD(model2)
+
+```
+
+```{r}
+# associate significant difference indicator with cluster ID
+# sp_cover <- sp_cover %>%
+#   mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b"))
+
+
+### make a graph of those data ###
+# gather summary data using emmeans
+graphdata2<-as.data.frame(emmeans(model2, ~ V_cluster))
+# graphdata2<-graphdata2 %>%
+#   mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b")) # as above, associate significant difference indicator with cluster ID
+graphdata2
+
+## create palette
+V_cluster_palette <- c("brown3", "white", "#fad02c")
+#1 is dark yellow #2 is baby blue #3 is red
+
+# graph
+plot2 <- ggplot(graphdata2,
+       aes(x=V_cluster,
+           y=emmean,
+           fill = V_cluster)) +
+           #group=factorV_cluster)) +
+  geom_bar(stat="identity",
+           position="dodge",
+           size=0.6) + #determines the bar width
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "azure4"),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  geom_errorbar(aes(ymax=emmean+SE, ymin=emmean-SE),
+                stat="identity",
+                position=position_dodge(width=0.9),
+                width=0.1) + #adds error bars
+  # geom_text(aes(label = sigdif),
+  #               vjust = c(-14, -6, -8),
+  #           size = 5) +
+  labs(x="Varari Cluster",
+       y="Mean Species % Cover",
+       fill = "Relative SGD Influence") + #labels the x and y axes
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot2
+
+#ggsave(here("Output","V_percentCover_barplot.png"), plot2, height = 10, width = 10, device = "png")
+```
+
+
+
+
+### CLUSTERS FROM TURBINARIA CLUSTERS ###
+
+```{r}
+### Clean data ###
+spclusterT <- spcomp %>%
+  filter(Location == "Varari") %>%
+  select(-c(PhotoNum, Notes)) %>%
+  left_join(turbcluster)
+head(spclusterT)
+
+spclusterT <- spclusterT %>%
+  mutate(V_cluster_turb = ifelse(V_cluster_turb == 3, "High", V_cluster_turb)) %>%
+  mutate(V_cluster_turb = ifelse(V_cluster_turb == 2, "Low", V_cluster_turb)) %>%
+  mutate(V_cluster_turb = ifelse(V_cluster_turb == 1, "Mid", V_cluster_turb)) %>%
+  # as.factor and relevel cluster ID's
+  mutate(V_cluster_turb = as.factor(V_cluster_turb)) %>%
+  mutate(V_cluster_turb = fct_relevel(V_cluster_turb, levels = c("High", "Mid", "Low")))
+
+
+### calculate species richness ###
+richnessT <- spclusterT %>%
+  rename(V_cluster = V_cluster_turb) %>%
+  select(Location, CowTagID, Taxa, V_cluster) %>%
+  group_by(Location, CowTagID, V_cluster) %>%
+  count(name = 'spR', Taxa) %>%
+  mutate(spR = sum(spR)) %>%
+  ungroup() %>%
+  select(-Taxa) %>%
+  distinct()
+richnessT
+
+```
+
+```{r}
+### anova models ###
+
+model3 <- aov(data = richnessT, spR ~ V_cluster)
+anova(model3)
+summary(model3)
+
+# Tukey post-hoc tests
+TukeyHSD(model3)
+
+```
+
+```{r}
+### associate significant difference indicator with cluster ID
+# richnessT <- richnessT %>%
+#   mutate(sigdif = ifelse(V_cluster == "High", "a", "b")) %>% # 3 gets a, all else gets b
+#   mutate(sigdif = ifelse(V_cluster == "Low", "ab", sigdif)) # replace b with ab for 2, all else maintain a or b
+
+
+### make a graph of those data ###
+# gather summary data using emmeans
+graphdata3<-as.data.frame(emmeans(model2, ~ V_cluster))
+# graphdata3<-graphdata3 %>%
+#   mutate(sigdif = ifelse(V_cluster == "High", "a", "b")) %>% # 3 gets a, all else gets b
+#   mutate(sigdif = ifelse(V_cluster == "Low", "ab", sigdif)) # replace b with ab for 2, all else maintain a or b
+graphdata3
+
+## create palette
+V_cluster_palette <- c("brown3", "white", "#fad02c")
+
+# graph
+plot3 <- ggplot(graphdata3,
+       aes(x=V_cluster,
+           y=emmean,
+           fill = V_cluster)) +
+  geom_bar(stat="identity",
+           position="dodge",
+           size=0.6) + #determines the bar width
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "azure4"), axis.line = element_line(colour = "black")) +
+  geom_errorbar(aes(ymax=emmean+SE, ymin=emmean-SE),
+                stat="identity",
+                position=position_dodge(width=0.9),
+                width=0.1) + #adds error bars
+  # geom_text(aes(label = sigdif),
+  #           vjust = c(-2, -3, -5)) +
+  labs(x="Varari Cluster",
+       y="Species Richness") + #labels the x and y axes
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot3
+
+```
+
+
+
+### Richness linear regression ~ Silicate ###
+```{r}
+
+### Process and join nutrient data ###
+range_param <- spcluster %>% 
+  select(-c(Salinity:N_percent)) %>% 
+  left_join(nutrients)
+
+### calculate species richness ###
+richness <- spcluster %>%
+  select(Location, CowTagID, Taxa, V_cluster) %>%
+  group_by(Location, CowTagID, V_cluster) %>%
+  count(name = 'spR', Taxa) %>%
+  mutate(spR = sum(spR)) %>%
+  ungroup() %>%
+  select(-Taxa) %>%
+  distinct()
+
+### join richness to biogeochem ###
+rich_param <- range_param %>% 
+  select(-c(Date, Taxa, SpeciesCounts, 
+            TA:Phosphate_umolL, NN_umolL:Tyrosine_Like)) %>% 
+  left_join(richness) %>% 
+  distinct()
+
+```
+
+```{r}
+rich_param %>% 
+  filter(CowTagID != "VSEEP") %>% 
+  pivot_longer(cols = c(Salinity:N_percent), 
+               names_to = "Parameters",
+               values_to = "Values") %>% 
+  ggplot(aes(x = Values,
+           y = spR)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  facet_wrap(~Parameters, scales = "free_x") +
+  theme(panel.background = element_rect(fill = "white"))
+
+```
+
+```{r}
+### linear regression ###
+model4 <- lm(data = rich_param, spR ~ Salinity)
+model5 <- lm(data = rich_param, spR ~ Silicate_umolL)
+model6 <- lm(data = rich_param, spR ~ del15N * C_N * N_percent)
+model7 <- lm(data = rich_param, spR ~ del15N)
+model8 <- lm(data = rich_param, spR ~ N_percent)
+
+### summaries ###
+summary(model4)
+summary(model5)
+summary(model6)
+summary(model7)
+summary(model8)
+```
