@@ -6,10 +6,19 @@ This repository is for a master's thesis project at California State University,
 Two coral reefs with unique SGD sources and signatures
 
 [Data](Data/Surveys/)  
-[Scripts](Scripts/)
-- [Species Accumulation Curve](Scripts/Sp_Accumulation_Curve.R)
-- [Clustering Analysis (LCM with variable selection)](Scripts/SGD_Clustering_Analysis.Rmd)
-- [Randomizing Survey Locations](Scripts/Randomise_Survey_Locations.R)
+[Scripts](Scripts/)  
+- [Species Accumulation Curve](Scripts/Sp_Accumulation_Curve_2022.R)
+- Clustering Analysis (LCM with variable selection)
+    - [Varari LCM with VSEEP](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Clustering/SGD_Clustering_Analysis_August2021.html)
+    - [Varari LCM without VSEEP](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Clustering/SGD_noSeep_Clusters_LCM_Aug2021.html)
+- [Species Richness ~ Varari Cluster Zones](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Species_Richness.html)  
+[Output](Output/)  
+- [Varari Sample Location Map](Output/SGDZones/Varari/Varari_CowTagID_Map.png]
+- [Varari Cluster Map (full biogeochem)](Output/SGDZones/Varari/Varari_Cluster_Map_Range.png)
+- [*T. ornata* tissue Nitrogen ~ Silicate linear regression](Output/Tissue_N_Silicate_Figures.png)
+- [Varari Cluster Map (*T. ornata*)](Output/SGDZones/Varari/Varari_Turb_Cluster_Map_Range.png)
+- [Varari Species Accumulation Curve](Output/Species_Accumulation.png)
+- [Varari Species Richness ~ Clusters barplot](Output/V_richness_barplot.png)
 
 
 
