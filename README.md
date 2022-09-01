@@ -13,7 +13,7 @@ Two coral reefs with unique SGD sources and signatures
     - [Varari LCM without VSEEP](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Clustering/SGD_noSeep_Clusters_LCM_Aug2021.html)
 - [Species Richness ~ Varari Cluster Zones](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Species_Richness.html)  
 [Output](Output/)  
-- [Varari Sample Location Map](Output/SGDZones/Varari/Varari_CowTagID_Map.png]
+- [Varari Sample Location Map](Output/SGDZones/Varari/Varari_CowTagID_Map.png)
 - [Varari Cluster Map (full biogeochem)](Output/SGDZones/Varari/Varari_Cluster_Map_Range.png)
 - [*T. ornata* tissue Nitrogen ~ Silicate linear regression](Output/Tissue_N_Silicate_Figures.png)
 - [Varari Cluster Map (*T. ornata*)](Output/SGDZones/Varari/Varari_Turb_Cluster_Map_Range.png)
