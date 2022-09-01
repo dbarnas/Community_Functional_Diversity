@@ -12,6 +12,8 @@ Two coral reefs with unique SGD sources and signatures
     - [Varari LCM with VSEEP](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Clustering/SGD_Clustering_Analysis_August2021.html)
     - [Varari LCM without VSEEP](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Clustering/SGD_noSeep_Clusters_LCM_Aug2021.html)
 - [Species Richness ~ Varari Cluster Zones](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Species_Richness.html)  
+
+
 [Output](Output/)  
 - [Varari Sample Location Map](Output/SGDZones/Varari/Varari_CowTagID_Map.png)
 - [Varari Cluster Map (full biogeochem)](Output/SGDZones/Varari/Varari_Cluster_Map_Range.png)
