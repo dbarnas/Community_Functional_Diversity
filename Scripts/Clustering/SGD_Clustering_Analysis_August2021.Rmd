@@ -656,7 +656,7 @@ VmapSites <- ggmap(VarariBaseMap) +
   geom_label(data = Full_data,
              aes(x = lon, y = lat,
                  label = CowTagID),
-             size = 2, alpha = 0.2)
+             size = 2, alpha = 0.8)
 
 VmapSites
 ggsave(here("Output","SGDZones","Varari","Varari_CowTagID_Map.png"),VmapSites,height = 10, width = 10)
