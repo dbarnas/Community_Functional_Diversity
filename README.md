@@ -15,12 +15,12 @@ Two coral reefs with unique SGD sources and signatures
 
 
 [Output](Output/)  
-- [Varari Sample Location Map](Output/SGDZones/Varari/Varari_CowTagID_Map.png)
-- [Varari Cluster Map (full biogeochem)](Output/SGDZones/Varari/Varari_Cluster_Map_Range.png)
-- [*T. ornata* tissue Nitrogen ~ Silicate linear regression](Output/Tissue_N_Silicate_Figures.png)
-- [Varari Cluster Map (*T. ornata*)](Output/SGDZones/Varari/Varari_Turb_Cluster_Map_Range.png)
-- [Varari Species Accumulation Curve](Output/Species_Accumulation.png)
-- [Varari Species Richness ~ Clusters barplot](Output/V_richness_barplot.png)
+- [Varari Sample Location Map](Output/SGDZones/Varari/Varari_CowTagID_Map.pdf)
+- [Varari Cluster Map (full biogeochem)](Output/SGDZones/Varari/Varari_Cluster_Map_Range.pdf)
+- [*T. ornata* tissue Nitrogen ~ Silicate linear regression](Output/Tissue_N_Silicate_Figures.pdf)
+- [Varari Cluster Map (*T. ornata*)](Output/SGDZones/Varari/Varari_Turb_Cluster_Map_Range.pdf)
+- [Varari Species Accumulation Curve](Output/Species_Accumulation_Varari.pdf)
+- [Varari Species Richness ~ Clusters barplot](Output/V_richness_barplot.pdf)
 
 
 
