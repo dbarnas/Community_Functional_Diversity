@@ -74,14 +74,15 @@ richness <- spcluster %>%
 
 model1 <- aov(data = richness, spR ~ V_cluster)
 anova(model1)
-summary(model1)
+a <- summary(model1)
+ap <- a[[1]]$`Pr(>F)` # isolate p value for graphing
 
 # Tukey post-hoc tests
 TukeyHSD(model1)
 
 ```
 
-```{r}
+```{r, fig.dim = c(10, 10)}
 # based on post-hoc p-values, associate significance letters to cluster factors
 sigdifDF <- tibble(V_cluster = as_factor(c("High", "Mid", "Low")),
                    sigdif = as.character(c("a", "b", "a")))
@@ -126,18 +127,21 @@ plot1 <- ggplot(graphdata1,
             size = 5) +
   labs(x="Varari Cluster",
        y="Mean Species Richness",
-       fill = "Relative SGD Influence") + #labels the x and y axes
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = ap, 2))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot1
 
 ggsave(here("Output","V_richness_barplot.png"), plot1, height = 10, width = 10, device = "png")
+ggsave(here("Output","V_richness_barplot.pdf"), plot1, height = 10, width = 10, device = "pdf")
 ```
+
 #### Richness with no Seep
 ```{r}
 
 ### Clean data ###
-spcluster <- spcomp %>%
+spcluster_noSeep <- spcomp %>%
   filter(Location == "Varari" | Location == "Varari_Maya", # all Varari surveys
          CowTagID != "VSEEP") %>% # remove while using noseep data
   left_join(cluster_noSeep) %>% 
@@ -145,13 +149,13 @@ spcluster <- spcomp %>%
   drop_na(V_cluster) # remove sites without a cluster categorization
 
 # as.factor and relevel cluster ID's
-spcluster <- spcluster %>%
+spcluster_noSeep <- spcluster_noSeep %>%
   mutate(V_cluster = as.factor(V_cluster)) %>%
   mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
 
 
 ### calculate species richness ###
-richness <- spcluster %>%
+richness <- spcluster_noSeep %>%
   select(Location, CowTagID, Taxa, V_cluster) %>%
   group_by(Location, CowTagID, V_cluster) %>%
   count(name = 'spR', Taxa) %>%
@@ -167,14 +171,15 @@ richness <- spcluster %>%
 
 model2 <- aov(data = richness, spR ~ V_cluster)
 anova(model2)
-summary(model2)
+b <- summary(model2)
+bp <- b[[1]]$`Pr(>F)`
 
 # Tukey post-hoc tests
 TukeyHSD(model2)
 
 ```
 
-```{r}
+```{r, fig.dim = c(10, 10)}
 # based on post-hoc p-values, associate significance letters to cluster factors
 sigdifDF <- tibble(V_cluster = as_factor(c("High", "Mid", "Low")),
                    sigdif = as.character(c("ab", "a", "b")))
@@ -217,14 +222,16 @@ plot2 <- ggplot(graphdata2,
   geom_text(aes(label = sigdif),
                 vjust = c(-6, -5, -8),
             size = 5) +
-  labs(x="Varari Cluster",
+  labs(x="Varari Cluster, excluding Seep",
        y="Mean Species Richness",
-       fill = "Relative SGD Influence") + #labels the x and y axes
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = bp, 2))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot2
 
 ggsave(here("Output","V_richness_barplot_noSeep.png"), plot2, height = 10, width = 10, device = "png")
+ggsave(here("Output","V_richness_barplot_noSeep.pdf"), plot2, height = 10, width = 10, device = "pdf")
 ```
 
 
@@ -252,14 +259,15 @@ sp_cover <- cluster %>%
 
 model3 <- aov(data = sp_cover, percentCover ~ V_cluster)
 anova(model3)
-summary(model3)
+c <- summary(model3)
+cp <- c[[1]]$`Pr(>F)`
 
 # Tukey post-hoc tests
 TukeyHSD(model3)
 
 ```
 
-```{r}
+```{r, fig.dim = c(10, 10)}
 # associate significant difference indicator with cluster ID
 # sp_cover <- sp_cover %>%
 #   mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b"))
@@ -300,28 +308,30 @@ plot3 <- ggplot(graphdata3,
   #           size = 5) +
   labs(x="Varari Cluster",
        y="Mean Species % Cover",
-       fill = "Relative SGD Influence") + #labels the x and y axes
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = cp, 2))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot3
 
 ggsave(here("Output","V_percentCover_barplot.png"), plot3, height = 10, width = 10, device = "png")
+ggsave(here("Output","V_percentCover_barplot.pdf"), plot3, height = 10, width = 10, device = "pdf")
 ```
 
 
 #### Percent Cover with no Seep
 ```{r}
 ### Clean data ###
-sp_cover <- spcomp %>%
+sp_cover_noSeep <- spcomp %>%
   filter(Location == "Varari") %>%
   group_by(Location, CowTagID) %>% 
   mutate(totalCount = sum(SpeciesCounts),
          percentCover = SpeciesCounts/totalCount * 100) %>% # percent cover
   select(Location, CowTagID, Taxa, percentCover)
 
-sp_cover <- cluster_noSeep %>% 
+sp_cover_noSeep <- cluster_noSeep %>% 
   select(CowTagID, V_cluster) %>% 
-  right_join(sp_cover) %>% 
+  right_join(sp_cover_noSeep) %>% 
     # as.factor and relevel cluster ID's
   mutate(V_cluster = as.factor(V_cluster)) %>%
   mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
@@ -330,16 +340,17 @@ sp_cover <- cluster_noSeep %>%
 ```{r}
 ### percent cover anova model ###
 
-model4 <- aov(data = sp_cover, percentCover ~ V_cluster)
+model4 <- aov(data = sp_cover_noSeep, percentCover ~ V_cluster)
 anova(model4)
-summary(model4)
+d <- summary(model4)
+dp <- d[[1]]$`Pr(>F)`
 
 # Tukey post-hoc tests
 TukeyHSD(model4)
 
 ```
 
-```{r}
+```{r, fig.dim = c(10, 10)}
 # associate significant difference indicator with cluster ID
 # sp_cover <- sp_cover %>%
 #   mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b"))
@@ -378,14 +389,16 @@ plot4 <- ggplot(graphdata4,
   # geom_text(aes(label = sigdif),
   #               vjust = c(-14, -6, -8),
   #           size = 5) +
-  labs(x="Varari Cluster",
+  labs(x="Varari Cluster, exclusing Seep",
        y="Mean Species % Cover",
-       fill = "Relative SGD Influence") + #labels the x and y axes
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = dp, 2))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot4
 
 ggsave(here("Output","V_percentCover_barplot_noSeep.png"), plot4, height = 10, width = 10, device = "png")
+ggsave(here("Output","V_percentCover_barplot_noSeep.pdf"), plot4, height = 10, width = 10, device = "pdf")
 ```
 
 
@@ -393,6 +406,91 @@ ggsave(here("Output","V_percentCover_barplot_noSeep.png"), plot4, height = 10, w
 
 ### CLUSTERS FROM TURBINARIA CLUSTERS ###
 
+Turbinaria Richness with Seep
+```{r}
+### Clean data ###
+spclusterT <- spcomp %>%
+  filter(Location == "Varari") %>%
+  left_join(turbcluster)
+head(spclusterT)
+
+spclusterT <- spclusterT %>%
+  mutate(V_cluster_turb = as.factor(V_cluster_turb)) %>%   # as.factor and relevel cluster ID's
+  mutate(V_cluster_turb = fct_relevel(V_cluster_turb, levels = c("High", "Mid", "Low")))
+
+
+### calculate species richness ###
+richnessT <- spclusterT %>%
+  rename(V_cluster = V_cluster_turb) %>%
+  select(Location, CowTagID, Taxa, V_cluster) %>%
+  group_by(Location, CowTagID, V_cluster) %>%
+  count(name = 'spR', Taxa) %>%
+  mutate(spR = sum(spR)) %>%
+  ungroup() %>%
+  select(-Taxa) %>%
+  distinct()
+richnessT
+
+```
+
+```{r}
+### anova models ###
+
+model5 <- aov(data = richnessT, spR ~ V_cluster)
+anova(model5)
+e <- summary(model5)
+ep <- e[[1]]$`Pr(>F)`
+
+# Tukey post-hoc tests
+TukeyHSD(model5)
+
+```
+
+```{r, fig.dim = c(10, 10)}
+
+### make a graph of those data ###
+# gather summary data using emmeans
+graphdata5<-as.data.frame(emmeans(model5, ~ V_cluster))
+# graphdata3<-graphdata3 %>%
+#   mutate(sigdif = ifelse(V_cluster == "High", "a", "b")) %>% # 3 gets a, all else gets b
+#   mutate(sigdif = ifelse(V_cluster == "Low", "ab", sigdif)) # replace b with ab for 2, all else maintain a or b
+graphdata5
+
+## create palette
+V_cluster_palette <- c("brown3", "white", "#fad02c")
+
+# graph
+plot5 <- ggplot(graphdata5,
+       aes(x=V_cluster,
+           y=emmean,
+           fill = V_cluster)) +
+  geom_bar(stat="identity",
+           position="dodge",
+           size=0.6) + #determines the bar width
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "azure4"), 
+        axis.line = element_line(colour = "black")) +
+  geom_errorbar(aes(ymax=emmean+SE, ymin=emmean-SE),
+                stat="identity",
+                position=position_dodge(width=0.9),
+                width=0.1) + #adds error bars
+  # geom_text(aes(label = sigdif),
+  #           vjust = c(-2, -3, -5)) +
+  labs(x="Varari Cluster",
+       y="Species Richness",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = ep, 2))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot5
+
+ggsave(here("Output","V_turb_richness_barplot.png"), plot5, height = 10, width = 10, device = "png")
+ggsave(here("Output","V_turb_ richness_barplot.pdf"), plot5, height = 10, width = 10, device = "pdf")
+
+```
+
+Turbinaria Richness with no Seep
 ```{r}
 ### Clean data ###
 spclusterT <- spcomp %>%
@@ -422,35 +520,32 @@ richnessT
 ```{r}
 ### anova models ###
 
-model5 <- aov(data = richnessT, spR ~ V_cluster)
-anova(model5)
-summary(model5)
+model6 <- aov(data = richnessT, spR ~ V_cluster)
+anova(model6)
+f <- summary(model6)
+fp <- f[[1]]$`Pr(>F)`
 
 # Tukey post-hoc tests
-TukeyHSD(model5)
+TukeyHSD(model6)
 
 ```
 
-```{r}
+```{r, fig.dim = c(10, 10)}
 ### associate significant difference indicator with cluster ID
-# richnessT <- richnessT %>%
-#   mutate(sigdif = ifelse(V_cluster == "High", "a", "b")) %>% # 3 gets a, all else gets b
-#   mutate(sigdif = ifelse(V_cluster == "Low", "ab", sigdif)) # replace b with ab for 2, all else maintain a or b
-
 
 ### make a graph of those data ###
 # gather summary data using emmeans
-graphdata5<-as.data.frame(emmeans(model5, ~ V_cluster))
+graphdata6<-as.data.frame(emmeans(model6, ~ V_cluster))
 # graphdata3<-graphdata3 %>%
 #   mutate(sigdif = ifelse(V_cluster == "High", "a", "b")) %>% # 3 gets a, all else gets b
 #   mutate(sigdif = ifelse(V_cluster == "Low", "ab", sigdif)) # replace b with ab for 2, all else maintain a or b
-graphdata5
+graphdata6
 
 ## create palette
 V_cluster_palette <- c("brown3", "white", "#fad02c")
 
 # graph
-plot5 <- ggplot(graphdata3,
+plot6 <- ggplot(graphdata6,
        aes(x=V_cluster,
            y=emmean,
            fill = V_cluster)) +
@@ -468,10 +563,15 @@ plot5 <- ggplot(graphdata3,
   # geom_text(aes(label = sigdif),
   #           vjust = c(-2, -3, -5)) +
   labs(x="Varari Cluster",
-       y="Species Richness") + #labels the x and y axes
+       y="Species Richness",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = fp, 2))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
-plot5
+plot6
+
+ggsave(here("Output","V_turb_richness_barplot_noSeep.png"), plot6, height = 10, width = 10, device = "png")
+ggsave(here("Output","V_turb_richness_barplot_noSeep.pdf"), plot6, height = 10, width = 10, device = "pdf")
 
 ```
 
@@ -523,18 +623,18 @@ rich_param %>%
 
 ```{r}
 ### linear regression ###
-model4 <- lm(data = rich_param, spR ~ Salinity)
-model5 <- lm(data = rich_param, spR ~ Silicate_umolL)
-model6 <- lm(data = rich_param, spR ~ del15N * C_N * N_percent)
-model7 <- lm(data = rich_param, spR ~ del15N)
-model8 <- lm(data = rich_param, spR ~ N_percent)
+model10 <- lm(data = rich_param, spR ~ Salinity)
+model11 <- lm(data = rich_param, spR ~ Silicate_umolL)
+model12 <- lm(data = rich_param, spR ~ del15N * C_N * N_percent)
+model13 <- lm(data = rich_param, spR ~ del15N)
+model14 <- lm(data = rich_param, spR ~ N_percent)
 
 ### summaries ###
-summary(model4)
-summary(model5)
-summary(model6)
-summary(model7)
-summary(model8)
+summary(model10)
+summary(model11)
+summary(model12)
+summary(model13)
+summary(model14)
 ```
 
 

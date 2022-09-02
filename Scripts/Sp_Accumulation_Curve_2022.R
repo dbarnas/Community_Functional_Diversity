@@ -72,7 +72,8 @@ plot1 <- Vquad %>%
   geom_smooth(color = "black")
 plot1
 
-ggsave(here("Output", "Species_Accumulation.png"), plot1, height = 10, width = 10, device = "png")
+ggsave(here("Output", "Species_Accumulation_Varari.png"), plot1, height = 10, width = 10, device = "png")
+ggsave(here("Output", "Species_Accumulation_Varari.pdf"), plot1, height = 10, width = 10, device = "pdf")
 
 
 #############################################################################################
@@ -133,5 +134,6 @@ plot2 <- Cquad %>%
 plot2
 
 ggsave(here("Output", "Species_Accumulation_Cabral.png"), plot2, height = 10, width = 10, device = "png")
+ggsave(here("Output", "Species_Accumulation_Cabral.pdf"), plot2, height = 10, width = 10, device = "pdf")
 
 
