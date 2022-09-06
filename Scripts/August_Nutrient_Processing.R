@@ -62,13 +62,33 @@ ReducedChemData <- AllChemData %>%
 
 
 ## Summarise: Range of parameters
+# Full_data <- ReducedChemData %>%
+#   group_by(Location, CowTagID) %>%
+#   # get parameter ranges across sampling periods by site and plate
+#   summarise_at(vars(Salinity:Tyrosine_Like), .funs = range, na.rm=T) %>% # returns two rows containing max and min value per CowTagID
+#   summarise_at(vars(Salinity:Tyrosine_Like), .funs = diff, na.rm=T) %>%  # returns difference between rows per CowTagID (yields range at each location)
+#   ungroup() %>%
+#   left_join(turb, by = "CowTagID")
 
-Full_data <- ReducedChemData %>%
+## Summarise: Coefficient of Variation of parameters
+mean_data <- ReducedChemData %>%
   group_by(Location, CowTagID) %>%
-  # get parameter ranges across sampling periods by site and plate
-  summarise_at(vars(Salinity:Tyrosine_Like), .funs = range, na.rm=T) %>% # returns two rows containing max and min value per CowTagID
-  summarise_at(vars(Salinity:Tyrosine_Like), .funs = diff, na.rm=T) %>%  # returns difference between rows per CowTagID (yields range at each location)
+  # Calculate mean values and pivot longer to join for CV calculation
+  summarise_at(vars(Salinity:Tyrosine_Like), .funs = mean, na.rm = T) %>%
   ungroup() %>%
+  pivot_longer(cols = c(Salinity:Tyrosine_Like), names_to = "Parameters", values_to = "MeanVal")
+
+sd_data <- ReducedChemData %>%
+  group_by(Location, CowTagID) %>%
+  # Calculate SD values and pivot longer to join for CV calculation
+  summarise_at(vars(Salinity:Tyrosine_Like), .funs = sd, na.rm = T) %>%
+  ungroup() %>%
+  pivot_longer(cols = c(Salinity:Tyrosine_Like), names_to = "Parameters", values_to = "SDVal")
+
+Full_data <- full_join(mean_data,sd_data) %>%
+  mutate(CVVal = SDVal / MeanVal * 100) %>% # calculate CV
+  select(-c(MeanVal, SDVal)) %>% # remove intermediate columns
+  pivot_wider(names_from = Parameters, values_from = CVVal) %>% # pivot back to wide
   left_join(turb, by = 'CowTagID') # join with turb
 
 ## Join GPS to Full_data
@@ -77,7 +97,7 @@ Full_data <- gps %>%
   right_join(Full_data)
 
 
-write_csv(Full_data, here("Data","Biogeochem","AugNutrient_Processed.csv"))
+write_csv(Full_data, here("Data","Biogeochem","AugNutrient_Processed_CV.csv"))
 
 
 
