@@ -13,7 +13,7 @@ library(curl) # pull data from url
 AllChemData<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/August2021/Allbiogeochemdata_QC.csv'))
 turb1<-read_csv(here("Data","Biogeochem","August2021","Turb_NC.csv"))
 gps <- read_csv(here("Data","Sandwich_Locations_Final.csv"))
-
+depth <- read_csv(here("Data","Adj_Sandwich_Depth.csv"))
 
 
 ## Clean Data
@@ -91,12 +91,17 @@ Full_data <- full_join(mean_data,sd_data) %>%
   pivot_wider(names_from = Parameters, values_from = CVVal) %>% # pivot back to wide
   left_join(turb, by = 'CowTagID') # join with turb
 
+## Join depth to Full_data
+Full_data <- depth %>%
+  select(Location = Site, CowTagID, adj_CT_depth_cm) %>%
+  right_join(Full_data)
+
 ## Join GPS to Full_data
 Full_data <- gps %>%
   select(Location,CowTagID,lat,lon) %>%
   right_join(Full_data)
 
-
+## Write csv
 write_csv(Full_data, here("Data","Biogeochem","AugNutrient_Processed_CV.csv"))
 
 
