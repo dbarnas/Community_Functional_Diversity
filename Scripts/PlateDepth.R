@@ -6,11 +6,13 @@
 #### LOAD LIBRARIES ####
 library(tidyverse)
 library(here)
+library(lubridate)
 
 
 #### READ IN DATA ####
 depth <- read_csv(here("Data", "Sandwich_Depth.csv"))
 Vsled <- read_csv(here("Data","Vsled_WL_06032022.csv"))
+Csled <- read_csv(here("Data","Cabral_WL_06232022.csv"))
 
 #### PROCESS RAW DEPTH DATA ####
 
@@ -26,30 +28,47 @@ depth <- depth %>%
 
 Vsled <- Vsled %>%
   unite(Date, Time, col = 'DateTime', sep = " ", remove = T) %>% # unite date and time
-  mutate(DateTime = ymd_hms(DateTime))
+  mutate(DateTime = ymd_hms(DateTime)) %>%
+  mutate(Depth_cm = Depth * 100) %>% # calculate Depth in cm
+  select(-Depth) # remove original depth column
 
-# join dataframes based on depth df times
-fullDepth <- left_join(depth, Vsled) %>%
-  filter(Site == "Varari") %>%  # only use Varari data for now
-  select(CowTagID, Dist_CT_cm, Depth) %>%  # only keep relevant data
-  mutate(Depth = Depth * 100) # calculate Depth in cm
+Csled <- Csled %>%
+  rename(DateTime = date) %>%
+  mutate(DateTime = ymd_hms(DateTime)) %>%
+  mutate(Depth_cm = Depth * 100) %>% # calculate Depth in cm
+  select(-Depth) # remove original depth column
+
+Sleds<- rbind(Vsled, Csled)
+
+# join dataframes based on depth df times (adds seep depth data)
+fullDepth <- left_join(depth, Sleds) %>%
+  group_by(Site) %>%
+  arrange(DateTime) %>% # make sure values are in chronological order for tidal variation
+  ungroup() %>%
+  select(CowTagID, Site, Dist_CT_cm, Depth_cm) # only keep relevant data
 
 
 #### CALCULATE TIDAL DIFFERENCES ####
 
 # identify first value as having zero tidal difference
-firstval <- tibble(Tidal_diff = as.numeric(0))
+firstval <- tibble(value = as.numeric(0))
 
-# parse tidal differences vector into tibble
-diffs <- as_tibble(diff(fullDepth$Depth, lag = 1)) %>%
-  rename(Tidal_diff = value)
+# parse tidal differences vector into tibble for each site
+Vdiffs <- fullDepth %>% filter(Site == 'Varari')
+Vdiffs <- as_tibble(diff(Vdiffs$Depth_cm, lag = 1))
+
+Cdiffs <- fullDepth %>% filter(Site == 'Cabral')
+Cdiffs <- as_tibble(diff(Cdiffs$Depth_cm, lag = 1))
 
 # rbind tidal differences, with firstval on top
-diffs <- rbind(firstval, diffs)
+Vdiffs <- rbind(firstval, Vdiffs)
+Cdiffs <- rbind(firstval, Cdiffs)
+diffs <- rbind(Vdiffs, Cdiffs)
 
-# bind with full dataframe
+# bind with full dataframe in same order as original dataframe
 fullDepth <- fullDepth %>%
   cbind(diffs) %>%
+  rename(Tidal_diff = value) %>%
   mutate(adj_CT_depth_cm = Dist_CT_cm - Tidal_diff) # adjusted CT depths with tidal differences subtracted
 
 # write csv
