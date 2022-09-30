@@ -61,16 +61,42 @@ ReducedChemData <- AllChemData %>%
             MarineHumic_Like, Lignin_Like)) # Craig recommends to remove "because we don't hypothesize them to be orthogonal to any of the other fDOM we're using"
 
 
-## Summarise: Range of parameters
-# Full_data <- ReducedChemData %>%
-#   group_by(Location, CowTagID) %>%
-#   # get parameter ranges across sampling periods by site and plate
-#   summarise_at(vars(Salinity:Tyrosine_Like), .funs = range, na.rm=T) %>% # returns two rows containing max and min value per CowTagID
-#   summarise_at(vars(Salinity:Tyrosine_Like), .funs = diff, na.rm=T) %>%  # returns difference between rows per CowTagID (yields range at each location)
-#   ungroup() %>%
-#   left_join(turb, by = "CowTagID")
+##### Summarise: Max and Min of parameters ####
+maxmin_data <- ReducedChemData %>%
+  group_by(Location, CowTagID) %>%
+  # get parameter max and min across sampling periods by site and plate
+  summarise_at(vars(Salinity:Tyrosine_Like), .funs = range, na.rm=T) %>% # returns two rows containing max and min value per CowTagID
+  #summarise_at(vars(Salinity:Tyrosine_Like), .funs = diff, na.rm=T) %>%  # returns difference between rows per CowTagID (yields range at each location)
+  ungroup() %>%
+  left_join(turb, by = "CowTagID")
 
-## Summarise: Coefficient of Variation of parameters
+max_data <- maxmin_data %>%
+  group_by(Location, CowTagID) %>%
+  summarise_at(vars(Salinity:N_percent), .funs = max, na.rm = T) %>%  # select for max values
+  mutate(MaxMin = "Maximum")
+
+min_data <- maxmin_data %>%
+  group_by(Location, CowTagID) %>%
+  summarise_at(vars(Salinity:N_percent), .funs = min, na.rm = T) %>%  # select for max values
+  mutate(MaxMin = "Minimum")
+# join max and min values and other data sets
+maxmin_data <- full_join(max_data, min_data)
+
+## Join with depth
+maxmin_data <- depth %>%
+  select(Location = Site, CowTagID, adj_CT_depth_cm) %>%
+  right_join(maxmin_data)
+## Join with GPS
+maxmin_data <- gps %>%
+  select(Location,CowTagID,lat,lon) %>%
+  right_join(maxmin_data)
+## move Max Min notation to front of df
+maxmin_data <- maxmin_data %>%
+  select_at(.vars = vars(Location:lon, MaxMin, adj_CT_depth_cm:N_percent))
+
+
+
+##### Summarise: Coefficient of Variation of parameters ####
 mean_data <- ReducedChemData %>%
   group_by(Location, CowTagID) %>%
   # Calculate mean values and pivot longer to join for CV calculation
@@ -101,8 +127,11 @@ Full_data <- gps %>%
   select(Location,CowTagID,lat,lon) %>%
   right_join(Full_data)
 
-## Write csv
+
+
+## Write csv ####
 write_csv(Full_data, here("Data","Biogeochem","AugNutrient_Processed_CV.csv"))
+write_csv(maxmin_data, here("Data","Biogeochem","AugNutrient_Processed_MaxMin.csv"))
 
 
 
