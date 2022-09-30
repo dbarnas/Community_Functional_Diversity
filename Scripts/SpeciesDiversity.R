@@ -21,10 +21,10 @@ gps <- read_csv(here("Data", "Sandwich_Locations_Final.csv"))
 
 #### PROCESS SPECIES DATA FOR DIVERSITY INDEX ####
 div <- survey %>%
-  filter(Location == 'Varari') %>%
+  filter(Location != "Cabral") %>%
   select(CowTagID, Taxa, SpeciesCounts) %>% # only relevant columns
   pivot_wider(names_from = Taxa, values_from = SpeciesCounts) %>% # go wide to associate all taxa with all survey sites
-  pivot_longer(cols = 2:62, names_to = 'Taxa', values_to = 'SpeciesCounts') %>% # go back to long form for is.na test
+  pivot_longer(cols = 2:66, names_to = 'Taxa', values_to = 'SpeciesCounts') %>% # go back to long form for is.na test
   mutate(SpeciesCounts = if_else(is.na(SpeciesCounts), 0, SpeciesCounts)) %>% # all NA = 0
   pivot_wider(names_from = Taxa, values_from = SpeciesCounts)  # wide form for diversity index
 siteID <- div[,1] # select CowTagID for later cbind
@@ -44,7 +44,8 @@ index <- index %>%
 write_csv(index, here("Data", "Surveys", "Species_Diversity.csv"))
 
 # read in same csv
-index <- read_csv(here("Data", "Surveys", "Species_Diversity.csv"))
+index <- read_csv(here("Data", "Surveys", "Species_Diversity.csv")) %>%
+  filter(Location == "Varari") # until I get gps points for Maya's locations
 
 #### MAP SPECIES DIVERSITY ####
 
