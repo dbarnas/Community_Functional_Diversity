@@ -49,6 +49,7 @@ spcluster <- spcomp %>%
   filter(Location == "Varari" | Location == "Varari_Maya") %>%  # all Varari surveys
   left_join(cluster) %>% 
   mutate(V_cluster = ifelse(CowTagID %in% c("RockWall_SGD_1", "RockWall_SGD_2", "RockWall_SGD_3"), "High", V_cluster)) %>% # include rockwall surveys, which are assumed to be "High"
+  mutate(Location = ifelse(CowTagID %in% c("RockWall_SGD_1", "RockWall_SGD_2", "RockWall_SGD_3"), "Varari", Location)) %>% 
   drop_na(V_cluster) # remove sites without a cluster categorization
 
 # as.factor and relevel cluster ID's
@@ -88,7 +89,7 @@ TukeyHSD(model1)
 ```{r, fig.dim = c(10, 10)}
 # based on post-hoc p-values, associate significance letters to cluster factors
 sigdifDF <- tibble(V_cluster = as_factor(c("High", "Mid", "Low")),
-                   sigdif = as.character(c("a", "b", "a")))
+                   sigdif = as.character(c("a", "b", "ab")))
 
 # associate significant difference indicator with cluster ID
 richness <- richness %>%
@@ -133,13 +134,37 @@ plot1 <- ggplot(graphdata1,
   labs(x="Varari Cluster",
        y="Mean Species Richness",
        fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = ap, 2))) + # labels the x and y axes, legend, and caption
+       caption = paste("p =", round(x = ap, 3))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot1
 
-ggsave(here("Output","V_richness_barplot.png"), plot1, height = 6, width = 6, device = "png")
+# graph boxplot
+plot1b <- ggplot(richness,
+       aes(x = V_cluster,
+           y = spR,
+           fill = V_cluster)) +
+  geom_boxplot(color = "black") +
+  geom_jitter(color = "black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  labs(x="Varari Cluster",
+       y="Species Diversity",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = ap, 3))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot1b
+
+
 ggsave(here("Output","V_richness_barplot.pdf"), plot1, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","V_richness_boxplot.pdf"), plot1b, height = 6, width = 6, device = "pdf")
+
 ```
 
 #### Richness with no Seep
@@ -229,19 +254,42 @@ plot2 <- ggplot(graphdata2,
   labs(x="Varari Cluster, excluding Seep",
        y="Mean Species Richness",
        fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = bp, 2))) + # labels the x and y axes, legend, and caption
+       caption = paste("p =", round(x = bp, 3))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot2
 
-ggsave(here("Output","V_richness_barplot_noSeep.png"), plot2, height = 10, width = 10, device = "png")
+# graph boxplot
+plot2b <- ggplot(richness,
+       aes(x = V_cluster,
+           y = spR,
+           fill = V_cluster)) +
+  geom_boxplot(color = "black") +
+  geom_jitter(color = "black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  labs(x="Varari Cluster",
+       y="Species Richness",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = bp, 3))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot2b
+
 ggsave(here("Output","V_richness_barplot_noSeep.pdf"), plot2, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","V_richness_boxplot_noSeep.pdf"), plot2b, height = 10, width = 10, device = "pdf")
+
 ```
 
 
 
 #### Percent Cover with Seep
-```{r}
+```{r, eval = F, echo = F}
 ### Clean data ###
 sp_cover <- spcomp %>%
   filter(Location == "Varari") %>%
@@ -258,7 +306,7 @@ sp_cover <- cluster %>%
   mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
 ```
 
-```{r}
+```{r, eval = F, echo = F}
 ### percent cover anova model ###
 
 model3 <- aov(data = sp_cover, percentCover ~ V_cluster)
@@ -271,7 +319,7 @@ TukeyHSD(model3)
 
 ```
 
-```{r, fig.dim = c(10, 10)}
+```{r, fig.dim = c(10, 10), eval = F, echo = F}
 # associate significant difference indicator with cluster ID
 # sp_cover <- sp_cover %>%
 #   mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b"))
@@ -312,18 +360,41 @@ plot3 <- ggplot(graphdata3,
   labs(x="Varari Cluster",
        y="Mean Species % Cover",
        fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = cp, 2))) + # labels the x and y axes, legend, and caption
+       caption = paste("p =", round(x = cp, 3))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot3
 
-ggsave(here("Output","V_percentCover_barplot.png"), plot3, height = 10, width = 10, device = "png")
+# graph boxplot
+plot3b <- ggplot(sp_cover,
+       aes(x = V_cluster,
+           y = percentCover,
+           fill = V_cluster)) +
+  geom_boxplot(color = "black") +
+  geom_jitter(color = "black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  labs(x="Varari Cluster",
+       y="Species % Cover",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = cp, 3))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot3b
+
 ggsave(here("Output","V_percentCover_barplot.pdf"), plot3, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","V_percentCover_boxplot.pdf"), plot3b, height = 10, width = 10, device = "pdf")
+
 ```
 
 
 #### Percent Cover with no Seep
-```{r}
+```{r, eval = F, echo = F}
 ### Clean data ###
 sp_cover_noSeep <- spcomp %>%
   filter(Location == "Varari") %>%
@@ -340,7 +411,7 @@ sp_cover_noSeep <- cluster_noSeep %>%
   mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
 ```
 
-```{r}
+```{r, eval = F, echo = F}
 ### percent cover anova model ###
 
 model4 <- aov(data = sp_cover_noSeep, percentCover ~ V_cluster)
@@ -353,7 +424,7 @@ TukeyHSD(model4)
 
 ```
 
-```{r, fig.dim = c(10, 10)}
+```{r, fig.dim = c(10, 10), eval = F, echo = F}
 # associate significant difference indicator with cluster ID
 # sp_cover <- sp_cover %>%
 #   mutate(sigdif = ifelse(V_cluster == "Mid", "a", "b"))
@@ -394,13 +465,38 @@ plot4 <- ggplot(graphdata4,
   labs(x="Varari Cluster, exclusing Seep",
        y="Mean Species % Cover",
        fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = dp, 2))) + # labels the x and y axes, legend, and caption
+       caption = paste("p =", round(x = dp, 3))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot4
 
-ggsave(here("Output","V_percentCover_barplot_noSeep.png"), plot4, height = 10, width = 10, device = "png")
+# graph boxplot
+plot4b <- ggplot(sp_cover_noSeep,
+       aes(x = V_cluster,
+           y = percentCover,
+           fill = V_cluster)) +
+  geom_boxplot(color = "black") +
+  geom_jitter(color = "black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  labs(x="Varari Cluster",
+       y="Species % Cover",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = dp, 3))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot4b
+
+
+
 ggsave(here("Output","V_percentCover_barplot_noSeep.pdf"), plot4, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","V_percentCover_boxplot_noSeep.pdf"), plot4b, height = 10, width = 10, device = "pdf")
+
 ```
 
 
@@ -484,13 +580,35 @@ plot5 <- ggplot(graphdata5,
   labs(x="Varari Cluster",
        y="Species Richness",
        fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = ep, 2))) + # labels the x and y axes, legend, and caption
+       caption = paste("p =", round(x = ep, 3))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot5
 
-ggsave(here("Output","V_turb_richness_barplot.png"), plot5, height = 10, width = 10, device = "png")
+# graph boxplot
+plot5b <- ggplot(richnessT,
+       aes(x = V_cluster,
+           y = spR,
+           fill = V_cluster)) +
+  geom_boxplot(color = "black") +
+  geom_jitter(color = "black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  labs(x="Varari Cluster",
+       y="Species % Cover",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = ep, 3))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot5b
+
 ggsave(here("Output","V_turb_ richness_barplot.pdf"), plot5, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","V_turb_ richness_boxplot.pdf"), plot5b, height = 10, width = 10, device = "pdf")
 
 ```
 
@@ -571,13 +689,35 @@ plot6 <- ggplot(graphdata6,
   labs(x="Varari Cluster",
        y="Species Richness",
        fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = fp, 2))) + # labels the x and y axes, legend, and caption
+       caption = paste("p =", round(x = fp, 3))) + # labels the x and y axes, legend, and caption
   scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
 
 plot6
 
-ggsave(here("Output","V_turb_richness_barplot_noSeep.png"), plot6, height = 10, width = 10, device = "png")
+# graph boxplot
+plot6b <- ggplot(richnessT,
+       aes(x = V_cluster,
+           y = spR,
+           fill = V_cluster)) +
+  geom_boxplot(color = "black") +
+  geom_jitter(color = "black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  labs(x="Varari Cluster",
+       y="Species % Cover",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = fp, 3))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot6b
+
 ggsave(here("Output","V_turb_richness_barplot_noSeep.pdf"), plot6, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","V_turb_richness_boxplot_noSeep.pdf"), plot6b, height = 10, width = 10, device = "pdf")
 
 ```
 
