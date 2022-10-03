@@ -162,8 +162,8 @@ plot1b <- ggplot(richness,
 plot1b
 
 
-ggsave(here("Output","V_richness_barplot.pdf"), plot1, height = 6, width = 6, device = "pdf")
-ggsave(here("Output","V_richness_boxplot.pdf"), plot1b, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_richness_barplot.pdf"), plot1, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_richness_boxplot.pdf"), plot1b, height = 6, width = 6, device = "pdf")
 
 ```
 
@@ -281,8 +281,8 @@ plot2b <- ggplot(richness,
 
 plot2b
 
-ggsave(here("Output","V_richness_barplot_noSeep.pdf"), plot2, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","V_richness_boxplot_noSeep.pdf"), plot2b, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_richness_barplot_noSeep.pdf"), plot2, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_richness_boxplot_noSeep.pdf"), plot2b, height = 10, width = 10, device = "pdf")
 
 ```
 
@@ -387,8 +387,8 @@ plot3b <- ggplot(sp_cover,
 
 plot3b
 
-ggsave(here("Output","V_percentCover_barplot.pdf"), plot3, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","V_percentCover_boxplot.pdf"), plot3b, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_percentCover_barplot.pdf"), plot3, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_percentCover_boxplot.pdf"), plot3b, height = 10, width = 10, device = "pdf")
 
 ```
 
@@ -494,8 +494,8 @@ plot4b
 
 
 
-ggsave(here("Output","V_percentCover_barplot_noSeep.pdf"), plot4, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","V_percentCover_boxplot_noSeep.pdf"), plot4b, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_percentCover_barplot_noSeep.pdf"), plot4, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_percentCover_boxplot_noSeep.pdf"), plot4b, height = 10, width = 10, device = "pdf")
 
 ```
 
@@ -607,8 +607,8 @@ plot5b <- ggplot(richnessT,
 
 plot5b
 
-ggsave(here("Output","V_turb_ richness_barplot.pdf"), plot5, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","V_turb_ richness_boxplot.pdf"), plot5b, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_turb_ richness_barplot.pdf"), plot5, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_turb_ richness_boxplot.pdf"), plot5b, height = 10, width = 10, device = "pdf")
 
 ```
 
@@ -716,8 +716,8 @@ plot6b <- ggplot(richnessT,
 
 plot6b
 
-ggsave(here("Output","V_turb_richness_barplot_noSeep.pdf"), plot6, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","V_turb_richness_boxplot_noSeep.pdf"), plot6b, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_turb_richness_barplot_noSeep.pdf"), plot6, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_turb_richness_boxplot_noSeep.pdf"), plot6b, height = 10, width = 10, device = "pdf")
 
 ```
 

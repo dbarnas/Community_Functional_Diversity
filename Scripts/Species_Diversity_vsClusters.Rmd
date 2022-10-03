@@ -148,8 +148,8 @@ plot1b <- ggplot(spcluster,
 
 plot1b
 
-ggsave(here("Output","V_diversity_barplot.pdf"), plot1, height = 6, width = 6, device = "pdf")
-ggsave(here("Output","V_diversity_boxplot.pdf"), plot1b, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_diversity_barplot.pdf"), plot1, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_diversity_boxplot.pdf"), plot1b, height = 6, width = 6, device = "pdf")
 
 ```
 
@@ -259,8 +259,8 @@ plot2b <- ggplot(spcluster,
 
 plot2b
 
-ggsave(here("Output","V_diversity_barplot_noSeep.pdf"), plot2, height = 6, width = 6, device = "pdf")
-ggsave(here("Output","V_diversity_boxplot_noSeep.pdf"), plot2b, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_diversity_barplot_noSeep.pdf"), plot2, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_diversity_boxplot_noSeep.pdf"), plot2b, height = 6, width = 6, device = "pdf")
 
 ```
 
