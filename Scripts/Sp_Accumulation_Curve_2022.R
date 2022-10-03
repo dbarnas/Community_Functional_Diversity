@@ -67,13 +67,18 @@ plot1 <- Vquad %>%
        title = "Varari Species Accumulation Curve",
        subtitle = "June 2022") +
   theme_bw() +
-  theme(axis.title = element_text(size = 14),
-        axis.text = element_text(size = 10)) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "#e8b4b8"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
   geom_smooth(color = "black")
 plot1
 
-ggsave(here("Output", "Species_Accumulation_Varari.png"), plot1, height = 10, width = 10, device = "png")
-ggsave(here("Output", "Species_Accumulation_Varari.pdf"), plot1, height = 10, width = 10, device = "pdf")
+ggsave(here("Output", "Species_Accumulation_Varari.png"), plot1, height = 5, width = 5, device = "png")
+ggsave(here("Output", "Species_Accumulation_Varari.pdf"), plot1, height = 5, width = 5, device = "pdf")
 
 
 #############################################################################################
@@ -128,8 +133,13 @@ plot2 <- Cquad %>%
        title = "Cabral Species Accumulation Curve",
        subtitle = "June 2022") +
   theme_bw() +
-  theme(axis.title = element_text(size = 14),
-        axis.text = element_text(size = 10)) +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
   geom_smooth(color = "black")
 plot2
 
