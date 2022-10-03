@@ -1,4 +1,7 @@
 Location,CowTagID,V_cluster,spR
+Varari,RockWall_SGD_1,High,13
+Varari,RockWall_SGD_2,High,14
+Varari,RockWall_SGD_3,High,15
 Varari,V1,Low,22
 Varari,V10,Low,18
 Varari,V11,Mid,22
@@ -20,6 +23,3 @@ Varari,V7,Mid,17
 Varari,V8,High,19
 Varari,V9,Low,8
 Varari,VSEEP,High,3
-Varari_Maya,RockWall_SGD_1,High,13
-Varari_Maya,RockWall_SGD_2,High,14
-Varari_Maya,RockWall_SGD_3,High,15
