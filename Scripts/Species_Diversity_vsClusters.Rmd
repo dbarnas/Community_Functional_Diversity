@@ -49,12 +49,14 @@ spcluster <- div %>%
   #filter(Location == "Varari" | Location == "Varari_Maya") %>%  # all Varari surveys
   left_join(cluster) %>% 
   mutate(V_cluster = ifelse(CowTagID %in% c("RockWall_SGD_1", "RockWall_SGD_2", "RockWall_SGD_3"), "High", V_cluster)) %>% # include rockwall surveys, which are assumed to be "High"
+  mutate(Location = ifelse(CowTagID %in% c("RockWall_SGD_1", "RockWall_SGD_2", "RockWall_SGD_3"), "Varari", Location)) %>%
   drop_na(V_cluster) # remove sites without a cluster categorization
 
 # as.factor and relevel cluster ID's
 spcluster <- spcluster %>%
   mutate(V_cluster = as.factor(V_cluster)) %>%
-  mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
+  mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low"))) %>%
+  select(CowTagID, ShannonDivSpecies, V_cluster)
 
 ```
 
@@ -91,7 +93,7 @@ graphdata1
 ## create palette
 V_cluster_palette <- c("#d8a7b1", "#e9ddd4", "#67595e") # 1 is rosewater, 2 is dusty rose, 3 is coffee pot
 
-# graph
+# graph barplot
 plot1 <- ggplot(graphdata1,
        aes(x=V_cluster,
            y=emmean,
@@ -124,8 +126,30 @@ plot1 <- ggplot(graphdata1,
 
 plot1
 
-ggsave(here("Output","V_diversity_barplot.png"), plot1, height = 6, width = 6, device = "png")
+# graph boxplot
+plot1b <- ggplot(spcluster,
+       aes(x = V_cluster,
+           y = ShannonDivSpecies,
+           fill = V_cluster)) +
+  geom_boxplot(color = "black") +
+  geom_jitter(color = "black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  labs(x="Varari Cluster",
+       y="Species Diversity",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = ap, 3))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot1b
+
 ggsave(here("Output","V_diversity_barplot.pdf"), plot1, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","V_diversity_boxplot.pdf"), plot1b, height = 6, width = 6, device = "pdf")
 
 ```
 
@@ -138,12 +162,14 @@ spcluster_noSeep <- div %>%
   #filter(Location == "Varari" | Location == "Varari_Maya") %>%  # all Varari surveys
   left_join(cluster_noSeep) %>% 
   mutate(V_cluster = ifelse(CowTagID %in% c("RockWall_SGD_1", "RockWall_SGD_2", "RockWall_SGD_3"), "High", V_cluster)) %>% # include rockwall surveys, which are assumed to be "High"
+  mutate(Location = ifelse(CowTagID %in% c("RockWall_SGD_1", "RockWall_SGD_2", "RockWall_SGD_3"), "Varari", Location)) %>%
   drop_na(V_cluster) # remove sites without a cluster categorization
 
 # as.factor and relevel cluster ID's
 spcluster_noSeep <- spcluster_noSeep %>%
   mutate(V_cluster = as.factor(V_cluster)) %>%
-  mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low")))
+  mutate(V_cluster = fct_relevel(V_cluster, levels = c("High", "Mid", "Low"))) %>%
+  select(CowTagID, ShannonDivSpecies, V_cluster)
 
 ```
 
@@ -211,8 +237,30 @@ plot2 <- ggplot(graphdata2,
 
 plot2
 
-ggsave(here("Output","V_diversity_barplot_noSeep.png"), plot2, height = 6, width = 6, device = "png")
+# graph boxplot
+plot2b <- ggplot(spcluster,
+       aes(x = V_cluster,
+           y = ShannonDivSpecies,
+           fill = V_cluster)) +
+  geom_boxplot(color = "black") +
+  geom_jitter(color = "black") +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "azure4"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  labs(x="Varari Cluster",
+       y="Species Diversity, excluding Seep",
+       fill = "Relative SGD Influence",
+       caption = paste("p =", round(x = bp, 3))) + # labels the x and y axes, legend, and caption
+  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
+
+plot2b
+
 ggsave(here("Output","V_diversity_barplot_noSeep.pdf"), plot2, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","V_diversity_boxplot_noSeep.pdf"), plot2b, height = 6, width = 6, device = "pdf")
 
 ```
 
