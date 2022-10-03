@@ -186,19 +186,19 @@ TukeyHSD(model2)
 
 ```{r, fig.dim = c(10, 10)}
 # based on post-hoc p-values, associate significance letters to cluster factors
-sigdifDF <- tibble(V_cluster = as_factor(c("High", "Mid", "Low")),
+sigdifDF_noSeep <- tibble(V_cluster = as_factor(c("High", "Mid", "Low")),
                    sigdif = as.character(c("ab", "a", "b")))
 
 # associate significant difference indicator with cluster ID
 richness <- richness %>%
-  left_join(sigdifDF)
+  left_join(sigdifDF_noSeep)
 
 
 ### make a graph of those data ###
 # gather summary data using emmeans
 graphdata2<-as.data.frame(emmeans(model2, ~ V_cluster))
 graphdata2<-graphdata2 %>%
-  left_join(sigdifDF) # associate significant difference indicator with cluster ID
+  left_join(sigdifDF_noSeep) # associate significant difference indicator with cluster ID
 graphdata2
 
 
