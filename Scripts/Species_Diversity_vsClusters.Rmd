@@ -17,6 +17,7 @@ library(here)
 library(stats) # lm() and anova()
 library(emmeans)
 library(agricolae) # HSD.test()
+library(ggrepel)
 
 ```
 
@@ -132,7 +133,7 @@ plot1b <- ggplot(spcluster,
            y = ShannonDivSpecies,
            fill = V_cluster)) +
   geom_boxplot(color = "black") +
-  geom_jitter(color = "black") +
+  geom_jitter(color = "black", position = position_jitterdodge()) +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         #panel.background = element_rect(fill = "azure4"),
@@ -243,7 +244,7 @@ plot2b <- ggplot(spcluster,
            y = ShannonDivSpecies,
            fill = V_cluster)) +
   geom_boxplot(color = "black") +
-  geom_jitter(color = "black") +
+  geom_jitter(color = "black", position = position_jitterdodge()) +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         #panel.background = element_rect(fill = "azure4"),
@@ -261,6 +262,173 @@ plot2b
 
 ggsave(here("Output","Species_vs_Cluster","V_diversity_barplot_noSeep.pdf"), plot2, height = 6, width = 6, device = "pdf")
 ggsave(here("Output","Species_vs_Cluster","V_diversity_boxplot_noSeep.pdf"), plot2b, height = 6, width = 6, device = "pdf")
+
+```
+
+
+
+
+
+## PCA for clustering
+```{r}
+Full_V <- spcluster %>% 
+  right_join(nutrients)
+# C_Cluster_data
+
+# extract parameters for the PCA
+V_pca_data <-Full_V %>% 
+  filter(Location == "Varari") %>% 
+  filter(CowTagID !="VSEEP") %>% 
+  select(-(CowTagID:adj_CT_depth_cm))
+
+# C_pca_data <-C_Cluster_data %>% 
+#   filter(CowTagID !="CSEEP") %>% 
+#   select(-(Location:lon),-C_cluster)
+
+# Run the PCA
+pca_V <- prcomp(V_pca_data, scale. = TRUE) # , scale. = TRUE, center = TRUE) # data is already scaled and centered
+#pca_C <- prcomp(C_pca_data)
+
+# Extract the scores and loadings
+PC_scores_V <-as_tibble(pca_V$x[,1:2])
+PC_loadings_V<-as_tibble(pca_V$rotation) %>%
+  bind_cols(labels = rownames(pca_V$rotation))
+
+# PC_scores_C <-as_tibble(pca_C$x[,1:2])
+# PC_loadings_C<-as_tibble(pca_C$rotation) %>%
+#   bind_cols(labels = rownames(pca_C$rotation))
+
+# Put it with all the original data
+V_pca_data_all <- Full_V %>%
+  filter(Location == "Varari") %>% 
+  filter(CowTagID !="VSEEP") %>% 
+  bind_cols(PC_scores_V)
+
+# C_pca_data_all<-C_Cluster_data %>%
+#   filter(CowTagID !="CSEEP") %>% 
+#   bind_cols(PC_scores_C)
+```
+
+## scores plot
+```{r}
+p1_V <- V_pca_data_all %>%
+  ggplot(aes(x = PC1, 
+             y = PC2, 
+             fill = V_cluster))+
+  geom_point(shape = 21,
+             color = "white",
+             size = 3) +
+  geom_label_repel(aes(label = paste0(CowTagID,"\n",round(ShannonDivSpecies, 2))),
+            color = "black",
+            fill = "white",
+            size = 3) +
+  coord_cartesian(xlim = c(-4, 5), ylim = c(-4, 5)) +
+  #scale_shape_manual(values = c(22,16))+
+  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45)+ 
+  scale_fill_manual(values = V_cluster_palette) +
+  ggforce::geom_mark_ellipse(
+    aes(fill = V_cluster, label = V_cluster), 
+    alpha = .15, show.legend = FALSE,  label.buffer = unit(1, "mm"))+
+  theme_bw()+
+  theme(legend.position = "none", 
+        #panel.background = element_rect(fill = "azure4"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Varari Scores Plot with Diversity Index Values")
+
+p1_V
+```
+
+
+```{r}
+# p1_C<-C_pca_data_all %>%
+#   ggplot(aes(x = PC1, 
+#              y = PC2, 
+#              fill = C_cluster))+
+#   geom_point(shape = 21,
+#              color = "white",
+#              size = 3) +
+#   coord_cartesian(xlim = c(-4, 7), ylim = c(-6, 4)) +
+#   #scale_shape_manual(values = c(22,16))+
+#   scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+#   scale_fill_hue(l = 45)+ 
+#   scale_fill_manual(values = C_cluster_palette) +
+#   ggforce::geom_mark_ellipse(
+#     aes(fill = C_cluster, label = C_cluster), 
+#     alpha = .15, show.legend = FALSE,  label.buffer = unit(1, "mm"))+
+#   theme_bw()+
+#   theme(legend.position = "none", panel.background = element_rect(fill = "azure4"),
+#         panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+#   labs(title = "Cabral Scores Plot")
+# 
+# p1_V / p1_C # patchwork plot
+
+```
+
+## loadings plot
+```{r}
+# loadings plot 
+p2_V <- PC_loadings_V %>%
+  ggplot(aes(x=PC1, 
+             y=PC1, 
+             label=labels)) + # labels are the parameters
+  geom_segment(aes(x = 0,
+                   y = 0,
+                   xend = PC1*10,
+                   yend=PC2*10),
+               arrow = arrow(length=unit(0.1,"cm")), 
+               color = "grey") +
+  annotate("text", 
+           x = PC_loadings_V$PC1*10 + 0.1, 
+           y = PC_loadings_V$PC2*10+ 0.1,
+           label = PC_loadings_V$labels) +
+  coord_cartesian(xlim = c(-5, 5), ylim = c(-5, 2.5)) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Varari Loadings")
+
+p2_V
+```
+
+```{r}
+# p2_C<-PC_loadings_C %>%
+#   ggplot(aes(x=PC1, y=PC1, label=labels))+ # labels are the parameters
+#     geom_segment(aes(x=0,y=0,xend=PC1*10,yend=PC2*10),
+#       arrow=arrow(length=unit(0.1,"cm")), color = "grey")+
+#   annotate("text", x = PC_loadings_C$PC1*10+0.1, y = PC_loadings_C$PC2*10+.1,
+#            label = PC_loadings_C$labels)+
+#   coord_cartesian(xlim = c(-8, 4), ylim = c(-7, 5)) +
+#    theme_bw()+
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+#   labs(title = "Cabral Loadings")
+```
+
+```{r, eval = F, echo = F}
+### Patch PCA plots
+VarariPCA<-p1_V+p2_V+ 
+  patchwork::plot_annotation("Varari Clusters", 
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+
+VarariPCA
+```
+
+```{r}
+# CabralPCA<-p1_C+p2_C+ 
+#   patchwork::plot_annotation("Cabral Clusters", 
+#                              theme = theme(plot.title = element_text(size = rel(1.5), 
+#                                                                      face = "bold", 
+#                                                                      hjust = 0.5, 
+#                                                                      margin = margin(t = 10, b = 20,
+#                                                                                      unit = "pt"))))
+
+#ggsave(plot = VarariPCA, filename = here("Output","SGDZones","Varari","VarariPCA_CV.pdf"), width = 14, height = 6)
+#ggsave(plot = CabralPCA, filename = here("Output","SGDZones","Cabral","CabralPCA_CV.pdf"), width = 14, height = 6)
 
 ```
 
