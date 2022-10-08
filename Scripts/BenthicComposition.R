@@ -3,96 +3,37 @@
 #### LIBRARIES ####
 library(tidyverse)
 library(here)
-library(tidytext)
 library(geosphere)
 library(curl)
 
+library(patchwork)
+library(PNWColors)
+library(ggmap)
+library(viridis)
+library(maptools)
+library(kriging)
+library(ggnewscale)
+library(wql)
+library(glue)
+library(gridExtra)
+
 
 #### READ IN DATA ####
-survey <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
+survey <- read_csv(here("Data","Surveys","Species_Composition_2022.csv")) %>% filter(Location == "Varari")
+richness <- read_csv(here("Data", "Surveys", "Species_Richness.csv"))
+diversity <- read_csv(here("Data", "Surveys", "Species_Diversity.csv"))
 meta <- read_csv(here("Data", "Surveys", "Survey_Metadata.csv"))
-locations<-read_csv(here("Data","Sandwich_Locations_Final.csv"))
-AllChemData<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data/August2021/Allbiogeochemdata_QC.csv'))
+taxon <- read_csv(here("Data", "Surveys", "Distinct_Varari_Taxa.csv"))
 
+AugChem <- read_csv(here("Data","Biogeochem","AugNutrient_Processed_CV.csv")) %>% filter(Location == "Varari")
 
-### CALCULATE DISTANCES TO SGD TREE
-
-# # isolate seep lat and lon at Varari
-# seepData <- locations %>%
-#   filter(Plate_Seep == 'Seep',
-#          Location == 'Varari') %>%
-#   select(CowTagID, lat, lon)
-#
-# # isolate single numeric value for lat and lon
-# seepLat <- as.numeric(seepData$lat[1])
-# seepLon <- as.numeric(seepData$lon[1])
-#
-# # select distinct points for each plate location to calculate distances
-# distData <- locations %>%
-#   filter(Plate_Seep == 'Plate',
-#          Location == 'Varari') %>%
-#   select(CowTagID, lat, lon) %>%
-#   distinct() %>%
-#   mutate(lat_seep = seepLat,
-#          lon_seep = seepLon) %>%
-#   # find Haversine distance
-#   mutate(dist_to_seep_m = distHaversine(cbind(lon_seep, lat_seep), cbind(lon, lat))) %>%
-#   # group by sample Site Number
-#   group_by(CowTagID) %>%
-#   # choose only minimum distances
-#   slice(which.min(dist_to_seep_m)) %>%
-#   select(-c(lat_seep, lon_seep))
-#
-# # isolate V13, which is in ambient upcurrent of SGD
-# V13dist <- distData %>%
-#   filter(CowTagID == 'V13') %>%
-#   mutate(dist_to_seep_m = -dist_to_seep_m) # get negative value because of opposite direction from other locations
-# # remove V13 from distData then rejoin with new value from above
-# distData <- distData %>%
-#   filter(CowTagID != 'V13') %>%
-#   rbind(V13dist)
-#
-#
-# # associate distance order to Top Plate ID order
-# orderDistance <- distData %>%
-#   ungroup() %>%
-#   select(dist_to_seep_m, CowTagID) %>%
-#   distinct() %>%
-#   arrange(dist_to_seep_m) %>%
-#   # as_factor creates levels based on current position
-#   mutate(CowTagID = as_factor(as.character(CowTagID)))
-
-
-### FACET ORDER CowTagID BY SILICATE or SALINITY RANGE
-
-chem <- AllChemData %>%
-  #filter(Plate_Seep == 'Plate') %>%
-  filter(Location == 'Varari') %>%
-  select(CowTagID,
-         Date, Time, DateTime,
-         Tide, Day_Night,
-         Salinity, Silicate_umolL) %>%
-  #unite(Tide, Day_Night, col = Tide_DayNight, sep = "_") %>% # create unique ID for tide and time; remove columns
-  group_by(CowTagID) %>%
-  mutate(rangeSi = max(Silicate_umolL, na.rm = T) - min(Silicate_umolL, na.rm = T)) %>% # range of Silicate experienced across sample times/tides
-  mutate(rangeSal = max(Salinity, na.rm = T) - min(Salinity, na.rm = T)) %>% # range of salinities experienced across sample times/tides
-  distinct(CowTagID, rangeSi, rangeSal) %>%
-  filter(CowTagID != 'Varari_Well')
+mypalette <- pnw_palette(name="Bay", n=11)
 
 # associate salinity range order to Top Plate ID order
-orderSalinity <- chem %>%
-  ungroup() %>%
-  select(rangeSal, CowTagID) %>%
+orderSilicate <- AugChem %>%
+  select(Silicate_umolL, Location, CowTagID) %>%
   distinct() %>%
-  arrange(rangeSal) %>%
-  mutate(CowTagID = as_factor(as.character(CowTagID))) # as_factor creates levels based on current position
-
-# associate salinity range order to Top Plate ID order
-orderSilicate <- chem %>%
-  ungroup() %>%
-  select(rangeSi, CowTagID) %>%
-  distinct() %>%
-  arrange(rangeSi) %>%
+  arrange(Silicate_umolL) %>%
   mutate(CowTagID = as_factor(as.character(CowTagID))) # as_factor creates levels based on current position
 
 
@@ -100,57 +41,192 @@ orderSilicate <- chem %>%
 
 # percent cover of species
 percent <- survey %>%
-  filter(Site == 'Varari') %>%
-  select(CowTagID, Taxa, SpeciesCounts) %>%
+  select(Location, CowTagID, Taxa, SpeciesCounts) %>%
   group_by(CowTagID) %>%
   mutate(TotalCounts = sum(SpeciesCounts)) %>%
   ungroup() %>%
   mutate(PercentTaxa = SpeciesCounts / TotalCounts * 100) %>%
-  #left_join(distData) %>%
-  left_join(chem) %>%
-  filter(CowTagID != 'Reef_Ambient_1' & CowTagID != 'Reef_Ambient_2')
+  select(-c(SpeciesCounts, TotalCounts)) %>%
+  left_join(AugChem) # join with site data
+
+# percent cover of genera
+percent <- taxon %>%
+  right_join(survey) %>%
+  select(CowTagID, Genus) %>%
+  mutate(Genus = if_else(Genus %in% c('coral1', 'coral2', 'coral3', 'coral4', 'coral5',
+                                      'coral6', 'coral7', 'coral8', 'coral9', 'coral10',
+                                      'coral11', 'coral12', 'coral13', 'coral14', 'brown algae1'),
+                         "Unidentified",
+                         Genus)) %>%
+  group_by(CowTagID) %>%
+  count(name = 'GenusCounts', Genus) %>%
+  mutate(TotalGenus = sum(GenusCounts)) %>%
+  mutate(PercentGenus = GenusCounts / TotalGenus * 100) %>%
+  ungroup() %>%
+  select(-c(GenusCounts, TotalGenus)) %>%
+  right_join(percent)
+
+# percent cover of broad taxon groups
+percent <- taxon %>%
+  right_join(survey) %>%
+  select(CowTagID, Taxon_Group) %>%
+  group_by(CowTagID) %>%
+  count(name = 'TaxonCounts', Taxon_Group) %>%
+  mutate(TotalTaxon = sum(TaxonCounts)) %>%
+  mutate(PercentTaxon = TaxonCounts / TotalTaxon * 100) %>%
+  ungroup() %>%
+  select(-c(TaxonCounts, TotalTaxon)) %>%
+  right_join(percent)
 
 # total species richness
-richness <- percent %>%
+richness <- richness %>%
+  left_join(AugChem) # join with site data
+
+# total genus richness
+richness <- genera %>%
+  right_join(survey) %>%
+  select(CowTagID, Genus) %>%
+  distinct() %>%
   group_by(CowTagID) %>%
-  count(Taxa, name = 'SpRichness') %>%
-  mutate(SpRichness = sum(SpRichness)) %>%
-  select(CowTagID, SpRichness) %>%
-  distinct()
+  count(name = 'Count', Genus) %>%
+  mutate(GenusRichness = sum(Count)) %>%
+  distinct(CowTagID, GenusRichness) %>%
+  right_join(richness)
 
-# join into one dataframe
-percent <- percent %>%
-  full_join(richness)
-
-# sort factor levels by distance
-#distLevels <- paste(levels(orderDistance$CowTagID))
-# sort factor levels by salinity
-salLevels <- paste(levels(orderSalinity$CowTagID))
 # sort factor levels by silicate
 siLevels <- paste(levels(orderSilicate$CowTagID))
 
-# assign order to factor levels by distance
-#percent$CowTagID <- factor(percent$CowTagID, levels = distLevels)
-# assign order to factor levels by salinity
-percent$CowTagID <- factor(percent$CowTagID, levels = salLevels)
+
 # assign order to factor levels by silicate
 percent$CowTagID <- factor(percent$CowTagID, levels = siLevels)
-
 levels(percent$CowTagID) # check
 
 
 ### Plotting
 
-NotIn <- percent %>%
+# anti_join unidentified species
+SpNotIn <- percent %>%
   filter(Taxa %in% c('coral1', 'coral2', 'coral3', 'coral4', 'coral5',
                      'coral6', 'coral7', 'coral8', 'coral9', 'coral10',
-                     'coral11', 'coral12', 'coral13', 'coral14',
-                     'Halimeda2', # remove unidentified taxa
-                     'Bare Rock', 'Rubble', 'Sand')) # remove abiotic substrates
+                     'coral11', 'coral12', 'coral13', 'coral14', 'brown algae1',
+                     'Halimeda2', 'Montipora', 'Porites', 'Psammocora')) #, # remove unidentified taxa
+                     #'Bare Rock', 'Bare Rock - exposed', 'Rubble', 'Sand' # remove abiotic substrates
+
+
+Genus_perc_plot <- percent %>%
+  drop_na(Silicate_umolL) %>%
+  select(Location, CowTagID, Genus, PercentGenus, Silicate_umolL) %>%
+  distinct() %>%
+  ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
+             y = PercentGenus,
+             fill = Genus)) +
+  geom_col() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5)
+  )
+
 
 percent %>%
-  anti_join(NotIn) %>%
-  distinct(CowTagID, SpRichness) %>%
-  ggplot(aes(x = CowTagID, y = SpRichness)) +
-  geom_col()
+  drop_na(Silicate_umolL) %>%
+  select(Location, CowTagID, Taxon_Group, PercentTaxon, Silicate_umolL) %>%
+  distinct() %>%
+  ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
+             y = PercentTaxon,
+             fill = Taxon_Group)) +
+  geom_col() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5)
+  )
 
+taxon_perc_plot <- percent %>%
+  drop_na(Silicate_umolL) %>%
+  select(Location, CowTagID, Taxon_Group, PercentTaxon, Silicate_umolL) %>%
+  distinct() %>%
+  ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
+             y = PercentTaxon,
+             fill = Taxon_Group)) +
+  geom_col(position = "dodge") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+        panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill = "white"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        axis.text.x.bottom = element_text(size = 8),
+        axis.text.y = element_text(size = 12)
+        ) +
+  labs(x = "Survey Location",
+       y = "% Benthic Cover",
+       fill = "Taxon Groups") +
+  scale_y_continuous(breaks = c(0, 25, 50, 100)) +
+  scale_fill_manual(values = mypalette) +
+  facet_wrap(~ Taxon_Group)
+taxon_perc_plot
+
+ggsave(here("Output", "Taxon_perc_cover.pdf"), taxon_perc_plot, device = "pdf")
+
+
+taxon_perc_plot_stacked <- percent %>%
+  drop_na(Silicate_umolL) %>%
+  select(Location, CowTagID, Taxon_Group, PercentTaxon, Silicate_umolL) %>%
+  distinct() %>%
+  ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
+             y = PercentTaxon,
+             fill = Taxon_Group)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+        panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill = "white"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        axis.text.x.bottom = element_text(size = 8),
+        axis.text.y = element_text(size = 12)
+  ) +
+  labs(x = "Survey Location",
+       y = "% Benthic Cover",
+       fill = "Taxon Groups") +
+  scale_y_continuous(breaks = c(0, 25, 50, 100)) +
+  scale_fill_manual(values = mypalette)
+taxon_perc_plot_stacked
+
+ggsave(here("Output", "Taxon_perc_cover_stacked.pdf"), taxon_perc_plot_stacked, device = "pdf")
+
+taxon_perc_plot_bioticstacked <- percent %>%
+  drop_na(Silicate_umolL) %>%
+  select(Location, CowTagID, Taxon_Group, PercentTaxon, Silicate_umolL) %>%
+  distinct() %>%
+  filter(Taxon_Group != "Abiotic") %>%
+  group_by(CowTagID) %>%
+  mutate(totalsum = sum(PercentTaxon),
+         newpercent = PercentTaxon / totalsum * 100) %>%
+  ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
+             y = newpercent,
+             fill = Taxon_Group)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+        panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill = "white"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        axis.text.x.bottom = element_text(size = 8),
+        axis.text.y = element_text(size = 12)
+  ) +
+  labs(x = "Survey Location",
+       y = "% Benthic Cover",
+       fill = "Taxon Groups") +
+  scale_y_continuous(breaks = c(0, 25, 50, 100)) +
+  scale_fill_manual(values = mypalette)
+taxon_perc_plot_bioticstacked
+
+ggsave(here("Output", "Taxon_perc_cover_bioticstacked.pdf"), taxon_perc_plot_bioticstacked, device = "pdf")
+
+
+####
