@@ -70,7 +70,7 @@ VarariBaseMap<-get_map(MeanGPS %>%
                          select(lon,lat),
                        maptype = 'satellite', zoom = 19)
 
-ggmap(VarariBaseMap) +
+plotmap <- ggmap(VarariBaseMap) +
   geom_label_repel(data = index_loc,
              aes(x = lon,
                  y = lat,
@@ -88,25 +88,7 @@ ggmap(VarariBaseMap) +
   labs(title = "Varari Species Diversity",
        subtitle = "Shannon Diverity Index (H')")
 
-
-
-
-
-ggmap(VarariBaseMap)+
-  geom_point(data=datakrig, aes(x=x, y=y, colour=pred), size=4, alpha=0.5) +
-  # geom_point(data = VData, aes(x=lon, y=lat))+
-  scale_color_viridis_c(" ", option = "plasma")+
-  coord_sf() +
-  theme(axis.line=element_blank(),
-        axis.text.x=element_blank(),
-        axis.text.y=element_blank(),
-        axis.ticks=element_blank(),
-        axis.title.x=element_blank(),
-        axis.title.y=element_blank()) +
-  theme(panel.grid.major = element_line(color = 'white', linetype = "dashed",size = 0.5),
-        plot.background=element_rect(fill='white'))+
-  ggtitle(glue("Varari: {.y}"))
-
+ggsave(here("Output","V_Diversity_Map.png"), plotmap, height = 10, width = 10, device = "png")
 
 
 
