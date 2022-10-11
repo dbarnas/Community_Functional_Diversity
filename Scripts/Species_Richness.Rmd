@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = F)
 ```
 
 ### Load Libraries ###
-```{r}
+```{r, message=F}
 
 library(tidyverse)
 library(here)
@@ -21,7 +21,7 @@ library(agricolae) # HSD.test()
 ```
 
 ### Read in Data ###
-```{r}
+```{r, message=F}
 
 spcomp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv")) %>% 
   select(-c(Notes, PhotoNum))
@@ -166,8 +166,8 @@ plot1b <- ggplot(richness,
 plot1b
 
 
-ggsave(here("Output","Species_vs_Cluster","V_richness_barplot.pdf"), plot1, height = 6, width = 6, device = "pdf")
-ggsave(here("Output","Species_vs_Cluster","V_richness_boxplot.pdf"), plot1b, height = 6, width = 6, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_richness_barplot.png"), plot1, height = 6, width = 6, device = "png")
+ggsave(here("Output","Species_vs_Cluster","V_richness_boxplot.png"), plot1b, height = 6, width = 6, device = "png")
 
 ```
 
@@ -285,8 +285,8 @@ plot2b <- ggplot(richness,
 
 plot2b
 
-ggsave(here("Output","Species_vs_Cluster","V_richness_barplot_noSeep.pdf"), plot2, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","Species_vs_Cluster","V_richness_boxplot_noSeep.pdf"), plot2b, height = 10, width = 10, device = "pdf")
+ggsave(here("Output","Species_vs_Cluster","V_richness_barplot_noSeep.png"), plot2, height = 10, width = 10, device = "png")
+ggsave(here("Output","Species_vs_Cluster","V_richness_boxplot_noSeep.png"), plot2b, height = 10, width = 10, device = "png")
 
 ```
 
@@ -391,8 +391,8 @@ plot3b <- ggplot(sp_cover,
 
 plot3b
 
-ggsave(here("Output","Species_vs_Cluster","V_percentCover_barplot.pdf"), plot3, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","Species_vs_Cluster","V_percentCover_boxplot.pdf"), plot3b, height = 10, width = 10, device = "pdf")
+# ggsave(here("Output","Species_vs_Cluster","V_percentCover_barplot.png"), plot3, height = 10, width = 10, device = "png")
+# ggsave(here("Output","Species_vs_Cluster","V_percentCover_boxplot.png"), plot3b, height = 10, width = 10, device = "png")
 
 ```
 
@@ -498,232 +498,15 @@ plot4b
 
 
 
-ggsave(here("Output","Species_vs_Cluster","V_percentCover_barplot_noSeep.pdf"), plot4, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","Species_vs_Cluster","V_percentCover_boxplot_noSeep.pdf"), plot4b, height = 10, width = 10, device = "pdf")
+# ggsave(here("Output","Species_vs_Cluster","V_percentCover_barplot_noSeep.png"), plot4, height = 10, width = 10, device = "png")
+# ggsave(here("Output","Species_vs_Cluster","V_percentCover_boxplot_noSeep.png"), plot4b, height = 10, width = 10, device = "png")
 
 ```
 
 
 
 
-### CLUSTERS FROM TURBINARIA CLUSTERS ###
 
-Turbinaria Richness with Seep
-```{r}
-### Clean data ###
-spclusterT <- spcomp %>%
-  filter(Location == "Varari") %>%
-  left_join(turbcluster)
-head(spclusterT)
-
-spclusterT <- spclusterT %>%
-  mutate(V_cluster_turb = as.factor(V_cluster_turb)) %>%   # as.factor and relevel cluster ID's
-  mutate(V_cluster_turb = fct_relevel(V_cluster_turb, levels = c("High", "Mid", "Low")))
-
-
-### calculate species richness ###
-richnessT <- spclusterT %>%
-  rename(V_cluster = V_cluster_turb) %>%
-  select(Location, CowTagID, Taxa, V_cluster) %>%
-  group_by(Location, CowTagID, V_cluster) %>%
-  count(name = 'spR', Taxa) %>%
-  mutate(spR = sum(spR)) %>%
-  ungroup() %>%
-  select(-Taxa) %>%
-  distinct()
-richnessT
-
-```
-
-```{r}
-### anova models ###
-
-model5 <- aov(data = richnessT, spR ~ V_cluster)
-anova(model5)
-e <- summary(model5)
-ep <- e[[1]]$`Pr(>F)`
-
-# Tukey post-hoc tests
-TukeyHSD(model5)
-
-```
-
-```{r, fig.dim = c(10, 10)}
-
-### make a graph of those data ###
-# gather summary data using emmeans
-graphdata5<-as.data.frame(emmeans(model5, ~ V_cluster))
-# graphdata3<-graphdata3 %>%
-#   mutate(sigdif = ifelse(V_cluster == "High", "a", "b")) %>% # 3 gets a, all else gets b
-#   mutate(sigdif = ifelse(V_cluster == "Low", "ab", sigdif)) # replace b with ab for 2, all else maintain a or b
-graphdata5
-
-
-# graph
-plot5 <- ggplot(graphdata5,
-       aes(x=V_cluster,
-           y=emmean,
-           fill = V_cluster)) +
-  geom_bar(stat="identity",
-           position="dodge",
-           color = "#67595e",
-           size=0.6) + #determines the bar width
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        #panel.background = element_rect(fill = "azure4"),
-        panel.background = element_blank(),
-        axis.line = element_line(colour = "black"),
-        axis.title = element_text(size = 14),
-        axis.text = element_text(size = 12)) +
-  geom_errorbar(aes(ymax=emmean+SE, ymin=emmean-SE),
-                stat="identity",
-                position=position_dodge(width=0.9),
-                width=0.1) + #adds error bars
-  # geom_text(aes(label = sigdif),
-  #           vjust = c(-2, -3, -5)) +
-  labs(x="Varari Cluster",
-       y="Species Richness",
-       fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = ep, 3))) + # labels the x and y axes, legend, and caption
-  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
-
-plot5
-
-# graph boxplot
-plot5b <- ggplot(richnessT,
-       aes(x = V_cluster,
-           y = spR,
-           fill = V_cluster)) +
-  geom_boxplot(color = "black") +
-  geom_jitter(color = "black", position = position_jitterdodge()) +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        #panel.background = element_rect(fill = "azure4"),
-        panel.background = element_blank(),
-        axis.line = element_line(colour = "black"),
-        axis.title = element_text(size = 14),
-        axis.text = element_text(size = 12)) +
-  labs(x="Varari Cluster",
-       y="Species % Cover",
-       fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = ep, 3))) + # labels the x and y axes, legend, and caption
-  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
-
-plot5b
-
-ggsave(here("Output","Species_vs_Cluster","V_turb_ richness_barplot.pdf"), plot5, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","Species_vs_Cluster","V_turb_ richness_boxplot.pdf"), plot5b, height = 10, width = 10, device = "pdf")
-
-```
-
-Turbinaria Richness with no Seep
-```{r}
-### Clean data ###
-spclusterT <- spcomp %>%
-  filter(Location == "Varari") %>%
-  left_join(turbcluster_noSeep)
-head(spclusterT)
-
-spclusterT <- spclusterT %>%
-  mutate(V_cluster_turb = as.factor(V_cluster_turb)) %>%   # as.factor and relevel cluster ID's
-  mutate(V_cluster_turb = fct_relevel(V_cluster_turb, levels = c("High", "Mid", "Low")))
-
-
-### calculate species richness ###
-richnessT <- spclusterT %>%
-  rename(V_cluster = V_cluster_turb) %>%
-  select(Location, CowTagID, Taxa, V_cluster) %>%
-  group_by(Location, CowTagID, V_cluster) %>%
-  count(name = 'spR', Taxa) %>%
-  mutate(spR = sum(spR)) %>%
-  ungroup() %>%
-  select(-Taxa) %>%
-  distinct()
-richnessT
-
-```
-
-```{r}
-### anova models ###
-
-model6 <- aov(data = richnessT, spR ~ V_cluster)
-anova(model6)
-f <- summary(model6)
-fp <- f[[1]]$`Pr(>F)`
-
-# Tukey post-hoc tests
-TukeyHSD(model6)
-
-```
-
-```{r, fig.dim = c(10, 10)}
-### associate significant difference indicator with cluster ID
-
-### make a graph of those data ###
-# gather summary data using emmeans
-graphdata6<-as.data.frame(emmeans(model6, ~ V_cluster))
-# graphdata3<-graphdata3 %>%
-#   mutate(sigdif = ifelse(V_cluster == "High", "a", "b")) %>% # 3 gets a, all else gets b
-#   mutate(sigdif = ifelse(V_cluster == "Low", "ab", sigdif)) # replace b with ab for 2, all else maintain a or b
-graphdata6
-
-
-# graph
-plot6 <- ggplot(graphdata6,
-       aes(x=V_cluster,
-           y=emmean,
-           fill = V_cluster)) +
-  geom_bar(stat="identity",
-           position="dodge",
-           color = "#67595e",
-           size=0.6) + #determines the bar width
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        #panel.background = element_rect(fill = "azure4"),
-        panel.background = element_blank(),
-        axis.line = element_line(colour = "black"),
-        axis.title = element_text(size = 14),
-        axis.text = element_text(size = 12)) +
-  geom_errorbar(aes(ymax=emmean+SE, ymin=emmean-SE),
-                stat="identity",
-                position=position_dodge(width=0.9),
-                width=0.1) + #adds error bars
-  # geom_text(aes(label = sigdif),
-  #           vjust = c(-2, -3, -5)) +
-  labs(x="Varari Cluster",
-       y="Species Richness",
-       fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = fp, 3))) + # labels the x and y axes, legend, and caption
-  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
-
-plot6
-
-# graph boxplot
-plot6b <- ggplot(richnessT,
-       aes(x = V_cluster,
-           y = spR,
-           fill = V_cluster)) +
-  geom_boxplot(color = "black") +
-  geom_jitter(color = "black", position = position_jitterdodge()) +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        #panel.background = element_rect(fill = "azure4"),
-        panel.background = element_blank(),
-        axis.line = element_line(colour = "black"),
-        axis.title = element_text(size = 14),
-        axis.text = element_text(size = 12)) +
-  labs(x="Varari Cluster",
-       y="Species % Cover",
-       fill = "Relative SGD Influence",
-       caption = paste("p =", round(x = fp, 3))) + # labels the x and y axes, legend, and caption
-  scale_fill_manual(values=V_cluster_palette) #fill colors for the bars
-
-plot6b
-
-ggsave(here("Output","Species_vs_Cluster","V_turb_richness_barplot_noSeep.pdf"), plot6, height = 10, width = 10, device = "pdf")
-ggsave(here("Output","Species_vs_Cluster","V_turb_richness_boxplot_noSeep.pdf"), plot6b, height = 10, width = 10, device = "pdf")
-
-```
 
 
 
@@ -757,7 +540,7 @@ rich_param <- range_param %>%
 ```
 
 ```{r}
-rich_param %>% 
+plot5 <- rich_param %>% 
   filter(CowTagID != "VSEEP") %>% 
   pivot_longer(cols = c(Salinity:N_percent), 
                names_to = "Parameters",
@@ -769,21 +552,22 @@ rich_param %>%
   facet_wrap(~Parameters, scales = "free_x") +
   theme(panel.background = element_rect(fill = "white"))
 
+plot5
+
+ggsave(here("Output","Richness_regression.png"), plot5, height = 10, width = 10, device = "png")
 ```
 
 ```{r}
 ### linear regression ###
 model10 <- lm(data = rich_param, spR ~ Salinity)
-model11 <- lm(data = rich_param, spR ~ Silicate_umolL)
-model12 <- lm(data = rich_param, spR ~ del15N * C_N * N_percent)
-model13 <- lm(data = rich_param, spR ~ del15N)
-model14 <- lm(data = rich_param, spR ~ N_percent)
-
-### summaries ###
 summary(model10)
+model11 <- lm(data = rich_param, spR ~ Silicate_umolL)
 summary(model11)
+model12 <- lm(data = rich_param, spR ~ C_N)
 summary(model12)
+model13 <- lm(data = rich_param, spR ~ del15N)
 summary(model13)
+model14 <- lm(data = rich_param, spR ~ N_percent)
 summary(model14)
 ```
 
