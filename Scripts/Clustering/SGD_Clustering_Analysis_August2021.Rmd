@@ -66,11 +66,11 @@ head(Full_data)
 ## first check linear relationships with silicate
 Full_data %>% 
   filter(CowTagID != "VSEEP") %>% 
-  pivot_longer(cols = c(Salinity:Phosphate_umolL, NN_umolL:N_percent), 
+  pivot_longer(cols = c(adj_CT_depth_cm ,Salinity:Phosphate_umolL, NN_umolL:N_percent), 
                names_to = "Parameters", 
                values_to = "Values") %>% 
   ggplot(aes(x = Silicate_umolL, 
-             y = Values,
+             y = Values
              #color = Location
              ), color = "black") +
   geom_point() +
@@ -684,7 +684,8 @@ ggsave(here("Output","SGDZones","Varari","Varari_CowTagID_Map.pdf"),VmapSites,he
 ```{r}
 
 ## create palette
-V_cluster_palette <- c("brown3", "white", "#fad02c") #1 is dark yellow #2 is baby blue #3 is red 
+#V_cluster_palette <- c("brown3", "white", "#fad02c") #1 is dark yellow #2 is baby blue #3 is red 
+V_cluster_palette <- c("#d8a7b1", "#e9ddd4", "#67595e") # 1 is rosewater, 2 is dusty rose, 3 is coffee pot
 
 ### Map Varari clusters
 
@@ -708,7 +709,6 @@ cluster_varari_map <- ggmap(VarariBaseMap) +
              fill = as.character(V_cluster_palette[VSeepPtID]), # selects the palette color corresponding to the associated cluster number
              color = "black",
              size = 4) +
-  # scale_color_manual(values = pnw_palette("Moth", 4)) +
   labs(x = "Longitude", y = "Latitude",  #label x and y axes
         title = "Varari Clusters (LCM)",
        subtitle = "Transformed and Scaled Parameter CV",
@@ -717,8 +717,8 @@ cluster_varari_map <- ggmap(VarariBaseMap) +
 
 cluster_varari_map
 
-ggsave(here("Output","SGDZones","Varari",paste0("Varari_Cluster_Map_CV.png")),cluster_varari_map,height = 10, width = 10)
-ggsave(here("Output","SGDZones","Varari",paste0("Varari_Cluster_Map_CV.pdf")),cluster_varari_map,height = 10, width = 10)
+ggsave(here("Output","SGDZones","Varari",paste0("Varari_Cluster_Map_CV.png")),cluster_varari_map,height = 7, width = 7)
+ggsave(here("Output","SGDZones","Varari",paste0("Varari_Cluster_Map_CV.pdf")),cluster_varari_map,height = 7, width = 7)
 
 ```
 
@@ -1209,7 +1209,8 @@ write_csv(SaveTransScale_turb, here("Data","Surveys","Cluster_turb_metadata.csv"
 ```{r}
 
 ## create palette
-V_cluster_palette_turb <- c("brown3", "white", "#fad02c") #3 is dark yellow #2 is baby blue #1 is red 
+# V_cluster_palette_turb <- c("brown3", "white", "#fad02c") #3 is dark yellow #2 is baby blue #1 is red 
+V_cluster_palette_turb <- c("#d8a7b1", "#e9ddd4", "#67595e") # 1 is rosewater, 2 is dusty rose, 3 is coffee pot
 
 ### Isolate seep data for point on map
 VSeepPt_turb <- V_Cluster_data_turb %>% filter(CowTagID == "VSEEP") 
