@@ -1,4 +1,4 @@
-CowTagID,Site,Dist_CT_cm,Depth_cm,Tidal_diff,adj_CT_depth_cm
+CowTagID,Location,Dist_CT_cm,Depth_cm,Tidal_diff,adj_CT_depth_cm
 V20,Varari,65,39.900000000000006,0,65
 V14,Varari,62,40.1,0.19999999999999574,61.800000000000004
 V17,Varari,70,40.9,0.7999999999999972,69.2

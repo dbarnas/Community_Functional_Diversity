@@ -45,7 +45,8 @@ fullDepth <- left_join(depth, Sleds) %>%
   group_by(Site) %>%
   arrange(DateTime) %>% # make sure values are in chronological order for tidal variation
   ungroup() %>%
-  select(CowTagID, Site, Dist_CT_cm, Depth_cm) # only keep relevant data
+  rename(Location = Site) %>%
+  select(CowTagID, Location, Dist_CT_cm, Depth_cm) # only keep relevant data
 
 
 #### CALCULATE TIDAL DIFFERENCES ####
@@ -54,10 +55,10 @@ fullDepth <- left_join(depth, Sleds) %>%
 firstval <- tibble(value = as.numeric(0))
 
 # parse tidal differences vector into tibble for each site
-Vdiffs <- fullDepth %>% filter(Site == 'Varari')
+Vdiffs <- fullDepth %>% filter(Location == 'Varari')
 Vdiffs <- as_tibble(diff(Vdiffs$Depth_cm, lag = 1))
 
-Cdiffs <- fullDepth %>% filter(Site == 'Cabral')
+Cdiffs <- fullDepth %>% filter(Location == 'Cabral')
 Cdiffs <- as_tibble(diff(Cdiffs$Depth_cm, lag = 1))
 
 # rbind tidal differences, with firstval on top
