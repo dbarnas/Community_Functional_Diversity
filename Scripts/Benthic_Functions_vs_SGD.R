@@ -12,7 +12,7 @@ library(ggrepel)
 #### READ IN DATA ####
 taxa <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
 survey <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
-nutrient <- read_csv(here("Data", "Biogeochem", "Nutrient_Processed_CV.csv"))
+nutrient <- read_csv(here("Data", "Biogeochem", "July2022", "Turb_NC.csv"))
 
 
 #### CLEAN DATA ####
@@ -43,12 +43,14 @@ pCover <- pCover %>%
 
 # isolate t ornata nitrogen data
 nutrient <- nutrient %>%
-  select(Location, CowTagID, Season, del15N, C_N, N_percent) %>%
+  mutate(Location = "Varari",
+         Season = "Wet") %>%
   distinct()
 
 # join with biogeochemical data
 pCover <- pCover %>%
   filter(CowTagID != "VSEEP", CowTagID != "CSEEP") %>%
+  filter(Location == "Varari") %>%  # for summer 2022 turbinaria
   left_join(nutrient) %>%
   drop_na(Season)
 
@@ -64,8 +66,8 @@ pCover %>%
             nudge_y = -1, nudge_x = 1, size = 3) +
   theme_bw() +
   theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  facet_wrap(~Season)
+        panel.grid.minor = element_blank())
+  #facet_wrap(~Season)
 
 # Remove outliers
 redCover <- pCover %>%
@@ -86,14 +88,13 @@ p1 <- redCover %>%
   labs(y = "log ratio of calcifiers to fleshy algae",
        color = "",
        x = "del15N (Nutrient Source)")+
-  annotate("text", x = 5, y = 0.5, label = "Calcifier-dominated")+
-  annotate("text", x = 5, y = -0.7, label = "Fleshy algal-dominated")+
+  annotate("text", x = 4.8, y = 0.3, label = "Calcifier-dominated")+
+  annotate("text", x = 4.8, y = -0.3, label = "Fleshy algal-dominated")+
   theme_bw()+
   theme(legend.direction = "horizontal",
-        legend.position = c(.18, .1)) +
-  facet_wrap(~Season, scales = "free_x")
+        legend.position = c(.18, .1))
 p1
-ggsave(here("Output","CoralAlgae_15N.png"), p1, width = 10, height = 10)
+ggsave(here("Output","CoralAlgae2022_15N.png"), p1, width = 10, height = 10)
 
 
 # percent N
@@ -111,10 +112,9 @@ p2 <- redCover %>%
   # annotate("text", x = 1.1, y = 0.5, label = "Calcifier-dominated")+
   # annotate("text", x = 1.1, y = -0.5, label = "Fleshy algal-dominated")+
   theme_bw() +
-  theme(legend.position = "none") +
-  facet_wrap(~Season, scales = "free_x")
+  theme(legend.position = "none")
 p2
-ggsave(here("Output","CoralAlgae_Npercent.png"), p2, width = 10, height = 10)
+ggsave(here("Output","CoralAlgae2022_Npercent.png"), p2, width = 10, height = 10)
 
 
 # C:N ratio
@@ -133,10 +133,9 @@ p3 <- redCover %>%
   # annotate("text", x = 1.1, y = 0.5, label = "Calcifier-dominated")+
   # annotate("text", x = 1.1, y = -0.5, label = "Fleshy algal-dominated")+
   theme_bw() +
-  theme(legend.position = "none") +
-  facet_wrap(~Season, scales = "free_x")
+  theme(legend.position = "none")
 p3
-ggsave(here("Output","CoralAlgae_CN.pdf"), p3, width = 10, height = 10)
+ggsave(here("Output","CoralAlgae_CN.png"), p3, width = 10, height = 10)
 
 
 modBenthic15N<-lm(log((TotalCalc+1)/(TotalAlgae+1))~del15N*Season, data = redCover)
@@ -172,8 +171,8 @@ plotfun <- function(mydata, x, num, den) {
   #annotate("text", x = 5, y = -0.7, label = "Fleshy algal-dominated")+
   theme_bw()+
   theme(legend.direction = "horizontal",
-        legend.position = c(.18, .1)) +
-  facet_wrap(~{{Season}})
+        legend.position = c(.18, .1)) #+
+  #facet_wrap(~{{Season}})
   return(plot)
 }
 
@@ -190,12 +189,14 @@ pval <- function(mydata, num, den, x){
   z <- colnames(logval[,3])
 
 
-  modBenthic <- lm(paste(y ,"~", x ,"*", z), data = logval)
+  #modBenthic <- lm(paste(y ,"~", x ,"*", z), data = logval) # with season effect
+  modBenthic <- lm(paste(y ,"~", x), data = logval)
   a <- anova(modBenthic)
   p <- as_tibble(a[[5]]) %>%
     drop_na() %>%
-    rename(r2_value = value) %>%
-    cbind(Param = c(as.character(x),as.character(z),paste0(x,":",z)))
+    rename(p_value = value) %>%
+    #cbind(Param = c(as.character(x),as.character(z),paste0(x,":",z))) # with season effect
+    cbind(Param = as.character(x))
   return(p)
 }
 
