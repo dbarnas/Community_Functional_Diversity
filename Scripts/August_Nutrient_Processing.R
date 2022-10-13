@@ -122,7 +122,7 @@ Full_data <- full_join(mean_data,sd_data) %>%
 
 ## Join depth to Full_data
 Full_data <- depth %>%
-  select(Location = Site, CowTagID, adj_CT_depth_cm) %>%
+  select(Location, CowTagID, adj_CT_depth_cm) %>%
   right_join(Full_data)
 
 ## Join GPS to Full_data

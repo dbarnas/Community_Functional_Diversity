@@ -128,7 +128,7 @@ maxmin_data <- full_join(max_data, min_data)
 
 ## Join with depth
 maxmin_data <- depth %>%
-  select(Location = Site, CowTagID, adj_CT_depth_cm) %>%
+  select(Location, CowTagID, adj_CT_depth_cm) %>%
   right_join(maxmin_data)
 ## Join with GPS
 maxmin_data <- gps %>%
