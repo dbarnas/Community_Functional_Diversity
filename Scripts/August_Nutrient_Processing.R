@@ -22,6 +22,7 @@ turb <- turb1 %>%
   select(CowTagID, del15N, C_N, N_percent)
 
 
+
 ## There seems to be a contaminated nutrient sample for V2 Low tide on the 8/8/2021.  Remove this point
 removeSite1 <- AllChemData %>%
   filter(CowTagID == "V2",
@@ -40,6 +41,8 @@ removeSite3 <- AllChemData %>%
   filter(Tide == "Low",
          Day_Night == "Day",
          Date == ymd("2021-08-06"))
+
+
 
 ## Remove unnecessary/redundant data
 ReducedChemData <- AllChemData %>%
@@ -61,7 +64,7 @@ ReducedChemData <- AllChemData %>%
             MarineHumic_Like, Lignin_Like)) # Craig recommends to remove "because we don't hypothesize them to be orthogonal to any of the other fDOM we're using"
 
 
-##### Summarise: Max and Min of parameters ####
+##### Summarise: Max and Min of parameters across seasons ####
 maxmin_data <- ReducedChemData %>%
   group_by(Location, CowTagID) %>%
   # get parameter max and min across sampling periods by site and plate
