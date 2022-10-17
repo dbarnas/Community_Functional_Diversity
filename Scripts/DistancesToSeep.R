@@ -51,6 +51,7 @@ distData <- distData %>%
   filter(CowTagID != 'V13') %>%
   rbind(V13dist)
 
+write_csv(distData, here("Data", "Plate_Distance_to_Seep.csv"))
 
 # associate distance order to Top Plate ID order
 orderPlates <- distData %>%
