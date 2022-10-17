@@ -1,0 +1,269 @@
+---
+title: "Community vs SGD Regression"
+author: "Danielle Barnas"
+date: "2022-10-14"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE, warning = F}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+```{r}
+library(tidyverse)
+library(here)
+library(ggrepel)
+library(PNWColors)
+```
+
+
+## Read in data
+```{r, message = F}
+div <- read_csv(here("Data","Surveys","Species_Diversity.csv"))
+rich <- read_csv(here("Data","Surveys","Species_Richness.csv"))
+turb <- read_csv(here("Data", "Biogeochem", "July2022", "Turb_NC.csv"))
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
+sub <- read_csv(here("Data","Surveys","Substrate_2022.csv"))
+comp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
+taxa <- read_csv(here("Data","Surveys","Distinct_Taxa.csv"))
+
+# create color palette for plotting
+mypalette <- pnw_palette(name="Bay")
+largepalette <- pnw_palette(name = "Bay", n = 100)
+```
+
+
+## Process and Join data
+```{r}
+# calculate %cover of substrates
+sub <- sub %>%
+  group_by(Location, CowTagID) %>%
+  mutate(TotalSub = sum(LiveCoral, DeadCoral, Rubble, Sand)) %>%
+  mutate_at(.vars = vars(LiveCoral:Sand), .funs = ~(. / TotalSub *100)) %>% # ~ and . allow the function to run across all variables
+  select(-c(Date, TotalSub))
+
+# join dfs
+Full_data <- div %>%
+  full_join(rich) %>% 
+  full_join(turb) %>%
+  full_join(meta) %>%
+  full_join(sub) %>%
+  drop_na() # remove incomplete datasets (for now, just varari w/o V13)
+
+comp <- comp %>% 
+  select(Location, CowTagID, Taxa, SpeciesCounts) %>% 
+  group_by(Location, CowTagID) %>% 
+  mutate(totalcount = sum(SpeciesCounts),
+         sp_percent = SpeciesCounts / totalcount*100) %>% 
+  select(-totalcount) %>% 
+  filter(Location == "Varari") %>% 
+  left_join(turb)
+  
+
+```
+
+## Create function to order cowtagID's when plotting
+```{r}
+order <- function(data = Full_data, param, by){
+
+  param<- enquo(param)
+  by<- enquo(by)
+  
+  orderParam <- data %>%
+     arrange(!!param) %>%
+     distinct(!!by) %>% 
+     mutate(CowTagID = as_factor(as.character(!!by)))
+
+  # sort factor levels by N_percent
+  ParamLevels <- paste(orderParam$CowTagID)
+  # assign order to factor levels by % N
+  data$CowTagID <- factor(data$CowTagID, levels = ParamLevels)
+  # levels(data$CowTagID) # check
+
+return(data)
+}
+
+## test
+order(param = N_percent, by = CowTagID)$CowTagID
+order(param = dist_to_seep_m, by = CowTagID)$CowTagID
+```
+
+## relationships between substrate, nutrients, and metadata
+### Create function for geom_point plots with facet_wrapping
+```{r}
+
+# create ggplot function
+groupplot <- function(mydata = Full_data, x, y, fw) {
+
+  x<-enquo(x)
+  y<-enquo(y)
+
+  plot <- ggplot(data = mydata,
+                 aes(y = !!y,
+                     x = !!x,
+                     color = !!enquo(fw))) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(enquo(fw), scales = "free_y") +
+  labs(y = paste(as_label(y)),
+       x = paste(as_label(x))) +
+  theme_bw()+
+  theme(legend.direction = "horizontal",
+        legend.position = "top") +
+  scale_color_manual(values = mypalette)
+  
+  return(plot)
+}
+```
+
+### Create function for geom_col stacked
+```{r}
+
+# create ggplot function
+stackplot <- function(mydata, x = CowTagID, y, colfill) {
+
+  x<-enquo(x)
+  y<-enquo(y)
+
+  plot <- ggplot(data = mydata,
+                 aes(y = !!y,
+                     x = !!x,
+                     fill = !!enquo(colfill))) +
+  geom_col(position = "stack") +
+  labs(y = paste(as_label(y)),
+       x = paste(as_label(x))) +
+  theme_bw()+
+  theme(legend.position = "right") +
+  scale_fill_manual(values = mypalette)
+  
+  return(plot)
+}
+```
+
+
+
+
+## Plotting
+
+### Substrate ~ % N
+```{r}
+
+# pivot longer by categories
+longsub<- Full_data %>% 
+  select(-c(lat, lon)) %>%  
+  pivot_longer(cols = c(LiveCoral:Sand), names_to = "Substrate", values_to = "subVal")
+
+groupplot(mydata = longsub, x = N_percent, y = subVal, fw = Substrate) +
+  labs(x = "% Nitrogen", y = "% Cover of Substrate Type")
+
+# %N and substrate type
+summary(lm(data = Full_data, Sand ~ N_percent))
+summary(lm(data = Full_data, Rubble ~ N_percent))
+summary(lm(data = Full_data, LiveCoral ~ N_percent))
+summary(lm(data = Full_data, DeadCoral ~ N_percent))
+```
+
+### Diversity ~ Richness
+```{r}
+## DIVERSITY VS RICHNESS
+
+groupplot(mydata = Full_data, x = ShannonDivSpecies, y = spRichness, fw = NA)
+
+summary(lm(data = Full_data, ShannonDivSpecies ~ spRichness))
+```
+### Species metric ~ distance to seep
+```{r}
+## DISTANCE TO SEEP
+longspecies<-Full_data %>% 
+  pivot_longer(cols = c(ShannonDivSpecies, spRichness), names_to = "Metric", values_to = "SpeciesVal")
+
+groupplot(mydata = longspecies, x = dist_to_seep_m, y = SpeciesVal, fw = Metric) +
+    geom_text_repel(aes(label = CowTagID), size = 3)
+  
+longspecies %>% filter(CowTagID == "V16")
+```
+
+## Regression models
+```{r, eval = F}
+summary(lm(data = Full_data, ShannonDivSpecies ~ N_percent))
+summary(lm(data = Full_data, ShannonDivSpecies ~ del15N))
+summary(lm(data = Full_data, ShannonDivSpecies ~ C_N))
+
+summary(lm(data = Full_data, spRichness ~ N_percent))
+summary(lm(data = Full_data, spRichness ~ del15N))
+summary(lm(data = Full_data, spRichness ~ C_N))
+
+summary(lm(data = Full_data, spRichness ~ Sand)) # significant
+summary(lm(data = Full_data, spRichness ~ N_percent * Sand))
+
+summary(lm(data = Full_data, ShannonDivSpecies ~ Sand)) # significant
+summary(lm(data = Full_data, ShannonDivSpecies ~ N_percent * Sand))
+
+summary(lm(data = Full_data, spRichness ~ meanRugosity)) # significant
+summary(lm(data = Full_data, ShannonDivSpecies ~ meanRugosity)) # significant
+
+summary(lm(data = Full_data, meanRugosity ~ dist_to_seep_m))
+summary(lm(data = Full_data, spRichness ~ dist_to_seep_m)) # significant
+summary(lm(data = Full_data, ShannonDivSpecies ~ dist_to_seep_m)) # significant
+
+summary(lm(data = Full_data, ShannonDivSpecies ~ spRichness)) # significant
+
+summary(lm(data = Full_data, N_percent ~ dist_to_seep_m)) # significant
+summary(lm(data = Full_data, C_N ~ dist_to_seep_m)) # significant
+summary(lm(data = Full_data, del15N ~ dist_to_seep_m)) # significant
+
+```
+
+## Plotting stacked % cover
+
+### Plotting % Cover substrate ~ % N
+```{r}
+
+# order % cover by N_percent
+order(data = longsub, param = N_percent, by = CowTagID)$CowTagID
+
+# ggplot
+stackplot(mydata = longsub, x = CowTagID, y = subVal, colfill = Substrate) +
+  labs(subtitle = "Low to High %N")
+```
+
+### Plotting % Cover species ~ % N
+```{r}
+
+# order % cover by N_percent
+order(data = comp, param = N_percent, by = CowTagID)$CowTagID
+
+# ggplot
+stackplot(mydata = comp, x = CowTagID, y = sp_percent, colfill = Taxa) +
+  labs(subtitle = "Low to High %N") +
+  scale_fill_manual(values = largepalette) +
+  theme(legend.text = element_text(size = 2))
+```
+
+## Presence-Absence
+```{r}
+spPA <- taxa %>% 
+  count(Taxa, name = "presence") %>% 
+  right_join(comp) %>% 
+  select(Taxa, presence, CowTagID) %>% 
+  pivot_wider(names_from = Taxa, values_from = presence) %>%  # extend out to establish NAs
+  pivot_longer(names_to = "Taxa", values_to = "presence", cols = 2:62) %>%  #long form to turn NAs into 0's for absence
+  mutate(presence = if_else(is.na(presence), 0, 1)) # presence-absence of species per CowTagID
+
+spPA <- taxa %>% 
+  count(Taxa, name = "presence") %>% 
+  right_join(comp) %>% 
+  select(Taxa, presence, CowTagID) %>% 
+  pivot_wider(names_from = Taxa, values_from = presence) %>%  # extend out to establish NAs
+  pivot_longer(names_to = "Taxa", values_to = "presence", cols = 2:62) %>%  #long form to turn NAs into 0's for absence
+  mutate(presence = if_else(is.na(presence), 0, 1)) # presence-absence of species per CowTagID
+```
+
+
+
+
+
+
