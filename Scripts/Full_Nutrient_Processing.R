@@ -140,7 +140,7 @@ maxmin_data <- maxmin_data %>%
 ## Write csv ####
 write_csv(maxmin_data, here("Data","Biogeochem","Nutrient_Processed_MaxMin.csv"))
 
-##### Summarise: Coefficient of Variation of parameters ####
+##### Summarise: Coefficient of Variation of parameters - group by Seasons ####
 mean_data <- ReducedChemData %>%
   group_by(Location, CowTagID, Season) %>%
   # Calculate mean values and pivot longer to join for CV calculation
@@ -163,7 +163,7 @@ Full_data <- full_join(mean_data,sd_data) %>%
 
 ## Join depth to Full_data
 Full_data <- depth %>%
-  select(Location = Site, CowTagID, adj_CT_depth_cm) %>%
+  select(Location, CowTagID, adj_CT_depth_cm) %>%
   right_join(Full_data)
 
 ## Join GPS to Full_data
@@ -173,7 +173,47 @@ Full_data <- gps %>%
 
 
 ## Write csv ####
-write_csv(Full_data, here("Data","Biogeochem","Nutrient_Processed_CV.csv"))
+write_csv(Full_data, here("Data","Biogeochem","Nutrient_Processed_CV_seasons.csv"))
 
+
+##### Summarise: Coefficient of Variation of parameters ####
+
+# The coefficient of variation (CV) is the ratio of the standard deviation to the mean and shows the extent of variability
+#in relation to the mean of the population. The higher the CV, the greater the dispersion.
+mean_data_all <- ReducedChemData %>%
+  group_by(Location, CowTagID) %>%
+  # Calculate mean values and pivot longer to join for CV calculation
+  summarise_at(vars(Salinity:Tyrosine_Like), .funs = mean, na.rm = T) %>%
+  ungroup() %>%
+  pivot_longer(cols = c(Salinity:Tyrosine_Like), names_to = "Parameters", values_to = "MeanVal")
+
+sd_data_all <- ReducedChemData %>%
+  group_by(Location, CowTagID) %>%
+  # Calculate SD values and pivot longer to join for CV calculation
+  summarise_at(vars(Salinity:Tyrosine_Like), .funs = sd, na.rm = T) %>%
+  ungroup() %>%
+  pivot_longer(cols = c(Salinity:Tyrosine_Like), names_to = "Parameters", values_to = "SDVal")
+
+rangeTurb <- turb %>%
+  group_by(CowTagID) %>%
+  summarise_at(vars(del15N:N_percent), .funs = diff, na.rm = T) # get difference between two turb samples
+
+Full_data_all <- full_join(mean_data_all,sd_data_all) %>%
+  mutate(CVVal = SDVal / MeanVal) %>% # calculate CV
+  select(-c(MeanVal, SDVal)) %>% # remove intermediate columns
+  pivot_wider(names_from = Parameters, values_from = CVVal) %>%  # pivot back to wide
+  left_join(rangeTurb) # add t ornata data (only variation across seasons, not within)
+
+## Join depth to Full_data_all
+Full_data_all <- depth %>%
+  select(Location, CowTagID, adj_CT_depth_cm) %>%
+  right_join(Full_data_all)
+
+## Join GPS to Full_data_all
+Full_data_all <- gps %>%
+  right_join(Full_data_all)
+
+## Write csv ####
+write_csv(Full_data_all, here("Data","Biogeochem","Nutrient_Processed_CV.csv"))
 
 
