@@ -5,6 +5,7 @@ date: "2022-10-14"
 output:
   html_document:
     toc: true
+    toc_float: true
 ---
 
 ```{r setup, include=FALSE, warning = F}
@@ -17,6 +18,8 @@ library(tidyverse)
 library(here)
 library(ggrepel)
 library(PNWColors)
+library(vegan)
+library(pairwiseAdonis)
 ```
 
 
@@ -277,7 +280,7 @@ genPA <- taxa %>%
 ```{r}
 # extract parameters for the PCA, excluding CT depth
 pca_fulldata <- Full_data %>% 
-  select(-c(CowTagID,Location,lat,lon, adj_CT_depth_cm))
+  select(-c(CowTagID,Location,lat,lon, adj_CT_depth_cm, dist_to_seep_m))
 
 # Run the PCA
 pca_full <- prcomp(pca_fulldata, scale. = TRUE, center = TRUE)
@@ -344,7 +347,7 @@ p1_full_loading <- PC_loadings_full %>%
 p1_full_loading
 ```
 
-```{r}
+```{r, eval = F}
 ### Patch PCA plots
 VarariPCA <- p1_full + p1_full_loading + 
   patchwork::plot_annotation("Varari PCA and Loadings", 
@@ -356,11 +359,166 @@ VarariPCA <- p1_full + p1_full_loading +
 
 ggsave(plot = VarariPCA, filename = here("Output","VarariPCA_rich_div_meta.png"), width = 14, height = 6)
 
-VarariPCA
+```
+
+## nMDS Plot
+### Prep data
+```{r}
+# create ordination output using bray curtis dissimilarity matrix
+# remove non-numerical data
+# distance = is the type of dissimilarity matrix
+# k is number of dimensions (you can try different ones to look at different stress)
+CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
+
+richPerm <- Full_data %>%
+  select(-c(Location, adj_CT_depth_cm, dist_to_seep_m))
+richPerm$CowTagID <- factor(richPerm$CowTagID, levels = CTlevels)
+richPerm <- richPerm %>% 
+  arrange(CowTagID) %>% # arrange data in order of CowTagID for ordination plot later
+  select(-c(CowTagID, ShannonDivSpecies, lat, lon))
+
+richOrd <- metaMDS(richPerm, k=3, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+richOrd$stress
+
+# stress plot
+# want to minimize scatter
+stressplot(richOrd)
+```
+
+### Plot nMDS ordinations
+```{r}
+## ggplot
+
+#summary(richOrd)
+
+# get points for site characteristics
+richRow <- rownames(richOrd$species) # get characteristic names
+richMDS1 <- c(richOrd$species[1:10]) # MDS1 for characteristics
+richMDS2 <- c(richOrd$species[11:20]) # MDS2 for characteristics
+richData <- as_tibble(cbind(richRow, richMDS1, richMDS2)) %>%  # bind all cols into tibble
+  mutate(richMDS1 = as.numeric(richMDS1), # as numeric 
+         richMDS2 = as.numeric(richMDS2))
+# get points for CowTagIDs
+richRowb <- as.character(CTlevels) # assign CowTagID names
+richMDS1b <- c(richOrd$points[1:19]) # MDS1 for CowTagID
+richMDS2b <- c(richOrd$species[11:20]) # MDS2 for CowTagID
+richDatab <- as_tibble(cbind(richRowb, richMDS1b, richMDS2b)) %>%  # bind all cols into tibble
+  mutate(richMDS1b = as.numeric(richMDS1b), # as numeric 
+         richMDS2b = as.numeric(richMDS2b))
+
+# plotting
+nMDSplot <- ggplot(data = richData, # sit characteristics
+       aes(x = richMDS1,
+           y = richMDS2)) +
+  geom_point(color = "red", shape = 2) +
+  geom_point(data = richDatab, # CowTagIDs
+             aes(x = richMDS1b,
+                 y = richMDS2b),
+             color = "black") +
+  geom_text_repel(data = richData, # site characteristics
+                  aes(x = richMDS1,
+                      y = richMDS2,
+                      label = richRow),
+                  size = 3) +
+  geom_text_repel(data = richDatab, # CowTagIDs
+                  aes(x = richMDS1b,
+                      y = richMDS2b,
+                      label = richRowb),
+                  size = 3) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+nMDSplot
+#ggsave(here("Output","nMDS_Varari.png"), nMDSplot, width = 14, height = 9)
+```
+
+## PERMANOVA
+```{r, echo = F, eval = F}
+#We could formally test whether locations are different using a perMANOVA. 
+#This requires the adonis command in the vegan package
+richPermFull <- cbind(richRowb, richPerm) %>%  # bind cowTagIDs
+  rename(CowTagID = richRowb)
+
+permanovamodel<-adonis2(richPermFull[,-c(1:2)]~CowTagID, richPermFull, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel
+
+#If we are to trust the results of the permanova, then we have to assume that the dispersion among
+#data is the same in each group. We can test with assumption with a PermDisp test:
+disper<-vegdist(richPermFull[,-c(1:2)])
+betadisper(disper, richPermFull$CowTagID)
+#Look at the Average distance to median...these numbers should be reasonably similar
+#A rule of thumb is that one number should not be twice as high as any other
+
+pairwise.adonis(PercentTotal[-1], PercentTotal$Site, perm=999)
+
+#Get coefficients to see which species are most important in explaining site differences:
+permanovamodel$coefficients
 
 ```
 
+## Species metrics regrssion against all site characteristics
+```{r}
+Full_data %>% 
+  select(-c(lat, lon, adj_CT_depth_cm, Location)) %>% 
+  pivot_longer(cols = del15N:Sand, names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = spRichness,
+             label = CowTagID)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  geom_text_repel(size = 2) +
+  theme_bw() +
+  facet_wrap(~Parameters, scales = "free_x")
+```
 
+```{r}
+Full_data %>% 
+  select(-c(lat, lon, adj_CT_depth_cm, Location)) %>% 
+  pivot_longer(cols = del15N:Sand, names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = ShannonDivSpecies,
+             label = CowTagID)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  geom_text_repel(size = 2) +
+  theme_bw() +
+  facet_wrap(~Parameters, scales = "free_x")
+```
 
+### Species metrics vs Ratio of Sand to hard substrate
+```{r}
+# Ratio of sand to hard substrate
+Full_data %>% 
+  select(-c(lat, lon, adj_CT_depth_cm, Location)) %>% 
+  mutate(HardSub = LiveCoral + DeadCoral + Rubble,
+         log_Sand_HardSub = log(Sand/HardSub)) %>% 
+  select(-c(LiveCoral:HardSub)) %>% 
+  pivot_longer(cols = del15N:log_Sand_HardSub, names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = spRichness,
+             label = CowTagID)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  geom_text_repel(size = 2, max.overlaps = 15) +
+  theme_bw() +
+  facet_wrap(~Parameters, scales = "free_x")
+```
+
+```{r}
+# Ratio of sand to hard substrate
+Full_data %>% 
+  select(-c(lat, lon, adj_CT_depth_cm, Location)) %>% 
+  mutate(HardSub = LiveCoral + DeadCoral + Rubble,
+         log_Sand_HardSub = log(Sand/HardSub)) %>% 
+  select(-c(LiveCoral:HardSub)) %>% 
+  pivot_longer(cols = del15N:log_Sand_HardSub, names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = ShannonDivSpecies,
+             label = CowTagID)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  geom_text_repel(size = 2, max.overlaps = 15) +
+  theme_bw() +
+  facet_wrap(~Parameters, scales = "free_x")
+```
 
 
