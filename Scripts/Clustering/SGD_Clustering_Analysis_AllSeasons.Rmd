@@ -477,6 +477,12 @@ V_Cluster_data<-V_data %>%
 C_Cluster_data<-C_data %>% 
   cbind(C_cluster) %>% 
   mutate(C_cluster = as.factor(C_cluster))
+
+V_meta <- V_Cluster_data %>% rename(cluster = V_cluster) %>% mutate_at(vars(Salinity:N_percent),.funs = as.numeric)
+C_meta <- C_Cluster_data %>% rename(cluster = C_cluster) %>% mutate_at(vars(Salinity:N_percent),.funs = as.numeric)
+mymeta <- rbind(V_meta,C_meta) %>% select(-adj_CT_depth_cm)
+
+write_csv(mymeta, here("Data", "Biogeochem", "Cluster_metadata_FullSeasons.csv"))
 ```  
 
 
