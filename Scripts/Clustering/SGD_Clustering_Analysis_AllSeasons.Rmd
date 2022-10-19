@@ -478,8 +478,10 @@ C_Cluster_data<-C_data %>%
   cbind(C_cluster) %>% 
   mutate(C_cluster = as.factor(C_cluster))
 
-V_meta <- V_Cluster_data %>% rename(cluster = V_cluster) %>% mutate_at(vars(Salinity:N_percent),.funs = as.numeric)
-C_meta <- C_Cluster_data %>% rename(cluster = C_cluster) %>% mutate_at(vars(Salinity:N_percent),.funs = as.numeric)
+V_meta <- V_Cluster_data %>% rename(cluster = V_cluster) %>% mutate_at(vars(Salinity:N_percent),.funs = as.numeric) %>% 
+  mutate(cluster = if_else(cluster == 3, "High", if_else(cluster == 2, "Low", "Mid")))
+C_meta <- C_Cluster_data %>% rename(cluster = C_cluster) %>% mutate_at(vars(Salinity:N_percent),.funs = as.numeric) %>% 
+  mutate(cluster = if_else(cluster == 3, "High", if_else(cluster == 2, "Low", "Mid")))
 mymeta <- rbind(V_meta,C_meta) %>% select(-adj_CT_depth_cm)
 
 write_csv(mymeta, here("Data", "Biogeochem", "Cluster_metadata_FullSeasons.csv"))
@@ -579,7 +581,7 @@ cluster_varari_map <- ggmap(VarariBaseMap) +
   geom_point(data = VSeepPt, # star the seepage point
              aes(x = lon, y = lat),
              shape = 24,
-             fill = "brown3",
+             fill = "#fad02c",
              color = "black",
              size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
@@ -611,7 +613,7 @@ cluster_cabral_map <- ggmap(CabralBaseMap) +
     geom_point(data = CSeepPt, # star the seepage point
              aes(x = lon, y = lat),
              shape = 25,
-             fill = "brown3",
+             fill = "#fad02c",
              color = "black",
              size = 4) +
   # scale_color_manual(values = pnw_palette("Moth", 4)) +
