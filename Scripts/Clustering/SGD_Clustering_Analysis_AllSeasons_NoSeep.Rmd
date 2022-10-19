@@ -423,7 +423,9 @@ Distribution of the most discriminative variable per clusters
 # Barplots
 
 Vdes<-plot(x = res_V, y = 1:ncol(x_V))
+arrange(as.data.frame(res_V@criteria@discrim), 'res_V@criteria@discrim')
 Cdes<-plot(x = res_C, y = 1:ncol(x_C))
+arrange(as.data.frame(res_C@criteria@discrim), 'res_C@criteria@discrim')
 
 ggsave(here("Output","SGDZones","Varari",paste0("DiscPower_allnoseep_Varari.png")),Vdes, height = 10, width = 10)
 ggsave(here("Output","SGDZones","Cabral",paste0("DiscPower_allnoseep_Cabral.png")),Cdes, height = 10, width = 10)
