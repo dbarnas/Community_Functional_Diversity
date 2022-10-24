@@ -3,67 +3,124 @@
 #### LIBRARIES ####
 library(tidyverse)
 library(here)
-library(geosphere)
-library(curl)
 
 library(patchwork)
 library(PNWColors)
+
 library(ggmap)
 library(viridis)
 library(maptools)
-library(kriging)
-library(ggnewscale)
-library(wql)
-library(glue)
-library(gridExtra)
+#library(kriging)
+#library(ggnewscale)
+#library(wql)
+#library(glue)
+#library(gridExtra)
 
 
 #### READ IN DATA ####
-survey <- read_csv(here("Data","Surveys","Species_Composition_2022.csv")) %>% filter(Location == "Varari")
+survey <- read_csv(here("Data","Surveys","Species_Composition_2022.csv")) #%>% filter(Location == "Varari")
 richness <- read_csv(here("Data", "Surveys", "Species_Richness.csv"))
 diversity <- read_csv(here("Data", "Surveys", "Species_Diversity.csv"))
+func <- read_csv(here("Data", "Surveys", "Distinct_Taxa.csv"))
+
 meta <- read_csv(here("Data", "Surveys", "Survey_Metadata.csv"))
-taxon <- read_csv(here("Data", "Surveys", "Distinct_Varari_Taxa.csv"))
+depth <- read_csv(here("Data","Adj_Sandwich_Depth.csv"))
+dist <- read_csv(here("Data", "Plate_Distance_to_Seep.csv"))
+AugChem <- read_csv(here("Data","Biogeochem","AugNutrient_Processed_CV.csv")) #%>% filter(Location == "Varari")
+Turb22 <- read_csv(here("Data","Biogeochem","July2022", "Turb_NC.csv"))
 
-AugChem <- read_csv(here("Data","Biogeochem","AugNutrient_Processed_CV.csv")) %>% filter(Location == "Varari")
-
+# create color palette for plotting
 mypalette <- pnw_palette(name="Bay", n=11)
 
-# associate salinity range order to Top Plate ID order
-orderSilicate <- AugChem %>%
-  select(Silicate_umolL, Location, CowTagID) %>%
-  distinct() %>%
-  arrange(Silicate_umolL) %>%
-  mutate(CowTagID = as_factor(as.character(CowTagID))) # as_factor creates levels based on current position
 
+#### CLEAN AND COMPILE DATA ####
+# remove unnecessary columns
+depth <- depth %>%
+  select(Location, CowTagID, adj_CT_depth_cm)
+dist <- dist %>%
+  select(CowTagID, lat, lon, dist_to_seep_m) %>%
+  mutate(dist_to_seep_m = if_else(CowTagID == "V13", (-1 * dist_to_seep_m), dist_to_seep_m))
+
+Full_meta <- meta %>%
+  select(Location, CowTagID, Chain1:Chain3) %>%
+  full_join(depth) %>%
+  full_join(dist) %>%
+  distinct() %>%
+  group_by(CowTagID) %>%
+  mutate(meanChain = sum(Chain1, Chain2, Chain3, na.rm = T)/3) %>% #calculate mean chain length across benthos
+  drop_na() %>% # remove surveys with no rugosity measurements
+  mutate(meanRugosity = meanChain / 2.03) %>%  # chain length = 2.03m
+  select(-c(meanChain, Chain1:Chain3))
+
+# save full metadata together as csv
+write_csv(Full_meta, here("Data","Full_Metadata.csv"))
+
+species <- full_join(richness, diversity)
+
+Full_species <- Full_meta %>%
+  left_join(species) %>%
+  left_join(Turb22)
+
+Full_survey <- survey %>%
+  select(Location, CowTagID, Taxa, SpeciesCounts) %>%
+  full_join(func) %>%
+  select(-c(Link)) %>%
+  distinct() %>%
+  select(Location:Calcification)
+
+
+# associate silicate CV order to Top Plate ID order
+# orderSilicate <- AugChem %>%
+#   select(Silicate_umolL, Location, CowTagID) %>%
+#   distinct() %>%
+#   arrange(Silicate_umolL) %>%
+#   mutate(CowTagID = as_factor(as.character(CowTagID))) # as_factor creates levels based on current position
+
+# order CowTagIDs by Nitrogen loading
+orderNpercent <- Full_species %>%
+  arrange(N_percent) %>%
+  mutate(CowTagID = as_factor(as.character(CowTagID)))
+NLevels <- paste(orderNpercent$CowTagID) # sort factor levels by N
+Full_species$CowTagID <- factor(Full_species$CowTagID, levels = NLevels) # assign order to factor levels by N
+levels(Full_species$CowTagID) # check
+
+# order CowTagID's by distance to seep (m)
+orderdist <- Full_species %>%
+  arrange(dist_to_seep_m) %>%
+  mutate(CowTagID = as_factor(as.character(CowTagID)))
+distLevels <- paste(orderdist$CowTagID)
+
+
+# assign order to factor levels
+Full_species$CowTagID <- factor(Full_species$CowTagID, levels = NLevels)
+Full_species$CowTagID <- factor(Full_species$CowTagID, levels = distLevels)
+levels(Full_species$CowTagID) # check
 
 ### Processing
 
 # percent cover of species
-percent <- survey %>%
+percent <- Full_survey %>%
   select(Location, CowTagID, Taxa, SpeciesCounts) %>%
-  group_by(CowTagID) %>%
+  group_by(Location, CowTagID) %>%
   mutate(TotalCounts = sum(SpeciesCounts)) %>%
   ungroup() %>%
   mutate(PercentTaxa = SpeciesCounts / TotalCounts * 100) %>%
-  select(-c(SpeciesCounts, TotalCounts)) %>%
-  left_join(AugChem) # join with site data
+  select(-c(SpeciesCounts, TotalCounts))
 
 # percent cover of genera
-percent <- taxon %>%
-  right_join(survey) %>%
-  select(CowTagID, Genus) %>%
-  mutate(Genus = if_else(Genus %in% c('coral1', 'coral2', 'coral3', 'coral4', 'coral5',
-                                      'coral6', 'coral7', 'coral8', 'coral9', 'coral10',
-                                      'coral11', 'coral12', 'coral13', 'coral14', 'brown algae1'),
-                         "Unidentified",
-                         Genus)) %>%
-  group_by(CowTagID) %>%
-  count(name = 'GenusCounts', Genus) %>%
-  mutate(TotalGenus = sum(GenusCounts)) %>%
-  mutate(PercentGenus = GenusCounts / TotalGenus * 100) %>%
+percent <- Full_survey %>%
+  select(Location, CowTagID, Taxon_Group) %>%
+  # mutate(Genus = if_else(Genus %in% c('coral1', 'coral2', 'coral3', 'coral4', 'coral5',
+  #                                     'coral6', 'coral7', 'coral8', 'coral9', 'coral10',
+  #                                     'coral11', 'coral12', 'coral13', 'coral14', 'brown algae1'),
+  #                        "Unidentified",
+  #                        Genus)) %>%
+  group_by(Location, CowTagID) %>%
+  count(name = 'TaxonCounts', Taxon_Group) %>%
+  mutate(TotalTaxon = sum(TaxonCounts)) %>%
+  mutate(PercentTaxon = TaxonCounts / TotalTaxon * 100) %>%
   ungroup() %>%
-  select(-c(GenusCounts, TotalGenus)) %>%
+  select(-c(TaxonCounts, TotalTaxon)) %>%
   right_join(percent)
 
 # percent cover of broad taxon groups
@@ -93,13 +150,7 @@ richness <- genera %>%
   distinct(CowTagID, GenusRichness) %>%
   right_join(richness)
 
-# sort factor levels by silicate
-siLevels <- paste(levels(orderSilicate$CowTagID))
 
-
-# assign order to factor levels by silicate
-percent$CowTagID <- factor(percent$CowTagID, levels = siLevels)
-levels(percent$CowTagID) # check
 
 
 ### Plotting

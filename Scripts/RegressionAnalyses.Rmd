@@ -19,7 +19,9 @@ library(here)
 library(ggrepel)
 library(PNWColors)
 library(vegan)
+#devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
 library(pairwiseAdonis)
+library(patchwork)
 ```
 
 
@@ -32,6 +34,8 @@ meta <- read_csv(here("Data", "Full_Metadata.csv"))
 sub <- read_csv(here("Data","Surveys","Substrate_2022.csv"))
 comp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
 taxa <- read_csv(here("Data","Surveys","Distinct_Taxa.csv"))
+
+water <- read_csv(here("Data","Biogeochem","Nutrient_Processed_CV_seasons.csv"))
 
 # create color palette for plotting
 mypalette <- pnw_palette(name="Bay")
@@ -65,6 +69,14 @@ comp <- comp %>%
   filter(Location == "Varari") %>% 
   left_join(turb)
   
+
+# pivot longer by categories
+longsub<- Full_data %>% 
+  select(-c(lat, lon)) %>%  
+  pivot_longer(cols = c(LiveCoral:Sand), names_to = "Substrate", values_to = "subVal")
+
+longspecies<-Full_data %>% 
+  pivot_longer(cols = c(ShannonDivSpecies, spRichness), names_to = "Metric", values_to = "SpeciesVal")
 
 ```
 
@@ -156,11 +168,6 @@ stackplot <- function(mydata, x = CowTagID, y, colfill) {
 ### Substrate ~ % N
 ```{r}
 
-# pivot longer by categories
-longsub<- Full_data %>% 
-  select(-c(lat, lon)) %>%  
-  pivot_longer(cols = c(LiveCoral:Sand), names_to = "Substrate", values_to = "subVal")
-
 groupplot(mydata = longsub, x = N_percent, y = subVal, fw = Substrate) +
   labs(x = "% Nitrogen", y = "% Cover of Substrate Type")
 
@@ -183,8 +190,6 @@ summary(lm(data = Full_data, ShannonDivSpecies ~ spRichness))
 ### Species metric ~ distance to seep
 ```{r}
 ## DISTANCE TO SEEP
-longspecies<-Full_data %>% 
-  pivot_longer(cols = c(ShannonDivSpecies, spRichness), names_to = "Metric", values_to = "SpeciesVal")
 
 groupplot(mydata = longspecies, x = dist_to_seep_m, y = SpeciesVal, fw = Metric) +
     geom_text_repel(aes(label = CowTagID), size = 3)
@@ -520,5 +525,170 @@ Full_data %>%
   theme_bw() +
   facet_wrap(~Parameters, scales = "free_x")
 ```
+
+# Normalize to substrate and rugosity
+
+## Richness and Diversity ~ Rugosity
+```{r}
+## plot
+groupplot(mydata = longspecies, x = meanRugosity, y = SpeciesVal, fw = Metric) +
+  geom_text_repel(aes(label = CowTagID))
+
+# A residual is the difference between an observed value and a predicted value in a regression model. Residual = Observed value – Predicted value
+# An observation has a positive residual if its value is greater than the predicted value made by the regression line and a negative residual if its value is less than the predicted value made by the regression line.
+
+#fit model
+resMod <- lm(spRichness ~ meanRugosity, data=Full_data)
+
+#view model summary
+summary(resMod) 
+
+#calculate the standardized residuals
+res <- residuals(resMod)
+
+#view the standardized residuals
+res
+
+#column bind standardized residuals back to original data frame
+res_data <- cbind(Full_data, res)
+
+#plot predictor variable vs. standardized residuals
+res_data %>% 
+  ggplot(aes(x = meanRugosity,
+             y = res)) +
+  geom_point(color = if_else(res > 0, "black", "red")) +
+  geom_hline(yintercept = 0) +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw()
+```
+
+
+
+```{r}
+
+abun <- comp %>% 
+  group_by(CowTagID) %>% 
+  mutate(total = sum(SpeciesCounts),
+         cover = SpeciesCounts / total * 100) %>%
+  select(Location, CowTagID, Taxa, SpeciesCounts, cover) %>% 
+  left_join(water) %>% 
+  left_join(taxa) %>% 
+  drop_na(Season) %>% 
+  filter(Season == "Dry") %>% 
+  filter(Location == "Varari")
+
+abun$CowTagID <- order(data = abun, param = Ammonia_umolL, by = CowTagID)$CowTagID
+  
+a <- abun %>% 
+  filter(Taxon_Group %in% c("Turf", "Rhodophyta", "Phaeophyta", "Chlorophyta")) %>% 
+  ggplot(aes(x = CowTagID,
+             y = cover,
+             fill = Taxon_Group)) +
+  geom_col(position = "stack") +
+  facet_wrap(~Taxon_Group, scales = "free_y") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.key.size = unit(1, "line"),
+        legend.text = element_text(size = 5)) +
+  labs(fill = "Taxa")
+
+b <- abun %>% 
+  filter(Season == "Dry") %>% 
+  ggplot(aes(x = CowTagID,
+             y = Ammonia_umolL)) +
+  geom_point() +
+  theme_bw()
+
+c <- abun %>% 
+  filter(Taxon_Group %in% c("Turf", "Rhodophyta", "Phaeophyta", "Chlorophyta")) %>% 
+  ggplot(aes(x = CowTagID,
+             y = cover),
+         fill = "red") +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+a + (c / b)
+
+```
+
+## Algae % cover ~ N_percent
+```{r}
+abun$CowTagID <- order(data = abun, param = N_percent, by = CowTagID)$CowTagID
+  
+a <- abun %>% 
+  filter(Taxon_Group %in% c("Turf", "Rhodophyta", "Phaeophyta", "Chlorophyta")) %>% 
+  ggplot(aes(x = CowTagID,
+             y = cover,
+             fill = Taxon_Group)) +
+  geom_col(position = "stack") +
+  facet_wrap(~Taxon_Group, scales = "free_y") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.key.size = unit(1, "line"),
+        legend.text = element_text(size = 5)) +
+  labs(fill = "Taxa")
+
+b <- abun %>% 
+  filter(Season == "Dry") %>% 
+  ggplot(aes(x = CowTagID,
+             y = N_percent)) +
+  geom_point() +
+  theme_bw()
+
+c <- abun %>% 
+  filter(Taxon_Group %in% c("Turf", "Rhodophyta", "Phaeophyta", "Chlorophyta")) %>% 
+  ggplot(aes(x = CowTagID,
+             y = cover),
+         fill = "red") +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+a + (b / c)
+
+```
+
+## Coral % cover ~ Silicate
+```{r}
+abun$CowTagID <- order(data = abun, param = Silicate_umolL, by = CowTagID)$CowTagID
+  
+a <- abun %>% 
+  filter(Taxon_Group %in% c("Coral", "Corallimorph")) %>% 
+  ggplot(aes(x = CowTagID,
+             y = cover,
+             fill = Taxon_Group)) +
+  geom_col(position = "stack") +
+  facet_wrap(~Taxon_Group, scales = "free_y") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "top",
+        legend.direction = "horizontal",
+        legend.key.size = unit(1, "line"),
+        legend.text = element_text(size = 5)) +
+  labs(fill = "Taxa")
+
+b <- abun %>% 
+  filter(Season == "Dry") %>% 
+  ggplot(aes(x = CowTagID,
+             y = Silicate_umolL)) +
+  geom_point() +
+  theme_bw()
+
+c <- abun %>% 
+  filter(Taxon_Group %in% c("Coral", "Corallimorph")) %>% 
+  ggplot(aes(x = CowTagID,
+             y = cover),
+         fill = "red") +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+a + (b / c)
+
+```
+
 
 
