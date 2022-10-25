@@ -25,6 +25,6 @@ turb2 <- rawMaya %>%
 
 Full_turb <- full_join(turb, turb2)
 
-write_csv(turb, here("Data","Biogeochem","July2022","Turb_NC.csv"))
+write_csv(Full_turb, here("Data","Biogeochem","July2022","Turb_NC.csv"))
 
 
