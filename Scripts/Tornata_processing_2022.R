@@ -9,15 +9,22 @@ library(here)
 
 #### BRING IN DATA ####
 raw <- read_csv(here("Data","Biogeochem","July2022","RawBarnasTornata.csv"))
-ref <- read_csv(here("Data","Biogeochem","Nutrient_Processed_MaxMin.csv"))
+rawMaya <- read_csv(here("Data","Biogeochem","July2022","RawZeffTornata.csv"))
 
 
 turb <- raw %>%
   mutate(C_N = C_ug / N_ug,
          N_percent = (N_ug/1000) / Weight_mg * 100) %>%
   select(-c(Weight_mg, C_ug, N_ug))
-turb
-ref %>%  # to check if new values are in similar range
-  select(colnames(turb))
+
+turb2 <- rawMaya %>%
+  mutate(C_N = C_ug / N_ug,
+         N_percent = (N_ug/1000) / Weight_mg * 100) %>%
+  select(-c(Weight_mg, C_ug, N_ug)) %>%
+  mutate(CowTagID = if_else(CowTagID == "SAND SGD 3T", "VSEEP", CowTagID))
+
+Full_turb <- full_join(turb, turb2)
 
 write_csv(turb, here("Data","Biogeochem","July2022","Turb_NC.csv"))
+
+
