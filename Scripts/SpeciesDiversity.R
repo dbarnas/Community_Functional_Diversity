@@ -20,11 +20,16 @@ gps <- read_csv(here("Data", "Sandwich_Locations_Final.csv"))
 
 
 #### PROCESS SPECIES DATA FOR DIVERSITY INDEX ####
-div <- survey %>%
+noTaxa <- survey %>%
+  filter(Taxa %in% c("Bare Rock", "Sand", "Rubble"))
+
+
+div <- survey  %>%
+  anti_join(noTaxa) %>%
   filter(Location != "Cabral") %>%
   select(CowTagID, Taxa, SpeciesCounts) %>% # only relevant columns
   pivot_wider(names_from = Taxa, values_from = SpeciesCounts) %>% # go wide to associate all taxa with all survey sites
-  pivot_longer(cols = 2:66, names_to = 'Taxa', values_to = 'SpeciesCounts') %>% # go back to long form for is.na test
+  pivot_longer(cols = 2:63, names_to = 'Taxa', values_to = 'SpeciesCounts') %>% # go back to long form for is.na test
   mutate(SpeciesCounts = if_else(is.na(SpeciesCounts), 0, SpeciesCounts)) %>% # all NA = 0
   pivot_wider(names_from = Taxa, values_from = SpeciesCounts)  # wide form for diversity index
 siteID <- div[,1] # select CowTagID for later cbind
@@ -88,7 +93,7 @@ plotmap <- ggmap(VarariBaseMap) +
   labs(title = "Varari Species Diversity",
        subtitle = "Shannon Diverity Index (H')")
 
-ggsave(here("Output","V_Diversity_Map.png"), plotmap, height = 10, width = 10, device = "png")
+#ggsave(here("Output","V_Diversity_Map.png"), plotmap, height = 10, width = 10, device = "png")
 
 
 
