@@ -12,6 +12,18 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Install necessary libraries
+```{r, eval = F}
+if("tidyverse" %in% rownames(installed.packages()) == FALSE){install.packages("tidyverse")}
+if("here" %in% rownames(installed.packages()) == FALSE){install.packages("here")}
+if("ggrepel" %in% rownames(installed.packages()) == FALSE){install.packages("ggrepel")}
+if("PNWColors" %in% rownames(installed.packages()) == FALSE){install.packages("PNWColors")}
+if("vegan" %in% rownames(installed.packages()) == FALSE){install.packages("vegan")}
+if("pairwiseAdonis" %in% rownames(installed.packages()) == FALSE){ devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")}
+if("patchwork" %in% rownames(installed.packages()) == FALSE){install.packages("patchwork")}
+```
+
+
 # Load Libraries
 ```{r}
 library(tidyverse)
@@ -19,64 +31,72 @@ library(here)
 library(ggrepel)
 library(PNWColors)
 library(vegan)
-#devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
 library(pairwiseAdonis)
 library(patchwork)
+
+set.seed(7)
 ```
 
 
 # Read in data
 ```{r, message = F}
-div <- read_csv(here("Data","Surveys","Species_Diversity.csv"))
+#div <- read_csv(here("Data","Surveys","Species_Diversity.csv")) # cannot calculate species div with % cover data
 rich <- read_csv(here("Data","Surveys","Species_Richness.csv"))
-turb <- read_csv(here("Data", "Biogeochem", "July2022", "Turb_NC.csv"))
 meta <- read_csv(here("Data", "Full_Metadata.csv"))
-sub <- read_csv(here("Data","Surveys","Substrate_2022.csv"))
 comp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
 taxa <- read_csv(here("Data","Surveys","Distinct_Taxa.csv"))
-
-water <- read_csv(here("Data","Biogeochem","Nutrient_Processed_CV_seasons.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrient_Processed_CV.csv"))
 
 # create color palette for plotting
 mypalette <- pnw_palette(name="Bay")
+midpalette <- pnw_palette(name = "Bay", n = 30)
 largepalette <- pnw_palette(name = "Bay", n = 100)
 ```
 
 
 # Process and Join data
 ```{r}
-# calculate %cover of substrates
-sub <- sub %>%
-  group_by(Location, CowTagID) %>%
-  mutate(TotalSub = sum(LiveCoral, DeadCoral, Rubble, Sand)) %>%
-  mutate_at(.vars = vars(LiveCoral:Sand), .funs = ~(. / TotalSub *100)) %>% # ~ and . allow the function to run across all variables
-  select(-c(Date, TotalSub))
+# reduce metadata
+meta <- meta %>% 
+  drop_na(lat) %>% 
+  select(Location, CowTagID, LiveCoral:Sand, dist_to_seep_m, adj_CT_depth_cm, meanRugosity)
 
 # join dfs
-Full_data <- div %>%
-  full_join(rich) %>% 
-  full_join(turb) %>%
-  full_join(meta) %>%
-  full_join(sub) %>%
-  drop_na() # remove incomplete datasets (for now, just varari w/o V13)
+Full_data <- rich %>% 
+  full_join(chem) %>% 
+  drop_na(lat) %>% # remove largely incomplete datasets
+  filter(CowTagID != "C14") %>%  # not surveyed
+  left_join(meta)
+
 
 comp <- comp %>% 
   select(Location, CowTagID, Taxa, SpeciesCounts) %>% 
+  mutate(Taxa = if_else(Taxa == 'Bare Rock', "Hard Substrate", Taxa),
+         Taxa = if_else(Taxa == 'Rubble', "Hard Substrate", Taxa)) %>% 
+  group_by(Location, CowTagID, Taxa) %>% 
+  mutate(SpeciesCounts = sum(SpeciesCounts)) %>% 
+  distinct() %>% 
+  ungroup() %>% # ungroup by taxa to regroup by site
   group_by(Location, CowTagID) %>% 
   mutate(totalcount = sum(SpeciesCounts),
          sp_percent = SpeciesCounts / totalcount*100) %>% 
   select(-totalcount) %>% 
-  filter(Location == "Varari") %>% 
-  left_join(turb)
-  
+  left_join(Full_data) %>% 
+  ungroup() %>% 
+  filter(Location == "Varari") # only Varari for now
+
+# rearrange
+Full_data <- Full_data %>% 
+  relocate(Location, .before = CowTagID)
+
+# only Varari for now
+Full_data <- Full_data %>% 
+  filter(Location == "Varari")
 
 # pivot longer by categories
 longsub<- Full_data %>% 
   select(-c(lat, lon)) %>%  
   pivot_longer(cols = c(LiveCoral:Sand), names_to = "Substrate", values_to = "subVal")
-
-longspecies<-Full_data %>% 
-  pivot_longer(cols = c(ShannonDivSpecies, spRichness), names_to = "Metric", values_to = "SpeciesVal")
 
 ```
 
@@ -130,8 +150,7 @@ groupplot <- function(mydata = Full_data, x, y, fw) {
        x = paste(as_label(x))) +
   theme_bw()+
   theme(legend.direction = "horizontal",
-        legend.position = "top") +
-  scale_color_manual(values = mypalette)
+        legend.position = "top")
   
   return(plot)
 }
@@ -154,8 +173,7 @@ stackplot <- function(mydata, x = CowTagID, y, colfill) {
   labs(y = paste(as_label(y)),
        x = paste(as_label(x))) +
   theme_bw()+
-  theme(legend.position = "right") +
-  scale_fill_manual(values = mypalette)
+  theme(legend.position = "right")
   
   return(plot)
 }
@@ -169,61 +187,114 @@ stackplot <- function(mydata, x = CowTagID, y, colfill) {
 ```{r}
 
 groupplot(mydata = longsub, x = N_percent, y = subVal, fw = Substrate) +
-  labs(x = "% Nitrogen", y = "% Cover of Substrate Type")
+  labs(x = "% Nitrogen", y = "% Cover of Substrate Type")+
+  scale_color_manual(values = mypalette)
+
+
 
 # %N and substrate type
-summary(lm(data = Full_data, Sand ~ N_percent))
-summary(lm(data = Full_data, Rubble ~ N_percent))
-summary(lm(data = Full_data, LiveCoral ~ N_percent))
-summary(lm(data = Full_data, DeadCoral ~ N_percent))
+# summary(lm(data = Full_data, Sand ~ N_percent))
+# summary(lm(data = Full_data, Rubble ~ N_percent))
+# summary(lm(data = Full_data, LiveCoral ~ N_percent))
+# summary(lm(data = Full_data, DeadCoral ~ N_percent))
 ```
 
-### Diversity ~ Richness
+
+
+### All biogeochem ~ distance to seep (excepting V13, upstream)
 ```{r}
-## DIVERSITY VS RICHNESS
+longChem <- Full_data %>% 
+  filter(CowTagID != "VSEEP") %>% 
+  pivot_longer(cols = c(Salinity:N_percent), values_to = "Values", names_to = "Parameter") 
+longChem %>% 
+  drop_na(Values, dist_to_seep_m) %>%
+  filter(CowTagID != "V13") %>% 
+  ggplot(aes(y = Values,
+             x = dist_to_seep_m)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameter, scales = "free_y") +
+  theme_bw()+
+  theme(legend.direction = "none") +
+  scale_fill_manual(values = largepalette)
 
-groupplot(mydata = Full_data, x = ShannonDivSpecies, y = spRichness, fw = NA)
-
-summary(lm(data = Full_data, ShannonDivSpecies ~ spRichness))
+Full_data %>% # V18
+  filter(Ammonia_umolL == max(Ammonia_umolL)) %>% select(CowTagID, Ammonia_umolL)
+Full_data %>% # V17
+  filter(pH == min(pH)) %>% select(CowTagID, pH)
+Full_data %>% # VSEEP
+  filter(Salinity == max(Salinity)) %>% select(CowTagID, Salinity)
+Full_data %>% # V17
+  filter(Temperature == min(Temperature)) %>% select(CowTagID, Temperature)
 ```
+
+
+
+# Calculate p values for regressions
+```{r}
+Param_data <- Full_data %>% 
+  select(Location, CowTagID, Salinity:meanRugosity) %>% 
+  relocate(dist_to_seep_m, .before = Salinity) %>% 
+  filter(CowTagID != "V13")
+
+Distance_pval <- tibble(Parameter = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric())
+
+for(i in 4:ncol(Param_data)){
+  
+  Parameter <- colnames(Param_data)[i] # select dependent parameter
+  mod <- lm(paste(Parameter, "~", "dist_to_seep_m"), data = Param_data)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  adj_r_squared <- summary(mod)[9]$adj.r.squared
+  
+  temp <- as_tibble(cbind(Parameter, pvalue, adj_r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           adj_r_squared = as.numeric(adj_r_squared))
+  
+  Distance_pval <- Distance_pval %>% 
+    rbind(temp)
+}
+
+# view table of pvalues
+Distance_pval
+
+# view bar graph of pvalues with 0.05 cutoff
+Distance_pval %>% 
+  ggplot(aes(x = Parameter, y = pvalue)) +
+  geom_col() +
+  geom_hline(yintercept = 0.05) +
+  theme_bw() +
+  labs(y = "p-value: ~ Distance to Seep (m)") +
+  theme(axis.text.x = element_text(angle = 90))
+  
+```
+
 
 ### Species metric ~ distance to seep
 ```{r}
 ## DISTANCE TO SEEP
 
-groupplot(mydata = longspecies, x = dist_to_seep_m, y = SpeciesVal, fw = Metric) +
-    geom_text_repel(aes(label = CowTagID), size = 3)
-  
-longspecies %>% filter(CowTagID == "V16")
+groupplot(mydata = Full_data %>% filter(CowTagID != "V13"), x = dist_to_seep_m, y = spRichness, fw = NA) +
+    geom_text_repel(aes(label = CowTagID), size = 3)+
+  scale_color_manual(values = mypalette)
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ dist_to_seep_m)) # significant
 ```
 
 ## Regression models
 ```{r, eval = F}
-summary(lm(data = Full_data, ShannonDivSpecies ~ N_percent))
-summary(lm(data = Full_data, ShannonDivSpecies ~ del15N))
-summary(lm(data = Full_data, ShannonDivSpecies ~ C_N))
 
 summary(lm(data = Full_data, spRichness ~ N_percent))
 summary(lm(data = Full_data, spRichness ~ del15N))
 summary(lm(data = Full_data, spRichness ~ C_N))
-
 summary(lm(data = Full_data, spRichness ~ N_percent * del15N * C_N))
-summary(lm(data = Full_data, ShannonDivSpecies ~ N_percent * del15N * C_N))
 
 summary(lm(data = Full_data, spRichness ~ Sand)) # significant
-summary(lm(data = Full_data, spRichness ~ N_percent * Sand))
-
-summary(lm(data = Full_data, ShannonDivSpecies ~ Sand)) # significant
-summary(lm(data = Full_data, ShannonDivSpecies ~ N_percent * Sand))
-
 summary(lm(data = Full_data, spRichness ~ meanRugosity)) # significant
-summary(lm(data = Full_data, ShannonDivSpecies ~ meanRugosity)) # significant
 
 summary(lm(data = Full_data, meanRugosity ~ dist_to_seep_m))
 summary(lm(data = Full_data, spRichness ~ dist_to_seep_m)) # significant
-summary(lm(data = Full_data, ShannonDivSpecies ~ dist_to_seep_m)) # significant
-
-summary(lm(data = Full_data, ShannonDivSpecies ~ spRichness)) # significant
 
 summary(lm(data = Full_data, N_percent ~ dist_to_seep_m)) 
 summary(lm(data = Full_data, C_N ~ dist_to_seep_m)) 
@@ -237,45 +308,64 @@ summary(lm(data = Full_data, del15N ~ dist_to_seep_m))
 ```{r}
 
 # order % cover by N_percent
-order(data = longsub, param = N_percent, by = CowTagID)$CowTagID
+longsub$CowTagID <- order(data = longsub, param = N_percent, by = CowTagID)$CowTagID
 
 # ggplot
 stackplot(mydata = longsub, x = CowTagID, y = subVal, colfill = Substrate) +
-  labs(subtitle = "Low to High %N")
+  labs(subtitle = "Low to High %N") +
+  theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_manual(values = mypalette)
+  
 ```
 
 ### Plotting % Cover species ~ % N
 ```{r}
 
 # order % cover by N_percent
-order(data = comp, param = N_percent, by = CowTagID)$CowTagID
+comp$CowTagID <- order(data = comp, param = N_percent, by = CowTagID)$CowTagID
 
 # ggplot
-stackplot(mydata = comp, x = CowTagID, y = sp_percent, colfill = Taxa) +
+stackplot(mydata = comp %>% filter(Taxa != "Hard Substrate", Taxa != "Sand"), x = CowTagID, y = sp_percent, colfill = Taxa) +
   labs(subtitle = "Low to High %N") +
   scale_fill_manual(values = largepalette) +
-  theme(legend.text = element_text(size = 2))
+  theme(legend.text = element_text(size = 2),
+        axis.text.x = element_text(angle = 90))+
+  scale_fill_manual(values = largepalette)
 ```
 
+### Plotting % Cover species ~ distance to seep
+```{r}
+
+# order % cover by N_percent
+comp$CowTagID <- order(data = comp, param = dist_to_seep_m, by = CowTagID)$CowTagID
+
+# ggplot
+stackplot(mydata = comp %>% filter(Taxa != "Hard Substrate", Taxa != "Sand", CowTagID != "V13"), x = CowTagID, y = sp_percent, colfill = Taxa) +
+  labs(subtitle = "Distance from seep (m)") +
+  scale_fill_manual(values = largepalette) +
+  theme(legend.text = element_text(size = 2),
+        axis.text.x = element_text(angle = 90))
+```
 
 # Presence-Absence Analysis
 ```{r}
-spPA <- taxa %>% 
-  count(Taxa, name = "presence") %>% 
-  right_join(comp) %>% 
-  select(Taxa, presence, CowTagID) %>% 
-  pivot_wider(names_from = Taxa, values_from = presence) %>%  # extend out to establish NAs
-  pivot_longer(names_to = "Taxa", values_to = "presence", cols = 2:62) %>%  #long form to turn NAs into 0's for absence
-  mutate(presence = if_else(is.na(presence), 0, 1)) # presence-absence of species per CowTagID
+spPA <- comp %>% 
+  select(Location, CowTagID, Taxa, SpeciesCounts) %>% 
+  pivot_wider(names_from = Taxa, values_from = SpeciesCounts) %>%  # extend out to establish NAs
+  pivot_longer(names_to = "Taxa", values_to = "SpeciesCounts", cols = 3:62) %>%  #long form to turn NAs into 0's for absence
+  mutate(Presence = if_else(is.na(SpeciesCounts), 0, 1)) %>%  # presence-absence of species per CowTagID
+  select(-SpeciesCounts) %>% 
+  left_join(Full_data) %>% 
+  select(-spRichness)
 
-genPA <- taxa %>% 
-  right_join(comp) %>% 
-  drop_na(Genus) %>% 
-  group_by(CowTagID) %>% 
-  count(Genus, name = "presence") %>%
-  pivot_wider(names_from = Genus, values_from = presence) %>%  # extend out to establish NAs
-  pivot_longer(names_to = "Genus", values_to = "presence", cols = 2:32) %>%  #long form to turn NAs into 0's for absence
-  mutate(presence = if_else(is.na(presence), 0, 1)) # presence-absence of species per CowTagID
+# genPA <- taxa %>% 
+#   right_join(comp) %>% 
+#   drop_na(Genus) %>% 
+#   group_by(CowTagID) %>% 
+#   count(Genus, name = "presence") %>%
+#   pivot_wider(names_from = Genus, values_from = presence) %>%  # extend out to establish NAs
+#   pivot_longer(names_to = "Genus", values_to = "presence", cols = 2:32) %>%  #long form to turn NAs into 0's for absence
+#  mutate(presence = if_else(is.na(presence), 0, 1)) # presence-absence of species per CowTagID
 ```
 
 
@@ -285,18 +375,20 @@ genPA <- taxa %>%
 ```{r}
 # extract parameters for the PCA, excluding CT depth
 pca_fulldata <- Full_data %>% 
-  select(-c(CowTagID,Location,lat,lon, adj_CT_depth_cm, dist_to_seep_m))
+  filter(CowTagID != "VSEEP", CowTagID != "V13") %>% 
+  select(Salinity:adj_CT_depth_cm) # avoid rugosity for now
 
 # Run the PCA
 pca_full <- prcomp(pca_fulldata, scale. = TRUE, center = TRUE)
 
 # Extract the scores and loadings
-PC_scores_full <-as_tibble(pca_full$x[,1:2])
-PC_loadings_full<-as_tibble(pca_full$rotation) %>%
+PC_scores_full <-as_tibble(pca_full$x[,1:2]) # scores for each sample location
+PC_loadings_full<-as_tibble(pca_full$rotation) %>% # loadings for each parameter
   bind_cols(labels = rownames(pca_full$rotation))
 
 # Put it with all the original data
-pca_fulldata_all<-Full_data %>%
+pca_fulldata_all<-Full_data %>% 
+  filter(CowTagID != "VSEEP", CowTagID != "V13") %>% 
   bind_cols(PC_scores_full)
 
 ```
@@ -305,9 +397,7 @@ pca_fulldata_all<-Full_data %>%
 ```{r}
 p1_full<-pca_fulldata_all %>%
   ggplot(aes(x = PC1, 
-             y = PC2 
-             #fill = V_cluster
-             ))+
+             y = PC2))+
   geom_point(shape = 21,
              color = "white",
              fill = "white",
@@ -333,7 +423,7 @@ p1_full
 ```{r}
 # loadings plot 
 p1_full_loading <- PC_loadings_full %>%
-  ggplot(aes(x = PC1, y = PC1, label = labels)) + # labels are the parameters
+  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
     geom_segment(aes(x = 0,
                      y = 0,
                      xend = PC1*10,
@@ -343,16 +433,18 @@ p1_full_loading <- PC_loadings_full %>%
   annotate("text", 
            x = PC_loadings_full$PC1*10+0.5, 
            y = PC_loadings_full$PC2*10+0.5,
-           label = PC_loadings_full$labels) +
-  coord_cartesian(xlim = c(-6, 6), ylim = c(-6, 6)) +
+           label = PC_loadings_full$labels,
+           size = 3) +
+  coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
   theme_bw() +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank()) +
   labs(title = "Varari Loadings")
+
 p1_full_loading
 ```
 
-```{r, eval = F}
+```{r}
 ### Patch PCA plots
 VarariPCA <- p1_full + p1_full_loading + 
   patchwork::plot_annotation("Varari PCA and Loadings", 
@@ -362,11 +454,147 @@ VarariPCA <- p1_full + p1_full_loading +
                                                                      margin = margin(t = 10, b = 20,
                                                                                      unit = "pt"))))
 
-ggsave(plot = VarariPCA, filename = here("Output","VarariPCA_rich_div_meta.png"), width = 14, height = 6)
+ggsave(plot = VarariPCA, filename = here("Output","VarariPCA_meta.png"), width = 14, height = 6)
+VarariPCA
+```
+
+### species richness ~ PC scores
+```{r}
+#pca_fulldata_all
+
+anova(lm(data = pca_fulldata_all, spRichness ~ PC1))
+anova(lm(data = pca_fulldata_all, spRichness ~ PC2))
+
+pca_fulldata_all %>% 
+  groupplot(x = PC1, y = spRichness, fw = NA) +
+  scale_color_manual(values = mypalette)
+
+pca_fulldata_all %>% 
+  groupplot(x = PC2, y = spRichness, fw = NA) +
+  scale_color_manual(values = mypalette)
+
+
+summary(lm(data = pca_fulldata_all, PC1 ~ dist_to_seep_m)) # p = 0.02
+summary(lm(data = pca_fulldata_all, PC2 ~ dist_to_seep_m))
 
 ```
 
-## nMDS Plot
+
+
+# PCA and Permanova: survey location characteristics w/o substrate
+
+## PCA
+```{r}
+# extract parameters for the PCA, excluding CT depth
+pca_fulldata2 <- Full_data %>% 
+  filter(CowTagID != "VSEEP", CowTagID != "V13") %>% 
+  select(Salinity:N_percent,dist_to_seep_m:adj_CT_depth_cm) # avoid rugosity for now
+
+# Run the PCA
+pca_full2 <- prcomp(pca_fulldata2, scale. = TRUE, center = TRUE)
+
+# Extract the scores and loadings
+PC_scores_full2 <- as_tibble(pca_full2$x[,1:2]) # scores for each sample location
+PC_loadings_full2 <- as_tibble(pca_full2$rotation) %>% # loadings for each parameter
+  bind_cols(labels = rownames(pca_full2$rotation))
+
+# Put it with all the original data
+pca_fulldata_all2 <- Full_data %>% 
+  filter(CowTagID != "VSEEP", CowTagID != "V13") %>% 
+  bind_cols(PC_scores_full2)
+
+```
+
+## scores plot
+```{r}
+p1_full2<-pca_fulldata_all2 %>%
+  ggplot(aes(x = PC1, 
+             y = PC2))+
+  geom_point(shape = 21,
+             color = "white",
+             fill = "white",
+             size = 3) +
+  #coord_cartesian(xlim = c(-4, 7), ylim = c(-6, 4)) +
+  #scale_shape_manual(values = c(22,16))+
+  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45)+ 
+  #scale_fill_manual(values = mypalette) +
+  # ggforce::geom_mark_ellipse(
+  #   aes(fill = V_cluster, label = V_cluster), 
+  #   alpha = .15, show.legend = FALSE,  label.buffer = unit(1, "mm"))+
+  theme_bw()+
+  theme(legend.position = "none", panel.background = element_rect(fill = "azure4"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  labs(title = "Varari Scores Plot") +
+  geom_text_repel(aes(label = CowTagID))
+
+p1_full2
+```
+
+## loadings plot
+```{r}
+# loadings plot 
+p1_full_loading2 <- PC_loadings_full2 %>%
+  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+    geom_segment(aes(x = 0,
+                     y = 0,
+                     xend = PC1*10,
+                     yend = PC2*10),
+      arrow = arrow(length = unit(0.1,"cm")), 
+      color = "grey") +
+  annotate("text", 
+           x = PC_loadings_full2$PC1*10+0.5, 
+           y = PC_loadings_full2$PC2*10+0.5,
+           label = PC_loadings_full2$labels,
+           size = 3) +
+  coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Varari Loadings")
+
+p1_full_loading2
+```
+
+```{r}
+### Patch PCA plots
+VarariPCA2 <- p1_full2 + p1_full_loading2 + 
+  patchwork::plot_annotation("Varari PCA and Loadings (w/o substrate)", 
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+
+ggsave(plot = VarariPCA2, filename = here("Output","VarariPCA_meta_noSubstrate.png"), width = 14, height = 6)
+VarariPCA2
+```
+
+### species richness ~ PC scores
+```{r}
+#pca_fulldata_all2
+
+anova(lm(data = pca_fulldata_all2, spRichness ~ PC1))
+anova(lm(data = pca_fulldata_all2, spRichness ~ PC2))
+
+pca_fulldata_all2 %>% 
+  groupplot(x = PC1, y = spRichness, fw = NA) +
+  scale_color_manual(values = mypalette)
+
+pca_fulldata_all2 %>% 
+  groupplot(x = PC2, y = spRichness, fw = NA) +
+  scale_color_manual(values = mypalette)
+
+
+summary(lm(data = pca_fulldata_all2, PC1 ~ dist_to_seep_m)) # p = 0.02
+summary(lm(data = pca_fulldata_all2, PC2 ~ dist_to_seep_m))
+
+```
+
+
+
+
+## nMDS Plot: Survey Sites
 ### Prep data
 ```{r}
 # create ordination output using bray curtis dissimilarity matrix
@@ -376,13 +604,16 @@ ggsave(plot = VarariPCA, filename = here("Output","VarariPCA_rich_div_meta.png")
 CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
 
 richPerm <- Full_data %>%
-  select(-c(Location, adj_CT_depth_cm, dist_to_seep_m))
+  filter(CowTagID != "VSEEP",
+         CowTagID != "V13") %>% 
+#  select(CowTagID, Salinity:meanRugosity)
+ select(CowTagID, Salinity:N_percent, dist_to_seep_m:meanRugosity)
 richPerm$CowTagID <- factor(richPerm$CowTagID, levels = CTlevels)
 richPerm <- richPerm %>% 
   arrange(CowTagID) %>% # arrange data in order of CowTagID for ordination plot later
-  select(-c(CowTagID, ShannonDivSpecies, lat, lon))
+  select(-CowTagID)
 
-richOrd <- metaMDS(richPerm, k=3, distance='bray') 
+richOrd <- metaMDS(richPerm, k=2, distance='bray') 
 
 # stress with k=2 dimensions. Is it < 0.3? 
 richOrd$stress
@@ -400,15 +631,22 @@ stressplot(richOrd)
 
 # get points for site characteristics
 richRow <- rownames(richOrd$species) # get characteristic names
-richMDS1 <- c(richOrd$species[1:10]) # MDS1 for characteristics
-richMDS2 <- c(richOrd$species[11:20]) # MDS2 for characteristics
+
+# with substrate
+# richMDS1 <- c(richOrd$species[1:23]) # MDS1 for characteristics
+# richMDS2 <- c(richOrd$species[24:46]) # MDS2 for characteristics
+
+# without substrate
+richMDS1 <- c(richOrd$species[1:19]) # MDS1 for characteristics
+richMDS2 <- c(richOrd$species[20:38]) # MDS2 for characteristics
+
 richData <- as_tibble(cbind(richRow, richMDS1, richMDS2)) %>%  # bind all cols into tibble
   mutate(richMDS1 = as.numeric(richMDS1), # as numeric 
          richMDS2 = as.numeric(richMDS2))
 # get points for CowTagIDs
 richRowb <- as.character(CTlevels) # assign CowTagID names
 richMDS1b <- c(richOrd$points[1:19]) # MDS1 for CowTagID
-richMDS2b <- c(richOrd$species[11:20]) # MDS2 for CowTagID
+richMDS2b <- c(richOrd$points[20:38]) # MDS2 for CowTagID
 richDatab <- as_tibble(cbind(richRowb, richMDS1b, richMDS2b)) %>%  # bind all cols into tibble
   mutate(richMDS1b = as.numeric(richMDS1b), # as numeric 
          richMDS2b = as.numeric(richMDS2b))
@@ -432,6 +670,7 @@ nMDSplot <- ggplot(data = richData, # sit characteristics
                       y = richMDS2b,
                       label = richRowb),
                   size = 3) +
+  #coord_cartesian(xlim = c(-0.23, 0.25), ylim = c(-0.16, 0.09)) +
   theme_bw() +
   theme(panel.grid = element_blank())
 
@@ -439,106 +678,268 @@ nMDSplot
 #ggsave(here("Output","nMDS_Varari.png"), nMDSplot, width = 14, height = 9)
 ```
 
-## PERMANOVA
+### PERMANOVA
 ```{r, echo = F, eval = F}
 #We could formally test whether locations are different using a perMANOVA. 
 #This requires the adonis command in the vegan package
 richPermFull <- cbind(richRowb, richPerm) %>%  # bind cowTagIDs
   rename(CowTagID = richRowb)
 
-permanovamodel<-adonis2(richPermFull[,-c(1:2)]~CowTagID, richPermFull, permutations = 999, 
+permanovamodel<-adonis2(richPermFull[,-c(1)]~CowTagID, richPermFull, permutations = 999, 
                        method="bray") # should change out cowtagid with some grouping name
 permanovamodel
 
 #If we are to trust the results of the permanova, then we have to assume that the dispersion among
 #data is the same in each group. We can test with assumption with a PermDisp test:
-disper<-vegdist(richPermFull[,-c(1:2)])
+disper<-vegdist(richPermFull[,-c(1)])
 betadisper(disper, richPermFull$CowTagID)
 #Look at the Average distance to median...these numbers should be reasonably similar
 #A rule of thumb is that one number should not be twice as high as any other
 
-pairwise.adonis(PercentTotal[-1], PercentTotal$Site, perm=999)
+pairwise.adonis(richPermFull[-1], richPermFull$CowTagID, perm=999)
 
 #Get coefficients to see which species are most important in explaining site differences:
 permanovamodel$coefficients
 
 ```
 
+## nMDS Plot: Species
+### Prep data
+```{r}
+# create ordination output using bray curtis dissimilarity matrix
+# remove non-numerical data
+# distance = is the type of dissimilarity matrix
+# k is number of dimensions (you can try different ones to look at different stress)
+#CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
+
+
+speciesPerm <- comp %>%
+  filter(CowTagID != "VSEEP",
+         CowTagID != "V13") %>% 
+  select(CowTagID, Taxa, sp_percent) %>% 
+  pivot_wider(names_from = "Taxa", values_from = "sp_percent") %>% 
+  mutate_at(vars('Hard Substrate':'Caulerpa racemosa'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) # put 0 %cover for all NA values
+
+speciesPerm$CowTagID <- factor(speciesPerm$CowTagID, levels = CTlevels)
+
+SiteParam <- comp %>%
+  filter(CowTagID != "VSEEP",
+         CowTagID != "V13") %>% 
+  select(Taxa, sp_percent, Salinity:N_percent, dist_to_seep_m:meanRugosity) %>% 
+  #select(Taxa, sp_percent, Salinity:meanRugosity) %>% 
+  pivot_wider(names_from = "Taxa", values_from = "sp_percent") %>% 
+  mutate_at(vars('Hard Substrate':'Caulerpa racemosa'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) %>%  # put 0 %cover for all NA values
+  select(Salinity:meanRugosity)
+
+speciesPerm <- speciesPerm %>% 
+  select(-c(CowTagID))
+
+speciesOrd <- metaMDS(speciesPerm, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+speciesOrd$stress
+
+# stress plot
+# want to minimize scatter
+stressplot(speciesOrd)
+```
+
+### Plot nMDS ordinations
+```{r}
+## ggplot
+
+#summary(speciesOrd)
+
+# get points for species
+speciesRow <- rownames(speciesOrd$species) # get characteristic names
+speciesMDS1 <- c(speciesOrd$species[1:60]) # MDS1 for characteristics
+speciesMDS2 <- c(speciesOrd$species[61:120]) # MDS2 for characteristics
+speciesData <- as_tibble(cbind(speciesRow, speciesMDS1, speciesMDS2)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1 = as.numeric(speciesMDS1), # as numeric 
+         speciesMDS2 = as.numeric(speciesMDS2)) %>% 
+  rename(Taxa = speciesRow) %>% 
+  left_join(taxa) %>% 
+  mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
+  select(Taxa, speciesMDS1, speciesMDS2, Taxon_Group)
+# get points for
+speciesRowb <- as.character(CTlevels) # assign CowTagID
+speciesMDS1b <- c(speciesOrd$points[1:19]) # MDS1 for CowTagID
+speciesMDS2b <- c(speciesOrd$points[20:38]) # MDS2 for CowTagID
+speciesDatab <- as_tibble(cbind(speciesRowb, speciesMDS1b, speciesMDS2b)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1b = as.numeric(speciesMDS1b), # as numeric
+         speciesMDS2b = as.numeric(speciesMDS2b))
+```
+
+```{r}
+# taxonPalette <- tibble('Taxon_Group' = as.character(c("Abiotic", "Sand", "Turf", "Rhodophyta", "")),
+#                        'PalColor' = as.character())
+
+
+
+# plotting
+nMDSplot2 <- ggplot(data = speciesData, # site characteristics
+       aes(x = speciesMDS1,
+           y = speciesMDS2)) +
+  geom_point(aes(color = Taxon_Group),
+             size = 3) +
+  geom_point(data = speciesDatab, # CowTagIDs
+             aes(x = speciesMDS1b,
+                 y = speciesMDS2b), 
+             shape = 3,
+             size = 3) +
+  geom_text_repel(data = speciesData, # site characteristics
+                  aes(x = speciesMDS1,
+                      y = speciesMDS2,
+                      label = speciesRow),
+                  size = 2,
+                  max.overlaps = 15) +
+  #coord_cartesian(xlim = c(-2, 2), ylim = c(-1.2, 1.2)) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+nMDSplot2
+#ggsave(here("Output","nMDS_Varari.png"), nMDSplot, width = 14, height = 9)
+```
+
+
+```{r}
+taxonPalette <- tibble('Taxon_Group' = as.character(c("Abiotic", "Turf", "Macroalgae", "Calcifier", "Sponge", "Corallimorph", "Anemone", "Cyanobacteria")),
+                       'PalColor' = as.character(c("black", "#00496F", "#086B8B", "#2E9093", "#EDC132", "#ED950A", "#DD4124", "#b99095")))
+
+
+#taxonPalette <- pnw_palette(name = "Bay", n = 8)
+
+# broad taxonomic groups
+taxonData <- speciesData %>% 
+  mutate(Taxon_Group = if_else(Taxon_Group == "Chlorophyta", "Macroalgae", 
+                       if_else(Taxon_Group == "Rhodophyta", "Macroalgae",
+                       if_else(Taxon_Group == "Phaeophyta", "Macroalgae",
+                       if_else(Taxon_Group == "Coral", "Calcifier", 
+                       if_else(Taxon_Group == "CCA", "Calcifier",
+                       if_else(Taxon_Group == "Sand", "Abiotic", Taxon_Group))))))) %>% 
+  left_join(taxonPalette)
+
+Pal <- as.character(taxonData$PalColor)
+names(Pal) <- as.character(taxonData$Taxon_Group)
+
+# plotting
+nMDSplot2b <- ggplot(data = taxonData, # site characteristics
+       aes(x = speciesMDS1,
+           y = speciesMDS2)) +
+  geom_point(aes(color = Taxon_Group),
+             size = 3) +
+  # geom_point(data = speciesDatab, # CowTagIDs
+  #            aes(x = speciesMDS1b,
+  #                y = speciesMDS2b), 
+  #            shape = 3,
+  #            size = 3) +
+  geom_text_repel(data = taxonData, # site characteristics
+                  aes(x = speciesMDS1,
+                      y = speciesMDS2,
+                      label = speciesRow),
+                  size = 2,
+                  max.overlaps = 15) +
+  #coord_cartesian(xlim = c(-2, 2), ylim = c(-1.2, 1.2)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  scale_color_manual(values = Pal) +
+  labs(x = "MDS1", y = "MDS2", color = "Taxonomic Group")
+
+nMDSplot2b
+#ggsave(here("Output","nMDS_Varari.png"), nMDSplot, width = 14, height = 9)
+```
+
+### PERMANOVA
+```{r, echo = F, eval = F}
+#We could formally test whether locations are different using a perMANOVA. 
+#This requires the adonis command in the vegan package
+speciesPermFull <- cbind(speciesRowb, speciesPerm) %>%  # bind cowTagIDs
+  rename(CowTagID = speciesRowb)
+
+permanovamodel2<-adonis2(speciesPermFull[,-c(1:2)]~CowTagID, speciesPermFull, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2
+
+#If we are to trust the results of the permanova, then we have to assume that the dispersion among
+#data is the same in each group. We can test with assumption with a PermDisp test:
+disper<-vegdist(speciesPermFull[,-c(1:2)])
+betadisper(disper, speciesPermFull$CowTagID)
+#Look at the Average distance to median...these numbers should be reasonably similar
+#A rule of thumb is that one number should not be twice as high as any other
+
+pairwise.adonis(speciesPermFull[-1], speciesPermFull$Site, perm=999)
+
+#Get coefficients to see which species are most important in explaining site differences:
+permanovamodel2$coefficients
+
+```
+
+
+
 ## Species metrics regrssion against all site characteristics
 ```{r}
-Full_data %>% 
-  select(-c(lat, lon, adj_CT_depth_cm, Location)) %>% 
-  pivot_longer(cols = del15N:Sand, names_to = "Parameters", values_to = "Values") %>% 
-  ggplot(aes(x = Values, y = spRichness,
-             label = CowTagID)) +
-  geom_point() +
-  geom_smooth(method = "lm", color = "black") +
-  geom_text_repel(size = 2) +
+longParam <- Full_data %>% 
+  filter(CowTagID != "V13", CowTagID != "VSEEP") %>% 
+  select(-c(lat, lon, Location)) %>% 
+  pivot_longer(cols = Salinity:meanRugosity, names_to = "Parameter", values_to = "Values") 
+
+groupplot(mydata = longParam, x = spRichness, y = Values, fw = Parameter) +
+  scale_color_manual(values = midpalette)
+
+
+Richness_pval <- tibble(Parameter = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric())
+wideParam <- Full_data %>% 
+  filter(CowTagID != "V13", CowTagID != "VSEEP") %>% 
+  select(-c(lat, lon, Location))
+
+for(i in 3:ncol(wideParam)){
+  
+  Parameter <- colnames(wideParam)[i] # select dependent parameter
+  mod <- lm(paste(Parameter, "~", "spRichness"), data = wideParam)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  adj_r_squared <- summary(mod)[9]$adj.r.squared
+  
+  temp <- as_tibble(cbind(Parameter, pvalue, adj_r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           adj_r_squared = as.numeric(adj_r_squared))
+  
+  Richness_pval <- Richness_pval %>% 
+    rbind(temp)
+}
+
+# view table of pvalues
+Richness_pval
+
+# view bar graph of pvalues with 0.05 cutoff
+Richness_pval %>% 
+  ggplot(aes(x = Parameter, y = pvalue)) +
+  geom_col() +
+  geom_hline(yintercept = 0.05) +
   theme_bw() +
-  facet_wrap(~Parameters, scales = "free_x")
+  labs(y = "p-value: ~ Species Richness") +
+  theme(axis.text.x = element_text(angle = 90))
+  
 ```
 
-```{r}
-Full_data %>% 
-  select(-c(lat, lon, adj_CT_depth_cm, Location)) %>% 
-  pivot_longer(cols = del15N:Sand, names_to = "Parameters", values_to = "Values") %>% 
-  ggplot(aes(x = Values, y = ShannonDivSpecies,
-             label = CowTagID)) +
-  geom_point() +
-  geom_smooth(method = "lm", color = "black") +
-  geom_text_repel(size = 2) +
-  theme_bw() +
-  facet_wrap(~Parameters, scales = "free_x")
-```
 
-### Species metrics vs Ratio of Sand to hard substrate
-```{r}
-# Ratio of sand to hard substrate
-Full_data %>% 
-  select(-c(lat, lon, adj_CT_depth_cm, Location)) %>% 
-  mutate(HardSub = LiveCoral + DeadCoral + Rubble,
-         log_Sand_HardSub = log(Sand/HardSub)) %>% 
-  select(-c(LiveCoral:HardSub)) %>% 
-  pivot_longer(cols = del15N:log_Sand_HardSub, names_to = "Parameters", values_to = "Values") %>% 
-  ggplot(aes(x = Values, y = spRichness,
-             label = CowTagID)) +
-  geom_point() +
-  geom_smooth(method = "lm", color = "black") +
-  geom_text_repel(size = 2, max.overlaps = 15) +
-  theme_bw() +
-  facet_wrap(~Parameters, scales = "free_x")
-```
 
-```{r}
-# Ratio of sand to hard substrate
-Full_data %>% 
-  select(-c(lat, lon, adj_CT_depth_cm, Location)) %>% 
-  mutate(HardSub = LiveCoral + DeadCoral + Rubble,
-         log_Sand_HardSub = log(Sand/HardSub)) %>% 
-  select(-c(LiveCoral:HardSub)) %>% 
-  pivot_longer(cols = del15N:log_Sand_HardSub, names_to = "Parameters", values_to = "Values") %>% 
-  ggplot(aes(x = Values, y = ShannonDivSpecies,
-             label = CowTagID)) +
-  geom_point() +
-  geom_smooth(method = "lm", color = "black") +
-  geom_text_repel(size = 2, max.overlaps = 15) +
-  theme_bw() +
-  facet_wrap(~Parameters, scales = "free_x")
-```
 
 # Normalize to substrate and rugosity
 
-## Richness and Diversity ~ Rugosity
+## Richness ~ Rugosity
 ```{r}
 ## plot
-groupplot(mydata = longspecies, x = meanRugosity, y = SpeciesVal, fw = Metric) +
-  geom_text_repel(aes(label = CowTagID))
+groupplot(mydata = Full_data, x = meanRugosity, y = spRichness, fw = NA) +
+  geom_text_repel(aes(label = CowTagID)) +
+  scale_color_manual(values = mypalette)
 
 # A residual is the difference between an observed value and a predicted value in a regression model. Residual = Observed value – Predicted value
 # An observation has a positive residual if its value is greater than the predicted value made by the regression line and a negative residual if its value is less than the predicted value made by the regression line.
 
 #fit model
-resMod <- lm(spRichness ~ meanRugosity, data=Full_data)
+resMod <- lm(spRichness ~ meanRugosity, data=Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"))
 
 #view model summary
 summary(resMod) 
@@ -550,21 +951,164 @@ res <- residuals(resMod)
 res
 
 #column bind standardized residuals back to original data frame
-res_data <- cbind(Full_data, res)
+res_data <- Full_data %>% 
+  filter(CowTagID != "V13", CowTagID != "VSEEP") %>% 
+  cbind(res) %>% 
+  relocate(res, .after = CowTagID)
 
 #plot predictor variable vs. standardized residuals
 res_data %>% 
   ggplot(aes(x = meanRugosity,
              y = res)) +
   geom_point(color = if_else(res > 0, "black", "red")) +
-  geom_hline(yintercept = 0) +
   geom_text_repel(aes(label = CowTagID)) +
   theme_bw()
 ```
 
 
 
+## Residuals regressions
 ```{r}
+anova(lm(data = res_data, spRichness ~ res))
+
+
+res_pval <- tibble(Parameter = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric())
+
+
+for(i in 4:ncol(res_data %>% select(-c(lat,lon)))){
+  
+  Parameter <- colnames(res_data %>% select(-c(lat,lon)))[i] # select dependent parameter
+  mod <- lm(paste(Parameter, "~", "res"), data = res_data)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  adj_r_squared <- summary(mod)[9]$adj.r.squared
+  
+  temp <- as_tibble(cbind(Parameter, pvalue, adj_r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           adj_r_squared = as.numeric(adj_r_squared))
+  
+  res_pval <- res_pval %>% 
+    rbind(temp)
+}
+
+# view table of pvalues
+res_pval
+
+# view bar graph of pvalues with 0.05 cutoff
+res_pval %>% 
+  ggplot(aes(x = Parameter, y = pvalue)) +
+  geom_col() +
+  geom_hline(yintercept = 0.05) +
+  theme_bw() +
+  labs(y = "p-value: ~ Residuals") +
+  theme(axis.text.x = element_text(angle = 90))
+  
+```
+
+
+# PCA with residuals
+
+
+# PCA and Permanova: survey location characteristics w/o substrate
+
+## PCA
+```{r}
+# extract parameters for the PCA, excluding CT depth
+pca_fulldata3 <- res_data %>% 
+  relocate(res, .after=lon) %>% 
+  select(res:N_percent,dist_to_seep_m:adj_CT_depth_cm) # avoid rugosity because rugosity residuals
+
+# Run the PCA
+pca_full3 <- prcomp(pca_fulldata3, scale. = TRUE, center = TRUE)
+
+# Extract the scores and loadings
+PC_scores_full3 <- as_tibble(pca_full3$x[,1:2]) # scores for each sample location
+PC_loadings_full3 <- as_tibble(pca_full3$rotation) %>% # loadings for each parameter
+  bind_cols(labels = rownames(pca_full3$rotation))
+
+# Put it with all the original data
+pca_fulldata_all3 <- res_data %>% 
+  relocate(res, .after=lon) %>% 
+  bind_cols(PC_scores_full3) %>% 
+  select(-meanRugosity)
+
+```
+
+## scores plot
+```{r}
+p1_full3<-pca_fulldata_all3 %>%
+  ggplot(aes(x = PC1, 
+             y = PC2))+
+  geom_point(shape = 21,
+             color = "white",
+             fill = "white",
+             size = 3) +
+  #coord_cartesian(xlim = c(-4, 7), ylim = c(-6, 4)) +
+  #scale_shape_manual(values = c(22,16))+
+  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45)+ 
+  #scale_fill_manual(values = mypalette) +
+  # ggforce::geom_mark_ellipse(
+  #   aes(fill = V_cluster, label = V_cluster), 
+  #   alpha = .15, show.legend = FALSE,  label.buffer = unit(1, "mm"))+
+  theme_bw()+
+  theme(legend.position = "none", panel.background = element_rect(fill = "azure4"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  labs(title = "Varari Scores Plot") +
+  geom_text_repel(aes(label = CowTagID))
+
+p1_full3
+```
+
+## loadings plot
+```{r}
+# loadings plot 
+p1_full_loading3 <- PC_loadings_full3 %>%
+  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+    geom_segment(aes(x = 0,
+                     y = 0,
+                     xend = PC1*10,
+                     yend = PC2*10),
+      arrow = arrow(length = unit(0.1,"cm")), 
+      color = "grey") +
+  annotate("text", 
+           x = PC_loadings_full3$PC1*10+0.5, 
+           y = PC_loadings_full3$PC2*10+0.5,
+           label = PC_loadings_full3$labels,
+           size = 3) +
+  coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Varari Loadings")
+
+p1_full_loading3
+```
+
+```{r}
+### Patch PCA plots
+VarariPCA3 <- p1_full3 + p1_full_loading3 + 
+  patchwork::plot_annotation("Varari PCA and Loadings (w/ Residuals)", 
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+
+ggsave(plot = VarariPCA3, filename = here("Output","VarariPCA_meta_residuals.png"), width = 14, height = 6)
+VarariPCA3
+```
+
+
+
+
+
+
+
+
+
+```{r, eval = F}
 
 abun <- comp %>% 
   group_by(CowTagID) %>% 
@@ -615,7 +1159,7 @@ a + (c / b)
 ```
 
 ## Algae % cover ~ N_percent
-```{r}
+```{r, eval = F}
 abun$CowTagID <- order(data = abun, param = N_percent, by = CowTagID)$CowTagID
   
 a <- abun %>% 
@@ -653,7 +1197,7 @@ a + (b / c)
 ```
 
 ## Coral % cover ~ Silicate
-```{r}
+```{r, eval = F}
 abun$CowTagID <- order(data = abun, param = Silicate_umolL, by = CowTagID)$CowTagID
   
 a <- abun %>% 
