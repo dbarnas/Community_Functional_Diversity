@@ -28,6 +28,9 @@ spcomp <- spcomp  %>%
   anti_join(noTaxa) %>%
   select(-c(Notes, PhotoNum))
 
+# Cabral 0 species richness
+cRich <- tibble('Location' = as.character("Cabral"), 'CowTagID' = as.character("CSEEP"), 'spRichness' = as.numeric(0))
+
 
 ### calculate species richness ###
 richness <- spcomp %>%
@@ -38,7 +41,9 @@ richness <- spcomp %>%
   mutate(spRichness = sum(spRichness)) %>%
   ungroup() %>%
   select(-Taxa) %>%
-  distinct()
+  distinct() %>%
+  bind_rows(cRich)
+
 
 ### write csv
 write_csv(richness, here("Data", "Surveys", "Species_Richness.csv"))
