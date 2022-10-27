@@ -14,7 +14,7 @@ AugChemData<-read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaS
 #turb1<-read_csv(here("Data","Biogeochem","August2021","Turb_NC.csv"))
 MarchChemData <- read_csv(curl('https://raw.githubusercontent.com/njsilbiger/MooreaSGD_site-selection/main/Data//March2022/CarbonateChemistry/pHProbe_Data_calculated_POcorrect.csv')) %>% mutate(Season = "Wet")
 #turb2<-read_csv(here("Data","Biogeochem","March2022","Turb_NC.csv"))
-depth <- read_csv(here("Data","Adj_Sandwich_Depth.csv"))
+#depth <- read_csv(here("Data","Adj_Sandwich_Depth.csv"))
 turb <- read_csv(here("Data","Biogeochem", "July2022", "Turb_NC.csv"))
 
 
@@ -129,16 +129,13 @@ min_data <- maxmin_data %>%
 # join max and min values and other data sets
 maxmin_data <- full_join(max_data, min_data)
 
-## Join with depth
-maxmin_data <- depth %>%
-  select(Location, CowTagID, adj_CT_depth_cm) %>%
-  right_join(maxmin_data)
 ## Join with GPS
 maxmin_data <- gps %>%
   right_join(maxmin_data)
+
 ## move Max Min notation to front of df and join with turbinaria
 maxmin_data <- maxmin_data %>%
-  relocate(MaxMin, .before = adj_CT_depth_cm) %>%
+  relocate(MaxMin, .before = Salinity) %>%
   left_join(turb)
 
 ## Write csv ####
@@ -165,10 +162,10 @@ Full_data <- full_join(mean_data,sd_data) %>%
   pivot_wider(names_from = Parameters, values_from = CVVal)  # pivot back to wide
   #left_join(turb) # add t ornata data (only variation across seasons, not within)
 
-## Join depth to Full_data
-Full_data <- depth %>%
-  select(Location, CowTagID, adj_CT_depth_cm) %>%
-  right_join(Full_data)
+# ## Join depth to Full_data
+# Full_data <- depth %>%
+#   select(Location, CowTagID, adj_CT_depth_cm) %>%
+#   right_join(Full_data)
 
 ## Join GPS to Full_data
 Full_data <- gps %>%
@@ -211,10 +208,10 @@ Full_data_all <- full_join(mean_data_all,sd_data_all) %>%
   pivot_wider(names_from = Parameters, values_from = CVVal)  # pivot back to wide
   #left_join(rangeTurb) # add t ornata data (only variation across seasons, not within)
 
-## Join depth to Full_data_all
-Full_data_all <- depth %>%
-  select(Location, CowTagID, adj_CT_depth_cm) %>%
-  right_join(Full_data_all)
+# ## Join depth to Full_data_all
+# Full_data_all <- depth %>%
+#   select(Location, CowTagID, adj_CT_depth_cm) %>%
+#   right_join(Full_data_all)
 
 ## Join GPS to Full_data_all
 Full_data_all <- gps %>%
