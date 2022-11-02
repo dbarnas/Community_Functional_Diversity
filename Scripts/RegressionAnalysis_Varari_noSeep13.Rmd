@@ -1,0 +1,1708 @@
+---
+title: "Community vs SGD Regression"
+author: "Danielle Barnas"
+date: "2022-10-14"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE, warning = F}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Install necessary libraries
+```{r, eval = F}
+if("tidyverse" %in% rownames(installed.packages()) == FALSE){install.packages("tidyverse")}
+if("here" %in% rownames(installed.packages()) == FALSE){install.packages("here")}
+if("ggrepel" %in% rownames(installed.packages()) == FALSE){install.packages("ggrepel")}
+if("PNWColors" %in% rownames(installed.packages()) == FALSE){install.packages("PNWColors")}
+if("vegan" %in% rownames(installed.packages()) == FALSE){install.packages("vegan")}
+if("pairwiseAdonis" %in% rownames(installed.packages()) == FALSE){ devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")}
+if("patchwork" %in% rownames(installed.packages()) == FALSE){install.packages("patchwork")}
+if("ggmap" %in% rownames(installed.packages()) == FALSE){install.packages("ggmap")}
+```
+
+
+# Load Libraries
+```{r}
+library(tidyverse)
+library(here)
+library(ggrepel)
+library(PNWColors)
+library(vegan)
+library(pairwiseAdonis)
+library(patchwork)
+library(ggmap)
+
+set.seed(7)
+```
+
+
+# Read in data
+```{r, message = F}
+#div <- read_csv(here("Data","Surveys","Species_Diversity.csv")) # cannot calculate species div with % cover data
+rich <- read_csv(here("Data","Surveys","Species_Richness.csv"))
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
+comp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
+taxa <- read_csv(here("Data","Surveys","Distinct_Taxa.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrient_Processed_CV.csv"))
+means <- read_csv(here("Data","Biogeochem", "Nutrient_Processed_meanSeason.csv"))
+ctTemp <- read_csv(here("Data","Biogeochem", "CT_files", "cleaned_CT.csv"))
+
+# create color palette for plotting
+mypalette <- pnw_palette(name="Bay")
+midpalette <- pnw_palette(name = "Bay", n = 30)
+largepalette <- pnw_palette(name = "Bay", n = 100)
+
+## create palette
+pretty_palette <- c("#d8a7b1", "#e9ddd4","#b9b7bd", "#67595e", "#ef7c8e", "#fae8e0", "#747474") # 1 is rosewater, 2 is dusty rose, 3 is pewter, 4 is coffee pot, 5 is hot pink, 6 is cream, 7 is light grey
+
+```
+
+
+# Process and Join data
+```{r}
+# reduce metadata
+meta <- meta %>% 
+  drop_na(lat) %>% 
+  select(Location, CowTagID, LiveCoral:Sand, dist_to_seep_m, adj_CT_depth_cm, meanRugosity) %>% 
+  filter(Location == "Varari",
+         CowTagID != "VSEEP",
+         CowTagID != "V13")
+
+cvtemp <- ctTemp %>% 
+  select(CowTagID, CVTemp)
+meantemp <- ctTemp %>% 
+  select(CowTagID, meanTemp)
+
+# get means across seasons
+means <- means %>% 
+  group_by(Location, CowTagID) %>% 
+  summarise_at(vars(lat:N_percent), .funs = mean, na.rm =T) %>% 
+  left_join(rich) %>% 
+  left_join(meta) %>% 
+  relocate(spRichness, .after = CowTagID) %>%
+  filter(Location == "Varari",
+         CowTagID != "VSEEP",
+         CowTagID != "V13") %>% 
+  ungroup() %>% 
+  left_join(meantemp) %>% 
+  select(-Temperature) %>% 
+  relocate(meanTemp, .after = Salinity) %>% 
+  rename(Temperature = meanTemp)
+
+# join dfs
+Full_data <- rich %>% 
+  full_join(chem) %>% 
+  drop_na(lat) %>% # remove largely incomplete datasets
+  filter(CowTagID != "C14") %>%  # not surveyed
+  left_join(meta) %>% 
+  filter(Location == "Varari",
+         CowTagID != "VSEEP",
+         CowTagID != "V13") %>% 
+  left_join(cvtemp) %>% 
+  select(-Temperature) %>% 
+  relocate(CVTemp, .after = Salinity) %>% 
+  rename(Temperature = CVTemp)
+
+
+comp <- comp %>% 
+  select(Location, CowTagID, Taxa, SpeciesCounts) %>% 
+  mutate(Taxa = if_else(Taxa == 'Bare Rock', "Hard Substrate", Taxa),
+         Taxa = if_else(Taxa == 'Rubble', "Hard Substrate", Taxa)) %>% 
+  group_by(Location, CowTagID, Taxa) %>% 
+  mutate(SpeciesCounts = sum(SpeciesCounts)) %>% 
+  distinct() %>% 
+  ungroup() %>% # ungroup by taxa to regroup by site
+  group_by(Location, CowTagID) %>% 
+  mutate(totalcount = sum(SpeciesCounts),
+         sp_percent = SpeciesCounts / totalcount*100) %>% 
+  select(-totalcount) %>% 
+  left_join(Full_data) %>% 
+  ungroup() %>% 
+  filter(Location == "Varari", # only Varari for now
+         CowTagID != "V13", CowTagID != "VSEEP") # removed from biogeochem analyses
+
+# rearrange
+Full_data <- Full_data %>% 
+  relocate(Location, .before = CowTagID)
+
+# only Varari for now
+# remove seep and V13 point upstream for further analyses
+Full_data <- Full_data %>% 
+  filter(Location == "Varari") %>% 
+  filter(CowTagID != "VSEEP",
+         CowTagID != "V13")
+
+# pivot longer by categories
+longsub<- Full_data %>% 
+  select(-c(lat, lon)) %>%  
+  pivot_longer(cols = c(LiveCoral:Sand), names_to = "Substrate", values_to = "subVal")
+
+```
+
+
+# Functions
+
+## Create function to order cowtagID's when plotting
+```{r}
+order <- function(data = Full_data, param, by){
+
+  param<- enquo(param)
+  by<- enquo(by)
+  
+  orderParam <- data %>%
+     arrange(!!param) %>%
+     distinct(!!by) %>% 
+     mutate(CowTagID = as_factor(as.character(!!by)))
+
+  # sort factor levels by N_percent
+  ParamLevels <- paste(orderParam$CowTagID)
+  # assign order to factor levels by % N
+  data$CowTagID <- factor(data$CowTagID, levels = ParamLevels)
+  # levels(data$CowTagID) # check
+
+return(data)
+}
+
+## example: distance to seep
+order(param = dist_to_seep_m, by = CowTagID)$CowTagID
+Full_data$CowTagID <- order(param = dist_to_seep_m, by = CowTagID)$CowTagID
+
+```
+
+
+
+### Create function for geom_point plots with facet_wrapping
+```{r}
+
+# create ggplot function
+groupplot <- function(mydata = Full_data, x, y, fw) {
+
+  x<-enquo(x)
+  y<-enquo(y)
+
+  plot <- ggplot(data = mydata,
+                 aes(y = !!y,
+                     x = !!x,
+                     color = !!enquo(fw))) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(enquo(fw), scales = "free_y") +
+  labs(y = paste(as_label(y)),
+       x = paste(as_label(x))) +
+  theme_bw()+
+  theme(legend.direction = "horizontal",
+        legend.position = "top")
+  
+  return(plot)
+}
+```
+
+### Create function for geom_col stacked
+```{r}
+
+# create ggplot function
+stackplot <- function(mydata, x = CowTagID, y, colfill) {
+
+  x<-enquo(x)
+  y<-enquo(y)
+
+  plot <- ggplot(data = mydata,
+                 aes(y = !!y,
+                     x = !!x,
+                     fill = !!enquo(colfill))) +
+  geom_col(position = "stack") +
+  labs(y = paste(as_label(y)),
+       x = paste(as_label(x))) +
+  theme_bw()+
+  theme(legend.position = "right")
+  
+  return(plot)
+}
+```
+
+### Create function for geom_col facet_wrapped
+```{r}
+
+# create ggplot function
+colplot <- function(mydata, x = CowTagID, y) {
+
+  x<-enquo(x)
+  y<-enquo(y)
+
+  plot <- ggplot(data = mydata,
+                 aes(y = !!y,
+                     x = !!x)) +
+  geom_col() +
+  labs(y = paste(as_label(y)),
+       x = paste(as_label(x))) +
+  theme_bw()+
+  theme(legend.position = "none")
+  
+  return(plot)
+}
+```
+
+
+# Distance to seep regressions
+
+## Plotting 
+### All biogeochem ~ distance to seep
+```{r}
+longChem <- Full_data %>% 
+  pivot_longer(cols = c(Salinity:N_percent), values_to = "Values", names_to = "Parameter") 
+longChem %>% 
+  drop_na(Values, dist_to_seep_m) %>%
+  ggplot(aes(y = Values,
+             x = dist_to_seep_m)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameter, scales = "free_y") +
+  theme_bw()+
+  theme(legend.direction = "none") +
+  scale_fill_manual(values = largepalette)
+
+
+```
+
+
+### Species richness ~ distance to seep
+```{r}
+## DISTANCE TO SEEP
+
+groupplot(mydata = Full_data, x = dist_to_seep_m, y = spRichness, fw = NA) +
+    geom_text_repel(aes(label = CowTagID), size = 3)+
+  scale_color_manual(values = mypalette)
+
+anova(lm(data = Full_data, spRichness ~ dist_to_seep_m)) # significant **
+```
+
+### Stacked % Cover substrate ~ % N
+```{r}
+
+# order % cover by N_percent
+longsub$CowTagID <- order(data = longsub, param = dist_to_seep_m, by = CowTagID)$CowTagID
+
+# ggplot
+stackplot(mydata = longsub, x = CowTagID, y = subVal, colfill = Substrate) +
+  labs(subtitle = "Distance from seep, Near to Far") +
+  theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_manual(values = pretty_palette[c(1, 3, 6, 4)])
+  
+```
+
+
+### Stacked % Cover species ~ % N
+```{r}
+
+# order % cover by N_percent
+comp$CowTagID <- order(data = comp, param = VisibleHumidic_Like, by = CowTagID)$CowTagID
+
+# ggplot
+stackplot(mydata = comp %>% filter(Taxa != "Hard Substrate", Taxa != "Sand"), x = CowTagID, y = sp_percent, colfill = Taxa) +
+  labs(subtitle = "Low to High Visible Humidics-like") +
+  scale_fill_manual(values = largepalette) +
+  theme(legend.text = element_text(size = 2),
+        axis.text.x = element_text(angle = 90))+
+  scale_fill_manual(values = largepalette)
+```
+
+
+### Stacked % Cover species ~ distance to seep
+```{r}
+
+# order % cover by N_percent
+comp$CowTagID <- order(data = comp, param = dist_to_seep_m, by = CowTagID)$CowTagID
+
+# ggplot
+stackplot(mydata = comp %>% filter(Taxa != "Hard Substrate", Taxa != "Sand", CowTagID != "V13"), x = CowTagID, y = sp_percent, colfill = Taxa) +
+  labs(subtitle = "Distance from seep (m)") +
+  scale_fill_manual(values = largepalette) +
+  theme(legend.text = element_text(size = 2),
+        axis.text.x = element_text(angle = 90))
+```
+
+
+# PCA: CV of biogeochemical characteristics
+
+## PCA
+```{r}
+# extract parameters for the PCA, excluding CT depth
+pca_fulldata <- Full_data %>% 
+  select(Salinity, Temperature, pH, 
+         Phosphate_umolL, Silicate_umolL, NN_umolL, Ammonia_umolL,
+         M_C, HIX, VisibleHumidic_Like, Tryptophan_Like, Tyrosine_Like
+         #del15N, C_N, N_percent,  remove because of mean values
+         #meanRugosity
+         ) # removed TA, substrate, distance to seep, and CT depth, and rugosity
+
+# Run the PCA
+pca_full <- prcomp(pca_fulldata, scale. = TRUE, center = TRUE)
+
+# Proportion of variance
+summary(pca_full)
+# PC1: 24.97 %
+# PC2: 19.68 %
+
+# Extract the scores and loadings
+PC_scores_full <-as_tibble(pca_full$x[,1:2]) # scores for each sample location
+PC_loadings_full<-as_tibble(pca_full$rotation) %>% # loadings for each parameter
+  bind_cols(labels = rownames(pca_full$rotation))
+
+# Put it with all the original data
+pca_fulldata_all<-Full_data %>% 
+  bind_cols(PC_scores_full)
+
+```
+
+## scores plot
+```{r}
+p1_full <- pca_fulldata_all %>%
+  ggplot(aes(x = PC1, 
+             y = PC2))+
+  geom_point(shape = 21,
+             color = "white",
+             fill = "white",
+             size = 3) +
+  geom_text_repel(aes(label = CowTagID)) +
+  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45)+ 
+  theme_bw()+
+  theme(legend.position = "none", 
+        panel.background = element_rect(fill = pretty_palette[3]),  
+        panel.grid = element_blank()) +
+  labs(title = "Varari Scores Plot (CV Values)",
+       x = "PC1 - 25.0%", y = "PC2 - 19.7%")
+
+p1_full
+```
+
+
+## loadings plot
+```{r}
+# loadings plot 
+p1_full_loading <- PC_loadings_full %>%
+  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+    geom_segment(aes(x = 0,
+                     y = 0,
+                     xend = PC1*10,
+                     yend = PC2*10),
+      arrow = arrow(length = unit(0.2,"cm"),), 
+      color = pretty_palette[1],
+      size = 1) +
+  annotate("text", 
+           x = PC_loadings_full$PC1*10+0.5, 
+           y = PC_loadings_full$PC2*10+0.5,
+           label = PC_loadings_full$labels,
+           size = 3) +
+  #coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Varari Loadings (CV Values)",
+       x = "PC1 - 25.0%", y = "PC2 - 19.7%")
+
+p1_full_loading
+ggsave(here("Output", "PCA", "CV_PCAloadings.png"), p1_full_loading, height = 14, width = 10)
+
+p1_full_loadingBlank <- PC_loadings_full %>%
+  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+    geom_segment(aes(x = 0,
+                     y = 0,
+                     xend = PC1*10,
+                     yend = PC2*10),
+      arrow = arrow(length = unit(0.2,"cm"),), 
+      color = pretty_palette[1],
+      size = 1) +
+  #coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Varari Loadings (CV Values)",
+       x = "PC1 - 25.0%", y = "PC2 - 19.7%")
+
+p1_full_loadingBlank
+ggsave(here("Output", "PCA", "CV_PCAloadings_blank.png"), p1_full_loadingBlank, height = 14, width = 10)
+```
+
+
+## Save plots together
+```{r}
+### Patch PCA plots
+VarariPCA <- p1_full + p1_full_loading + 
+  patchwork::plot_annotation("Varari PCA and Loadings (CV Values)", 
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+
+ggsave(plot = VarariPCA, filename = here("Output","PCA","CV_PCA.png"), width = 14, height = 10)
+VarariPCA
+```
+
+### species richness ~ PC scores
+```{r}
+#pca_fulldata_all
+
+anova(lm(data = pca_fulldata_all, spRichness ~ PC1))
+anova(lm(data = pca_fulldata_all, spRichness ~ PC2))
+
+pca_fulldata_all %>% 
+  groupplot(x = PC1, y = spRichness, fw = Location) +
+  scale_color_manual(values = mypalette) +
+  theme(legend.position = "none")
+
+pca_fulldata_all %>% 
+  groupplot(x = PC2, y = spRichness, fw = Location) +
+  scale_color_manual(values = mypalette) +
+  theme(legend.position = "none") +
+  geom_text_repel(aes(label = CowTagID))
+
+
+summary(lm(data = pca_fulldata_all, PC1 ~ dist_to_seep_m))
+summary(lm(data = pca_fulldata_all, PC2 ~ dist_to_seep_m))
+
+```
+
+
+### Graph survey locations colored by PC1
+
+```{r}
+
+# mean lat and long for the maps
+LocationGPS <- pca_fulldata_all %>%
+  group_by(Location) %>% # varari vs cabral
+  summarise(lon = median(lon, na.rm = TRUE) + 0.00007,
+            lat = median(lat, na.rm = TRUE))
+
+
+# Varari
+VarariBaseMap<-get_map(LocationGPS %>%
+                         select(lon,lat), maptype = 'satellite', zoom = 19)
+
+# base map
+# Varari
+VmapSites <- ggmap(VarariBaseMap) +
+  geom_point(data = pca_fulldata_all,
+             aes(x = lon, y = lat),
+             color = "white",
+             size = 2) + 
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari Sample Locations") +
+  geom_label(data = pca_fulldata_all,
+             aes(x = lon, y = lat,
+                 label = CowTagID),
+             size = 2, alpha = 0.8)
+
+VmapSites
+
+### Map Varari colored by PC1
+
+# isolate Varari seep
+VSeepPt <- chem %>% filter(CowTagID == "VSEEP") %>% select(CowTagID, lat, lon)
+  
+
+reg_varari_map <- ggmap(VarariBaseMap) +
+  geom_point(data = pca_fulldata_all,
+             aes(x = lon, y = lat, fill = PC1),
+             shape = 21,
+             color = "black",
+             size = 3) + # set point aesthetics
+  scale_fill_gradient(low = "white", high = pretty_palette[5]) + # set color scale
+  geom_point(data = VSeepPt, # star the seepage point
+             aes(x = lon, y = lat),
+             shape = 18, # selects the palette color corresponding to the associated cluster number
+             color = "white",
+             size = 4) +
+  geom_label(data = VSeepPt,
+             aes(x = lon, y = lat,
+                 label = CowTagID),
+             size = 3) + 
+             #nudge_y = 0.00012) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari Survey Locations, CV Values",
+       fill = "PC1 (25.0%)")
+
+reg_varari_map
+ggsave(here("Output", "PCA", "CV_map_colorPC1.png"), reg_varari_map, height = 10, width = 10)
+
+```
+
+
+
+# PCA: Mean of biogeochemical characteristics and TO
+
+## PCA
+```{r}
+# extract parameters for the PCA, excluding CT depth
+pca_fulldata2 <- means %>% 
+  select(Salinity, Temperature, pH, 
+         Phosphate_umolL, Silicate_umolL, NN_umolL, Ammonia_umolL,
+         M_C, HIX, VisibleHumidic_Like, Tryptophan_Like, Tyrosine_Like,
+         del15N, C_N, N_percent) # removed TA, substrate, distance to seep, and CT depth and rugosity
+
+# Run the PCA
+pca_full2 <- prcomp(pca_fulldata2, scale. = TRUE, center = TRUE)
+
+# Proportion of variance
+summary(pca_full2)
+# PC1: 37.82 %
+# PC2: 16.48 %
+
+# Extract the scores and loadings
+PC_scores_full2 <-as_tibble(pca_full2$x[,1:2]) # scores for each sample location
+PC_loadings_full2 <- as_tibble(pca_full2$rotation) %>% # loadings for each parameter
+  bind_cols(labels = rownames(pca_full2$rotation))
+
+# Put it with all the original data
+pca_fulldata_all2<-means %>% 
+  bind_cols(PC_scores_full2)
+
+```
+
+## scores plot
+```{r}
+p2_full<-pca_fulldata_all2 %>%
+  ggplot(aes(x = PC1, 
+             y = PC2))+
+  geom_point(shape = 21,
+             color = "white",
+             fill = "white",
+             size = 3) +
+  geom_text_repel(aes(label = CowTagID)) +
+  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45)+ 
+  theme_bw()+
+  theme(legend.position = "none", 
+        panel.background = element_rect(fill = pretty_palette[3]),
+        panel.grid = element_blank()) +
+  labs(title = "Varari Scores Plot (Mean Values)",
+       x = "PC1 = 37.6%", y = "PC2 - 16.5%")
+
+p2_full
+```
+
+
+## loadings plot
+```{r}
+# loadings plot 
+p2_full_loading <- PC_loadings_full2 %>%
+  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+    geom_segment(aes(x = 0,
+                     y = 0,
+                     xend = PC1*10,
+                     yend = PC2*10),
+      arrow = arrow(length = unit(0.2,"cm"),), 
+      color = pretty_palette[1],
+      size = 1) +
+  annotate("text", 
+           x = PC_loadings_full2$PC1*10.5+0.3, 
+           y = PC_loadings_full2$PC2*10.5+0.5,
+           label = PC_loadings_full2$labels,
+           size = 3) +
+  #coord_cartesian(xlim = c(-4, 5), ylim = c(-5, 5)) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Varari Loadings (Mean Values)",
+       x = "PC1 = 37.6%", y = "PC2 - 16.5%")
+
+p2_full_loading
+ggsave(here("Output", "PCA", "Means_PCAloadings.png"), p2_full_loading, height = 14, width = 10)
+
+p2_full_loadingBlank <- PC_loadings_full2 %>%
+  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+    geom_segment(aes(x = 0,
+                     y = 0,
+                     xend = PC1*10,
+                     yend = PC2*10),
+      arrow = arrow(length = unit(0.2,"cm"),), 
+      color = pretty_palette[1],
+      size = 1) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(title = "Varari Loadings (Mean Values)",
+       x = "PC1 = 37.6%", y = "PC2 - 16.5%")
+
+p2_full_loadingBlank
+ggsave(here("Output", "PCA", "Means_PCAloadings_blank.png"), p2_full_loadingBlank, height = 14, width = 10)
+
+```
+
+
+## Save plots together
+```{r}
+### Patch PCA plots
+VarariPCA2 <- p2_full + p2_full_loading + 
+  patchwork::plot_annotation("Varari PCA and Loadings (Mean Values)", 
+                             theme = theme(plot.title = element_text(size = rel(1.5), 
+                                                                     face = "bold", 
+                                                                     hjust = 0.5, 
+                                                                     margin = margin(t = 10, b = 20,
+                                                                                     unit = "pt"))))
+
+ggsave(plot = VarariPCA2, filename = here("Output","PCA","Means_PCA.png"), width = 14, height = 10)
+VarariPCA2
+```
+
+
+### species richness ~ PC scores
+```{r}
+#pca_fulldata_all
+
+anova(lm(data = pca_fulldata_all2, spRichness ~ PC1))
+anova(lm(data = pca_fulldata_all2, spRichness ~ PC2))
+
+pca_fulldata_all2 %>% 
+  groupplot(x = PC1, y = spRichness, fw = NA) +
+  scale_color_manual(values = mypalette)
+
+pca_fulldata_all2 %>% 
+  groupplot(x = PC2, y = spRichness, fw = NA) +
+  scale_color_manual(values = mypalette)
+
+
+summary(lm(data = pca_fulldata_all2, PC1 ~ dist_to_seep_m))
+summary(lm(data = pca_fulldata_all2, PC2 ~ dist_to_seep_m))
+
+```
+
+### Graph survey locations colored by PC1
+
+PC1 Axis
+
+```{r}
+
+### Map Varari colored by PC1
+
+reg_varari_map_means <- ggmap(VarariBaseMap) +
+  geom_point(data = pca_fulldata_all2,
+             aes(x = lon, y = lat, fill = PC1),
+             shape = 21,
+             color = "black",
+             size = 3) + # set point aesthetics
+  scale_fill_gradient(low = "white", high = pretty_palette[5]) + # set color scale
+  geom_point(data = VSeepPt, # star the seepage point
+             aes(x = lon, y = lat),
+             shape = 18, # selects the palette color corresponding to the associated cluster number
+             color = "white",
+             size = 4) +
+  geom_label(data = VSeepPt,
+             aes(x = lon, y = lat,
+                 label = CowTagID),
+             size = 3) + 
+             #nudge_y = 0.00012) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari Survey Locations, Mean Values",
+       fill = "PC1 (37.6%)")
+
+reg_varari_map_means
+ggsave(here("Output", "PCA", "means_map_colorPC1.png"), reg_varari_map_means, height = 10, width = 10)
+```
+
+PC2 Axis
+
+```{r}
+reg_varari_map_means2 <- ggmap(VarariBaseMap) +
+  geom_point(data = pca_fulldata_all2,
+             aes(x = lon, y = lat, fill = PC2),
+             shape = 21,
+             color = "black",
+             size = 3) + # set point aesthetics
+  scale_fill_gradient(low = "white", high = pretty_palette[5]) + # set color scale
+  geom_point(data = VSeepPt, # star the seepage point
+             aes(x = lon, y = lat),
+             shape = 18, # selects the palette color corresponding to the associated cluster number
+             color = "white",
+             size = 4) +
+  geom_label(data = VSeepPt,
+             aes(x = lon, y = lat,
+                 label = CowTagID),
+             size = 3) + 
+             #nudge_y = 0.00012) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari Survey Locations, Mean Values",
+       fill = "PC2 (16.5%)")
+
+reg_varari_map_means2
+ggsave(here("Output", "PCA", "means_map_colorPC2.png"), reg_varari_map_means2, height = 10, width = 10)
+
+```
+
+
+
+# Normalize to rugosity (and thereby substrate)
+
+## Richness ~ Rugosity
+```{r}
+## plot
+groupplot(mydata = Full_data, x = meanRugosity, y = spRichness, fw = Location) +
+  geom_text_repel(aes(label = CowTagID)) +
+  scale_color_manual(values = mypalette) +
+  theme(legend.position = "none")
+
+# A residual is the difference between an observed value and a predicted value in a regression model. Residual = Observed value – Predicted value
+# An observation has a positive residual if its value is greater than the predicted value made by the regression line and a negative residual if its value is less than the predicted value made by the regression line.
+
+#fit model
+resMod <- lm(spRichness ~ meanRugosity, data=Full_data)
+
+#view model summary
+summary(resMod) 
+
+#calculate the standardized residuals
+res <- residuals(resMod)
+
+
+#column bind standardized residuals back to original data frame
+res_data <- Full_data %>% 
+  cbind(res) %>% 
+  relocate(res, .after = lon)
+
+#column bind standardized residuals back to means data frame
+res_data_means <- means %>% 
+  cbind(res) %>% 
+  relocate(res, .after = lon)
+
+#plot predictor variable vs. standardized residuals
+res_data %>% 
+  ggplot(aes(x = meanRugosity,
+             y = res)) +
+  geom_point() +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw()
+
+res_data %>% 
+  ggplot(aes(x = Sand,
+             y = res)) +
+  geom_point() +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw()
+
+# removed interaction with substrate as well
+anova(lm(data = res_data, Sand ~ res)) 
+anova(lm(data = res_data, DeadCoral ~ res))
+anova(lm(data = res_data, LiveCoral ~ res))
+anova(lm(data = res_data, Rubble ~ res))
+```
+
+```{r}
+# plot residuals against richness
+respval1 <- anova(lm(data = res_data, spRichness ~ res))[5]$'Pr(>F)'[1]
+
+res_data %>% 
+  ggplot(aes(x = res,
+             y = spRichness)) +
+  geom_point() +
+  geom_text_repel(aes(label = CowTagID)) +
+  geom_smooth(method = "lm", color = "black") +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (Species Richness ~ Mean Rugosity)",
+       x = "Species Richness",
+       caption = paste("p-value < 8.37e-06")) #round(respval1,3)))
+
+
+# plot residuals against distance parameter
+respval2 <- anova(lm(data = res_data, res ~ dist_to_seep_m))[5]$'Pr(>F)'[1]
+
+res_data %>% 
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (Species Richness ~ Mean Rugosity)",
+       x = "Distance to seepage point (m)",
+       caption = paste("p-value:",round(respval2,3)))
+
+```
+
+
+```{r}
+# plot residuals against richness
+respval1 <- anova(lm(data = res_data, spRichness ~ res))[5]$'Pr(>F)'[1]
+respval1
+
+res_data %>% 
+  ggplot(aes(x = res,
+             y = spRichness)) +
+  geom_point() +
+  geom_text_repel(aes(label = CowTagID)) +
+  geom_smooth(method = "lm", color = "black") +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (Species Richness ~ Mean Rugosity)",
+       x = "Species Richness",
+       caption = paste("p-value =", respval1)) #round(respval1,3)))
+
+
+# plot residuals against distance parameter
+respval2 <- anova(lm(data = res_data, res ~ dist_to_seep_m))[5]$'Pr(>F)'[1]
+respval2
+
+res_data %>% 
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (Species Richness ~ Mean Rugosity)",
+       x = "Distance to seepage point (m)",
+       caption = paste("p-value:",round(respval2,3)))
+
+```
+
+
+
+## Calculate p values for regressions
+
+### CV Values wtih scaled parameters
+```{r}
+Param_data <- res_data %>% 
+  relocate(spRichness, .after = res)
+
+scaleParam <- as_tibble(scale(Param_data[,6:29], scale = TRUE, center = TRUE)) %>% 
+  bind_cols(res_data %>% select(res)) %>% 
+  relocate(res, .before = spRichness)
+
+
+
+Residuals_pval <- tibble(Parameter = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric(),
+                        beta = as.numeric())
+
+for(i in 2:ncol(scaleParam)){
+  
+  Parameter <- colnames(scaleParam)[i] # select dependent parameter
+  
+  mod <- lm(paste(Parameter, "~", "res"), data = scaleParam)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  r_squared <- summary(mod)[8]$r.squared
+  beta <- summary(mod)$coefficients[2]
+  
+  temp <- as_tibble(cbind(Parameter, pvalue, r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           r_squared = as.numeric(r_squared),
+           beta = as.numeric(beta))
+  
+  Residuals_pval <- Residuals_pval %>% 
+    rbind(temp)
+}
+
+# view table of pvalues
+Residuals_pval
+
+# view bar graph of pvalues 
+Residuals_pval %>% 
+  arrange(beta) %>% 
+  ggplot(aes(x = fct_reorder(Parameter, beta), y = beta)) +
+  geom_col() +
+  geom_hline(yintercept = 0.0) +
+  theme_bw() +
+  labs(y = "effect size: ~ Residuals from lm(Richness ~ Rugosity)",
+       title = "CV of biogeochemical values across Seasons") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+res_data %>% 
+  ggplot(aes(x = res,
+             y = VisibleHumidic_Like)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+summary(lm(data = res_data, VisibleHumidic_Like ~ res))
+```
+
+
+
+
+
+### Mean Values
+```{r}
+Param_data_mean <- res_data_means %>% 
+  relocate(spRichness, .after = res)
+
+scaleParam <- as_tibble(scale(Param_data_mean[,6:29], scale = TRUE, center = TRUE)) %>% 
+  bind_cols(res_data %>% select(res)) %>% 
+  relocate(res, .before = spRichness)
+
+
+Residuals_means_pval <- tibble(Parameter = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric(),
+                        beta = as.numeric())
+
+for(i in 2:ncol(scaleParam)){
+  
+  Parameter <- colnames(scaleParam)[i] # select dependent parameter
+  
+  mod <- lm(paste(Parameter, "~", "res"), data = scaleParam)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  r_squared <- summary(mod)[8]$r.squared
+  beta <- summary(mod)$coefficients[2]
+  
+  temp <- as_tibble(cbind(Parameter, pvalue, r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           r_squared = as.numeric(r_squared),
+           beta = as.numeric(beta))
+  
+  Residuals_means_pval <- Residuals_means_pval %>% 
+    rbind(temp)
+}
+
+
+# view table of pvalues
+Residuals_means_pval
+
+# view bar graph of pvalues 
+Residuals_means_pval %>% 
+  arrange(beta) %>% 
+  ggplot(aes(x = fct_reorder(Parameter, beta), y = beta)) +
+  geom_col() +
+  geom_hline(yintercept = 0.0) +
+  theme_bw() +
+  labs(y = "effect size: ~ Residuals from lm(Richness ~ Rugosity)",
+       title = "Mean of biogeochemical values across Seasons") +
+  theme(axis.text.x = element_text(angle = 90))
+  
+```
+
+```{r}
+ggplot(data = res_data_means,
+       aes(x = del15N,
+           y = res)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+ggplot(data = res_data_means,
+       aes(x = Ammonia_umolL,
+           y = res)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+ggplot(data = res_data_means,
+       aes(x = VisibleHumidic_Like,
+           y = res)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+  
+```
+
+
+
+
+# nMDS
+
+
+```{r}
+# create levels for CowTagID order
+CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
+```
+
+## nMDS Plot: Site characteristics (CV Values)
+
+### Prep data
+
+nMDS:
+- create ordination output using bray curtis dissimilarity matrix
+- remove non-numerical data
+- distance = is the type of dissimilarity matrix
+- k is number of dimensions (you can try different ones to look at different stress)
+```{r}
+
+richMDS <- res_data %>%
+  select(CowTagID, # res, cannot use residuals because of negative values
+         Salinity, Temperature, pH, 
+         Phosphate_umolL, Silicate_umolL, NN_umolL, Ammonia_umolL,
+         M_C, HIX, VisibleHumidic_Like, Tryptophan_Like, Tyrosine_Like
+         #del15N, C_N, N_percent,  # remove because of mean values
+         #meanRugosity # remove 
+         ) # removed TA, substrate, distance to seep, and CT depth, and rugosity
+
+richMDS$CowTagID <- factor(richMDS$CowTagID, levels = CTlevels)
+richMDS <- richMDS %>% 
+  arrange(CowTagID) %>% # arrange data in order of CowTagID for ordination plot later
+  select(-CowTagID)
+
+richOrd <- metaMDS(richMDS, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+richOrd$stress
+
+# stress plot
+# want to minimize scatter
+stressplot(richOrd)
+```
+
+### Plot nMDS ordinations
+```{r}
+
+# get points for site characteristics
+richRow <- rownames(richOrd$species) # get characteristic names
+
+# with substrate
+# richMDS1 <- c(richOrd$species[1:23]) # MDS1 for characteristics
+# richMDS2 <- c(richOrd$species[24:46]) # MDS2 for characteristics
+
+# without substrate
+richMDS1 <- c(richOrd$species[,1]) # MDS1 for characteristics
+richMDS2 <- c(richOrd$species[,2]) # MDS2 for characteristics
+
+richData <- as_tibble(cbind(richRow, richMDS1, richMDS2)) %>%  # bind all cols into tibble
+  mutate(richMDS1 = as.numeric(richMDS1), # as numeric 
+         richMDS2 = as.numeric(richMDS2))
+# get points for CowTagIDs
+richRowb <- as.character(CTlevels) # assign CowTagID names
+richMDS1b <- c(richOrd$points[,1]) # MDS1 for CowTagID
+richMDS2b <- c(richOrd$points[,2]) # MDS2 for CowTagID
+richDatab <- as_tibble(cbind(richRowb, richMDS1b, richMDS2b)) %>%  # bind all cols into tibble
+  mutate(richMDS1b = as.numeric(richMDS1b), # as numeric 
+         richMDS2b = as.numeric(richMDS2b)) %>% 
+  rename(CowTagID = richRowb) %>% 
+  left_join(res_data %>% select(CowTagID, dist_to_seep_m))
+
+# plotting
+nMDSplot <- ggplot(data = richData, # sit characteristics
+       aes(x = richMDS1,
+           y = richMDS2)) +
+  # geom_point(color = "black", 
+  #            size = 3) +
+  geom_point(data = richDatab, # CowTagIDs
+             aes(x = richMDS1b,
+                 y = richMDS2b,
+                 fill = dist_to_seep_m),
+             shape = 22,
+             size = 4,
+             color = "black") +
+  geom_text(data = richData, # site characteristics
+                  aes(x = richMDS1,
+                      y = richMDS2,
+                      label = richRow),
+                  size = 3) +
+  # geom_text_repel(data = richDatab, # CowTagIDs
+  #                 aes(x = richMDS1b,
+  #                     y = richMDS2b,
+  #                     label = richRowb),
+  #                 size = 3) +
+  coord_cartesian(xlim = c(-0.12, 0.22), ylim = c(-0.18, 0.15)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "top") +
+  labs(fill = "Distance from seep (m)")
+
+nMDSplot
+ggsave(here("Output","nMDS","nMDS_Varari_param_dist.png"), nMDSplot, width = 14, height = 10)
+```
+
+
+## nMDS Plot: Taxon groups (CV Values)
+
+### Prep data
+```{r}
+
+speciesMDS <- comp %>%
+  left_join(taxa) %>% 
+  filter(Taxa != 'Hard Substrate', Taxa != 'Sand') %>% 
+  select(CowTagID, Taxa, Taxon_Group, sp_percent) %>% 
+  group_by(CowTagID, Taxon_Group) %>% 
+  summarise(perc = sum(sp_percent)) %>% 
+  pivot_wider(names_from = "Taxon_Group", values_from = "perc") %>% 
+  mutate_at(vars('Anemone':'Cyanobacteria'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) %>%  # put 0 %cover for all NA values
+  ungroup()
+
+speciesMDS$CowTagID <- factor(speciesMDS$CowTagID, levels = CTlevels)
+
+speciesMDS <- speciesMDS %>% 
+  arrange(CowTagID) %>% 
+  select(-c(CowTagID))
+
+
+speciesOrd <- metaMDS(speciesMDS, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+speciesOrd$stress
+
+# stress plot
+# want to minimize scatter
+stressplot(speciesOrd)
+```
+
+### Plot nMDS ordinations
+```{r}
+
+# get points for species
+speciesRow <- rownames(speciesOrd$species) # get characteristic names
+speciesMDS1 <- c(speciesOrd$species[,1]) # MDS1 for characteristics
+speciesMDS2 <- c(speciesOrd$species[,2]) # MDS2 for characteristics
+speciesData <- as_tibble(cbind(speciesRow, speciesMDS1, speciesMDS2)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1 = as.numeric(speciesMDS1), # as numeric 
+         speciesMDS2 = as.numeric(speciesMDS2)) %>% 
+  rename(Taxon_Group = speciesRow) %>% 
+  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
+  select(speciesMDS1, speciesMDS2, Taxon_Group)
+# get points for
+speciesRowb <- as.character(CTlevels) # assign CowTagID
+speciesMDS1b <- speciesOrd$points[,1] # MDS1 for CowTagID
+speciesMDS2b <- speciesOrd$points[,2] # MDS2 for CowTagID
+speciesDatab <- as_tibble(cbind(speciesRowb, speciesMDS1b, speciesMDS2b)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1b = as.numeric(speciesMDS1b), # as numeric
+         speciesMDS2b = as.numeric(speciesMDS2b)) %>% 
+  rename(CowTagID = speciesRowb) %>% 
+  left_join(res_data %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+
+```
+
+### plot nMDS ~ distance  (CV Values)
+```{r}
+
+# plotting
+nMDSplot_dist <- ggplot(data = speciesData, # site characteristics
+       aes(x = speciesMDS1,
+           y = speciesMDS2)) +
+  #geom_point(size = 3) +
+  geom_point(data = speciesDatab, # CowTagIDs
+             aes(x = speciesMDS1b,
+                 y = speciesMDS2b,
+                 fill = dist_to_seep_m),
+             shape = 22,
+             size = 3) +
+  geom_text(data = speciesData, # site characteristics
+                  aes(x = speciesMDS1,
+                      y = speciesMDS2,
+                      label = speciesRow),
+                  size = 3) +
+  #coord_cartesian(xlim = c(-2, 2), ylim = c(-1.2, 1.2)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "top") +
+  labs(fill = "Distance from seep (m)")
+
+nMDSplot_dist
+ggsave(here("Output","nMDS","nMDS_Varari_taxa_dist.png"), nMDSplot_dist, width = 14, height = 10)
+```
+
+
+
+```{r}
+speciesPermFull <- cbind(speciesMDS, CTlevels) %>%  # bind cowTagIDs
+  rename(CowTagID = CTlevels) %>% 
+  left_join(res_data %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+permanovamodel_dist<-adonis2(speciesPermFull[,-c(11:15)]~dist_to_seep_m, speciesPermFull, permutations = 999, 
+                       method="bray") 
+permanovamodel_dist
+
+
+permanovamodel_am <- adonis2(speciesPermFull[,-c(11:15)]~Ammonia_umolL, speciesPermFull, permutations = 999, 
+                       method="bray") 
+permanovamodel_am
+
+
+permanovamodel_VH <- adonis2(speciesPermFull[,-c(11:15)]~VisibleHumidic_Like, speciesPermFull, permutations = 999, 
+                       method="bray")  
+permanovamodel_VH
+
+
+permanovamodel_15N <- adonis2(speciesPermFull[,-c(11:15)]~del15N, speciesPermFull, permutations = 999, 
+                       method="bray") 
+permanovamodel_15N
+
+```
+
+
+
+
+## nMDS Plot: Taxon groups (mean Values)
+
+### plot nMDS ~ distance  (mean Values)
+```{r}
+
+speciesDatab_mean <- as_tibble(cbind(speciesRowb, speciesMDS1b, speciesMDS2b)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1b = as.numeric(speciesMDS1b), # as numeric
+         speciesMDS2b = as.numeric(speciesMDS2b)) %>% 
+  rename(CowTagID = speciesRowb) %>% 
+  left_join(res_data_means %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+
+# plotting
+nMDSplot_dist_mean <- ggplot(data = speciesData, # site characteristics
+       aes(x = speciesMDS1,
+           y = speciesMDS2)) +
+  #geom_point(size = 3) +
+  geom_point(data = speciesDatab_mean, # CowTagIDs
+             aes(x = speciesMDS1b,
+                 y = speciesMDS2b,
+                 fill = dist_to_seep_m),
+             shape = 22,
+             size = 3) +
+  geom_text(data = speciesData, # site characteristics
+                  aes(x = speciesMDS1,
+                      y = speciesMDS2,
+                      label = speciesRow),
+                  size = 3) +
+  #coord_cartesian(xlim = c(-2, 2), ylim = c(-1.2, 1.2)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "top") +
+  labs(fill = "Distance from seep (m)")
+
+nMDSplot_dist_mean
+ggsave(here("Output","nMDS","nMDS_Varari_taxa_dist_mean.png"), nMDSplot_dist_mean, width = 14, height = 10)
+```
+
+
+```{r}
+speciesPermFull_mean <- cbind(speciesMDS, CTlevels) %>%  # bind cowTagIDs
+  rename(CowTagID = CTlevels) %>% 
+  left_join(res_data_means %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+permanovamodel_dist_mean<-adonis2(speciesPermFull_mean[,-c(11:15)]~dist_to_seep_m, speciesPermFull_mean, permutations = 999, 
+                       method="bray") 
+permanovamodel_dist_mean
+
+
+
+permanovamodel_am_mean <- adonis2(speciesPermFull_mean[,-c(11:15)]~Ammonia_umolL, speciesPermFull_mean, permutations = 999, 
+                       method="bray") 
+permanovamodel_am_mean
+
+
+
+permanovamodel_VH_mean <- adonis2(speciesPermFull_mean[,-c(11:15)]~VisibleHumidic_Like, speciesPermFull_mean, permutations = 999, 
+                       method="bray")  
+permanovamodel_VH_mean
+
+
+permanovamodel_15N_mean <- adonis2(speciesPermFull_mean[,-c(11:15)]~del15N, speciesPermFull_mean, permutations = 999, 
+                       method="bray") 
+permanovamodel_15N_mean
+
+```
+
+
+
+# Various taxon groups nMDS
+
+```{r}
+
+# calcifiers 
+
+calcifiersComp <- comp %>%
+  left_join(taxa) %>% 
+  filter(Taxa != 'Hard Substrate', Taxa != 'Sand') %>% 
+  select(CowTagID, Taxa, Taxon_Group, sp_percent) %>% 
+  mutate(Taxon_Group = if_else(Taxon_Group == "Coral", "Calcifiers",
+                       if_else(Taxon_Group == "CCA", "Calcifiers", Taxon_Group)))
+
+
+speciesMDS_calc <- calcifiersComp %>% 
+  group_by(CowTagID, Taxon_Group) %>% 
+  summarise(perc = sum(sp_percent)) %>% 
+  pivot_wider(names_from = "Taxon_Group", values_from = "perc") %>% 
+  mutate_at(vars('Anemone':'Cyanobacteria'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) %>%  # put 0 %cover for all NA values
+  ungroup()
+
+speciesMDS_calc$CowTagID <- factor(speciesMDS_calc$CowTagID, levels = CTlevels)
+
+speciesMDS_calc <- speciesMDS_calc %>% 
+  arrange(CowTagID) %>% 
+  select(-c(CowTagID))
+
+speciesOrd_calc <- metaMDS(speciesMDS_calc, k=2, distance='bray') 
+
+speciesOrd_calc$stress
+
+stressplot(speciesOrd_calc)
+
+
+## macroalgae and calcifiers
+
+calcMacroComp <- comp %>%
+  left_join(taxa) %>% 
+  filter(Taxa != 'Hard Substrate', Taxa != 'Sand') %>% 
+  select(CowTagID, Taxa, Taxon_Group, sp_percent) %>% 
+  mutate(Taxon_Group = if_else(Taxon_Group == "Coral", "Calcifiers",
+                       if_else(Taxon_Group == "CCA", "Calcifiers",
+                       if_else(Taxon_Group == "Rhodophyta", "Macroalgae",
+                       if_else(Taxon_Group == "Phaeophyta", "Macroalgae",
+                       if_else(Taxon_Group == "Chlorophyta", "Macroalgae", Taxon_Group))))))
+
+speciesMDS_calcMacro <- calcMacroComp %>% 
+  group_by(CowTagID, Taxon_Group) %>% 
+  summarise(perc = sum(sp_percent)) %>% 
+  pivot_wider(names_from = "Taxon_Group", values_from = "perc") %>% 
+  mutate_at(vars('Anemone':'Cyanobacteria'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) %>%  # put 0 %cover for all NA values
+  ungroup()
+
+speciesMDS_calcMacro$CowTagID <- factor(speciesMDS_calcMacro$CowTagID, levels = CTlevels)
+
+speciesMDS_calcMacro <- speciesMDS_calcMacro %>% 
+  arrange(CowTagID) %>% 
+  select(-c(CowTagID))
+
+speciesOrd_calcMacro <- metaMDS(speciesMDS_calcMacro, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+speciesOrd_calcMacro$stress
+
+# stress plot
+# want to minimize scatter
+stressplot(speciesOrd_calcMacro)
+```
+## calcifiers
+### Plot nMDS ordinations
+```{r}
+
+# get points for species
+speciesRow <- rownames(speciesOrd_calc$species) # get characteristic names
+speciesMDS1 <- c(speciesOrd_calc$species[,1]) # MDS1 for characteristics
+speciesMDS2 <- c(speciesOrd_calc$species[,2]) # MDS2 for characteristics
+speciesData <- as_tibble(cbind(speciesRow, speciesMDS1, speciesMDS2)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1 = as.numeric(speciesMDS1), # as numeric 
+         speciesMDS2 = as.numeric(speciesMDS2)) %>% 
+  rename(Taxon_Group = speciesRow) %>% 
+  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
+  select(speciesMDS1, speciesMDS2, Taxon_Group)
+# get points for
+speciesRowb <- as.character(CTlevels) # assign CowTagID
+speciesMDS1b <- speciesOrd_calc$points[,1] # MDS1 for CowTagID
+speciesMDS2b <- speciesOrd_calc$points[,2] # MDS2 for CowTagID
+speciesDatab <- as_tibble(cbind(speciesRowb, speciesMDS1b, speciesMDS2b)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1b = as.numeric(speciesMDS1b), # as numeric
+         speciesMDS2b = as.numeric(speciesMDS2b)) %>% 
+  rename(CowTagID = speciesRowb) %>% 
+  left_join(res_data %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+
+# plotting
+nMDSplot_dist_calc <- ggplot(data = speciesData, # site characteristics
+       aes(x = speciesMDS1,
+           y = speciesMDS2)) +
+  #geom_point(size = 3) +
+  geom_point(data = speciesDatab, # CowTagIDs
+             aes(x = speciesMDS1b,
+                 y = speciesMDS2b,
+                 fill = dist_to_seep_m),
+             shape = 22,
+             size = 3) +
+  geom_text(data = speciesData, # site characteristics
+                  aes(x = speciesMDS1,
+                      y = speciesMDS2,
+                      label = speciesRow),
+                  size = 3) +
+  #coord_cartesian(xlim = c(-2, 2), ylim = c(-1.2, 1.2)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "top") +
+  labs(fill = "Distance from seep (m)")
+
+nMDSplot_dist_calc
+#ggsave(here("Output","nMDS","nMDS_Varari_taxa_dist.png"), nMDSplot_dist, width = 14, height = 10)
+```
+
+```{r}
+speciesPermFull_calc <- cbind(speciesMDS_calc, CTlevels) %>%  # bind cowTagIDs
+  rename(CowTagID = CTlevels) %>% 
+  left_join(res_data %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+permanovamodel_dist<-adonis2(speciesPermFull_calc[,-c(10:14)]~dist_to_seep_m, speciesPermFull_calc, permutations = 999, 
+                       method="bray") 
+permanovamodel_dist
+
+
+permanovamodel_am <- adonis2(speciesPermFull_calc[,-c(10:14)]~Ammonia_umolL, speciesPermFull_calc, permutations = 999, 
+                       method="bray") 
+permanovamodel_am
+
+
+permanovamodel_VH <- adonis2(speciesPermFull_calc[,-c(10:14)]~VisibleHumidic_Like, speciesPermFull_calc, permutations = 999, 
+                       method="bray")  
+permanovamodel_VH
+
+
+permanovamodel_15N <- adonis2(speciesPermFull_calc[,-c(10:14)]~del15N, speciesPermFull_calc, permutations = 999, 
+                       method="bray") 
+permanovamodel_15N
+
+```
+
+
+## calcifiers and macroalgae
+### Plot nMDS ordinations
+```{r}
+
+# get points for species
+speciesRow <- rownames(speciesOrd_calcMacro$species) # get characteristic names
+speciesMDS1 <- c(speciesOrd_calcMacro$species[,1]) # MDS1 for characteristics
+speciesMDS2 <- c(speciesOrd_calcMacro$species[,2]) # MDS2 for characteristics
+speciesData <- as_tibble(cbind(speciesRow, speciesMDS1, speciesMDS2)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1 = as.numeric(speciesMDS1), # as numeric 
+         speciesMDS2 = as.numeric(speciesMDS2)) %>% 
+  rename(Taxon_Group = speciesRow) %>% 
+  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
+  select(speciesMDS1, speciesMDS2, Taxon_Group)
+# get points for
+speciesRowb <- as.character(CTlevels) # assign CowTagID
+speciesMDS1b <- speciesOrd_calcMacro$points[,1] # MDS1 for CowTagID
+speciesMDS2b <- speciesOrd_calcMacro$points[,2] # MDS2 for CowTagID
+speciesDatab <- as_tibble(cbind(speciesRowb, speciesMDS1b, speciesMDS2b)) %>%  # bind all cols into tibble
+  mutate(speciesMDS1b = as.numeric(speciesMDS1b), # as numeric
+         speciesMDS2b = as.numeric(speciesMDS2b)) %>% 
+  rename(CowTagID = speciesRowb) %>% 
+  left_join(res_data %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+
+# plotting
+nMDSplot_dist_calcMacro <- ggplot(data = speciesData, # site characteristics
+       aes(x = speciesMDS1,
+           y = speciesMDS2)) +
+  #geom_point(size = 3) +
+  geom_point(data = speciesDatab, # CowTagIDs
+             aes(x = speciesMDS1b,
+                 y = speciesMDS2b,
+                 fill = dist_to_seep_m),
+             shape = 22,
+             size = 3) +
+  geom_text(data = speciesData, # site characteristics
+                  aes(x = speciesMDS1,
+                      y = speciesMDS2,
+                      label = speciesRow),
+                  size = 3) +
+  #coord_cartesian(xlim = c(-2, 2), ylim = c(-1.2, 1.2)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "top") +
+  labs(fill = "Distance from seep (m)")
+
+nMDSplot_dist_calcMacro
+#ggsave(here("Output","nMDS","nMDS_Varari_taxa_dist.png"), nMDSplot_dist, width = 14, height = 10)
+```
+
+```{r}
+speciesPermFull_calcMacro <- cbind(speciesMDS_calcMacro, CTlevels) %>%  # bind cowTagIDs
+  rename(CowTagID = CTlevels) %>% 
+  left_join(res_data %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+permanovamodel_dist<-adonis2(speciesPermFull_calcMacro[,-c(8:12)]~dist_to_seep_m, speciesPermFull_calcMacro, permutations = 999, 
+                       method="bray") 
+permanovamodel_dist # p = 0.086
+
+
+permanovamodel_am <- adonis2(speciesPermFull_calcMacro[,-c(8:12)]~Ammonia_umolL, speciesPermFull_calcMacro, permutations = 999, 
+                       method="bray") 
+permanovamodel_am
+
+
+permanovamodel_VH <- adonis2(speciesPermFull_calcMacro[,-c(8:12)]~VisibleHumidic_Like, speciesPermFull_calcMacro, permutations = 999, 
+                       method="bray")  
+permanovamodel_VH
+
+
+permanovamodel_15N <- adonis2(speciesPermFull_calcMacro[,-c(8:12)]~del15N, speciesPermFull_calcMacro, permutations = 999, 
+                       method="bray") 
+permanovamodel_15N
+
+```
+
+
+
+
+
+
+
+
+
+# All species nMDS
+
+## ~ distance
+```{r}
+speciesMDS2 <- comp %>%
+  left_join(taxa) %>% 
+  filter(Taxa != 'Hard Substrate', Taxa != 'Sand') %>% 
+  select(CowTagID, Taxa,sp_percent) %>% 
+  group_by(CowTagID, Taxa) %>% 
+  summarise(perc = sum(sp_percent)) %>% 
+  pivot_wider(names_from = "Taxa", values_from = "perc") %>% 
+  mutate_at(vars('Crustose Corallines':'Valonia macrophysa'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) %>%  # put 0 %cover for all NA values
+  ungroup()
+
+speciesMDS2$CowTagID <- factor(speciesMDS2$CowTagID, levels = CTlevels)
+
+speciesPermFull2 <- speciesMDS2 %>% 
+  left_join(res_data %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+permanovamodel2<-adonis2(speciesPermFull2[,-c(1,60:63)]~VisibleHumidic_Like, speciesPermFull2, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2 
+
+
+permanovamodel2<-adonis2(speciesPermFull2[,-c(1,60:63)]~dist_to_seep_m, speciesPermFull2, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2 # *
+
+permanovamodel2<-adonis2(speciesPermFull2[,-c(1,60:63)]~Ammonia_umolL, speciesPermFull2, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2 
+
+permanovamodel2<-adonis2(speciesPermFull2[,-c(1,60:63)]~del15N, speciesPermFull2, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2 
+```
+
+
+## Mean values
+```{r}
+speciesPermFull2_means <- speciesMDS2 %>% 
+  left_join(res_data_means %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
+
+permanovamodel2_means<-adonis2(speciesPermFull2_means[,-c(1,60:63)]~VisibleHumidic_Like, speciesPermFull2_means, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2_means 
+
+
+permanovamodel2_means<-adonis2(speciesPermFull2_means[,-c(1,60:63)]~dist_to_seep_m, speciesPermFull2_means, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2_means # *
+
+permanovamodel2_means<-adonis2(speciesPermFull2_means[,-c(1,60:63)]~Ammonia_umolL, speciesPermFull2_means, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2_means 
+
+permanovamodel2_means<-adonis2(speciesPermFull2_means[,-c(1,60:63)]~del15N, speciesPermFull2_means, permutations = 999, 
+                       method="bray") # should change out cowtagid with some grouping name
+permanovamodel2_means 
+```
+
+
+
+### Plot with more broad taxon groups
+
+```{r, echo = F, eval = F}
+# create my own palette
+taxonPalette <- tibble('Taxon_Group' = as.character(c("Abiotic", "Turf", "Macroalgae", "Calcifier", "Sponge", "Corallimorph", "Anemone", "Cyanobacteria")),
+                       'PalColor' = as.character(c("black", "#00496F", "#086B8B", "#2E9093", "#EDC132", "#ED950A", "#DD4124", "#b99095")))
+
+# broad taxonomic groups
+taxonData <- speciesData %>% 
+  mutate(Taxon_Group = if_else(Taxon_Group == "Chlorophyta", "Macroalgae", 
+                       if_else(Taxon_Group == "Rhodophyta", "Macroalgae",
+                       if_else(Taxon_Group == "Phaeophyta", "Macroalgae",
+                       if_else(Taxon_Group == "Coral", "Calcifier", 
+                       if_else(Taxon_Group == "CCA", "Calcifier",
+                       if_else(Taxon_Group == "Sand", "Abiotic", Taxon_Group))))))) %>% 
+  left_join(taxonPalette)
+
+Pal <- as.character(taxonData$PalColor)
+names(Pal) <- as.character(taxonData$Taxon_Group)
+
+
+# plotting
+nMDSplot2b <- ggplot(data = taxonData, # site characteristics
+       aes(x = speciesMDS1,
+           y = speciesMDS2)) +
+  geom_point(aes(color = Taxon_Group),
+             size = 3) +
+  geom_point(data = speciesDatab, # CowTagIDs
+             aes(x = speciesMDS1b,
+                 y = speciesMDS2b),
+             shape = 22,
+             size = 3) +
+  geom_text_repel(data = taxonData, # site characteristics
+                  aes(x = speciesMDS1,
+                      y = speciesMDS2,
+                      label = speciesRow),
+                  size = 2,
+                  max.overlaps = 15) +
+  #coord_cartesian(xlim = c(-2, 2), ylim = c(-1.2, 1.2)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  #scale_color_manual(values = Pal) +
+  labs(x = "MDS1", y = "MDS2", color = "Taxonomic Group")
+
+nMDSplot2b
+#ggsave(here("Output","nMDS_Varari.png"), nMDSplot, width = 14, height = 9)
+```
+
+
+
+### Parameter regression pvalues without seep and V13
+```{r, eval = F}
+red_Full <- res_data %>% 
+  select(-c(Location, lat, lon))
+
+Param_pval <- tibble(Parameter_Ind = as.character(),
+                         Parameter_Dep = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric())
+
+
+for(i in 2:ncol(red_Full)) {
+  
+  Parameter_Ind <- colnames(red_Full)[i] # select ith parameter as x axis variable 
+  
+  temp1 <- tibble(Parameter_Ind = as.character(),
+                         Parameter_Dep = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric()) 
+  
+  for(j in 3:ncol(red_Full)) {
+  
+  if(i != j){
+    Parameter_Dep <- colnames(red_Full)[j] # select ith parameter as x axis variable
+  } else if(j < 25) {
+    Parameter_Dep <- colnames(red_Full)[(j+1)] # select ith parameter as x axis variable
+  } else if(j == 25) {
+    Parameter_Dep <- colnames(red_Full)[2] # select ith parameter as x axis variable
+  }
+    
+  mod <- lm(paste(Parameter_Ind, "~", Parameter_Dep), data = red_Full)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  adj_r_squared <- summary(mod)[9]$adj.r.squared
+  
+  temp <- as_tibble(cbind(Parameter_Ind, Parameter_Dep, pvalue, adj_r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           adj_r_squared = as.numeric(adj_r_squared))
+  
+  temp1 <- temp1 %>% 
+    rbind(temp)
+  
+  }
+  
+    Param_pval <- Param_pval %>% 
+    rbind(temp1) %>% 
+      distinct()
+}
+
+# view table of pvalues
+Param_pval
+write_csv(Param_pval, here("Data", "biogeochem", "biogeochem_pvalus_res_noSeepV13.csv"))
+
+```
+
+
+
+
+
+
+
+
+
+
