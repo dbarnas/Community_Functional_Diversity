@@ -149,6 +149,24 @@ mean_data <- ReducedChemData %>%
   ungroup() %>%
   pivot_longer(cols = c(Salinity:Tyrosine_Like), names_to = "Parameters", values_to = "MeanVal")
 
+## Join GPS to mean_data
+mean_data <- gps %>%
+  right_join(mean_data) %>%
+  relocate(Season, .after = CowTagID)
+
+## Pivot wider
+mean_data <- mean_data %>%
+  pivot_wider(names_from = Parameters, values_from = MeanVal)
+
+## Join Turbinaria to mean_data
+mean_data <- mean_data %>%
+  left_join(turb)
+
+
+## Write csv ####
+write_csv(mean_data, here("Data","Biogeochem","Nutrient_Processed_MeanSeason.csv"))
+
+
 sd_data <- ReducedChemData %>%
   group_by(Location, CowTagID, Season) %>%
   # Calculate SD values and pivot longer to join for CV calculation
