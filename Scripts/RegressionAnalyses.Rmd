@@ -21,6 +21,7 @@ if("PNWColors" %in% rownames(installed.packages()) == FALSE){install.packages("P
 if("vegan" %in% rownames(installed.packages()) == FALSE){install.packages("vegan")}
 if("pairwiseAdonis" %in% rownames(installed.packages()) == FALSE){ devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")}
 if("patchwork" %in% rownames(installed.packages()) == FALSE){install.packages("patchwork")}
+if("ggmap" %in% rownames(installed.packages()) == FALSE){install.packages("ggmap")}
 ```
 
 
@@ -33,6 +34,7 @@ library(PNWColors)
 library(vegan)
 library(pairwiseAdonis)
 library(patchwork)
+library(ggmap)
 
 set.seed(7)
 ```
@@ -179,6 +181,28 @@ stackplot <- function(mydata, x = CowTagID, y, colfill) {
 }
 ```
 
+### Create function for geom_col facet_wrapped
+```{r}
+
+# create ggplot function
+colplot <- function(mydata, x = CowTagID, y) {
+
+  x<-enquo(x)
+  y<-enquo(y)
+
+  plot <- ggplot(data = mydata,
+                 aes(y = !!y,
+                     x = !!x)) +
+  geom_col() +
+  labs(y = paste(as_label(y)),
+       x = paste(as_label(x))) +
+  theme_bw()+
+  theme(legend.position = "none")
+  
+  return(plot)
+}
+```
+
 
 
 ## Plotting
@@ -231,6 +255,7 @@ Full_data %>% # V17
 
 
 # Calculate p values for regressions
+## ~ Distance, Including Seep
 ```{r}
 Param_data <- Full_data %>% 
   select(Location, CowTagID, Salinity:meanRugosity) %>% 
@@ -265,7 +290,130 @@ Distance_pval %>%
   geom_col() +
   geom_hline(yintercept = 0.05) +
   theme_bw() +
-  labs(y = "p-value: ~ Distance to Seep (m)") +
+  labs(y = "p-value: ~ Distance to Seep (m)",
+       title = "Including VSEEP") +
+  theme(axis.text.x = element_text(angle = 90))
+  
+```
+
+
+### Species richness ~ distance to seep
+```{r}
+## DISTANCE TO SEEP
+
+groupplot(mydata = Full_data %>% filter(CowTagID != "V13"), x = dist_to_seep_m, y = spRichness, fw = NA) +
+    geom_text_repel(aes(label = CowTagID), size = 3)+
+  scale_color_manual(values = mypalette)
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ dist_to_seep_m)) # significant ***
+```
+
+### Species Richness ~ covariates with distance to seep
+```{r}
+Rich_Param <- Full_data %>% 
+  select(-c(lat, lon)) %>% 
+  relocate(dist_to_seep_m, .before = Salinity) %>% 
+  filter(CowTagID != "V13") %>% 
+  pivot_longer(cols = Salinity:meanRugosity, names_to = "Parameter", values_to = "Values")
+
+anti_dist <- Distance_pval %>% 
+  filter(pvalue > 0.05) %>% 
+  select(Parameter)
+
+# remove parameters which were not significantly correlated to distance to seep
+Rich_Param <- Rich_Param %>% 
+  anti_join(anti_dist)
+
+
+## Plot
+# ~ species richness
+groupplot(mydata = Rich_Param, y = Values, x = spRichness, fw = Parameter)
+
+# ~ distance to seep
+groupplot(mydata = Rich_Param, y = Values, x = dist_to_seep_m, fw = Parameter)
+
+# linear regressions  
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ Temperature)) # significant *
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ TA)) # significant *
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ DeadCoral)) # significant ***
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ Sand)) # significant ***
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ Temperature * TA * DeadCoral * Sand)) # Temperature * and TA * ; no interactive effects
+
+```
+
+### Additional regression models
+```{r}
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ N_percent))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ N_percent * Temperature))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ N_percent * TA)) # TA *
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ N_percent * DeadCoral)) # DeadCoral ***
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ N_percent * Sand)) # Sand ***
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ N_percent * Temperature * TA * DeadCoral)) # N_percent * and Temperature ** and TA * and DeadCoral ** and N_percent:TA * and N_percent:DeadCoral * and N_percent:Temperature:TA ** ; TA:DeadCoral p = 0.059
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ N_percent * TA * DeadCoral * Sand)) # TA ** and DeadCoral ** and N_percent:DeadCoral * and N_percent:Sand *
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N * Temperature))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N * TA)) # TA *
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N * DeadCoral)) # DeadCoral ***
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N * Sand)) # Sand ***
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N * Temperature * TA * DeadCoral)) # Temperature * and DeadCoral *
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N * TA * DeadCoral * Sand)) # TA * and DeadCoral * and C_N:Sand *
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ C_N * TA * Temperature)) # TA * ; C_N:TA:Temperature p = 0.055
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ del15N))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ del15N * Temperature)) # Interaction of del15N:Temperature * ; Temperature p = 0.058
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ del15N * TA)) # TA **
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ del15N * DeadCoral)) # DeadCoral ***
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ del15N * Sand)) # Sand ***
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ del15N * Temperature * TA * DeadCoral)) # Temperature * and TA * and DeadCoral * ; no interactive effects
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ del15N * TA * DeadCoral * Sand)) # TA ** and DeadCoral * ; no interactive effects
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), C_N ~ TA * Temperature)) # TA **
+anova(lm(data = Full_data %>% filter(CowTagID != "V13"), TA ~ Temperature)) # ***
+
+```
+
+
+## ~ Distance, Excluding Seep
+```{r}
+Param_data <- Full_data %>% 
+  select(Location, CowTagID, Salinity:meanRugosity) %>% 
+  relocate(dist_to_seep_m, .before = Salinity) %>% 
+  filter(CowTagID != "V13", CowTagID != "VSEEP")
+
+Distance_pval <- tibble(Parameter = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric())
+
+for(i in 4:ncol(Param_data)){
+  
+  Parameter <- colnames(Param_data)[i] # select dependent parameter
+  mod <- lm(paste(Parameter, "~", "dist_to_seep_m"), data = Param_data)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  adj_r_squared <- summary(mod)[9]$adj.r.squared
+  
+  temp <- as_tibble(cbind(Parameter, pvalue, adj_r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           adj_r_squared = as.numeric(adj_r_squared))
+  
+  Distance_pval <- Distance_pval %>% 
+    rbind(temp)
+}
+
+# view table of pvalues
+Distance_pval
+
+# view bar graph of pvalues with 0.05 cutoff
+Distance_pval %>% 
+  ggplot(aes(x = Parameter, y = pvalue)) +
+  geom_col() +
+  geom_hline(yintercept = 0.05) +
+  theme_bw() +
+  labs(y = "p-value: ~ Distance to Seep (m)",
+       title = "Excluding VSEEP") +
   theme(axis.text.x = element_text(angle = 90))
   
 ```
@@ -275,32 +423,67 @@ Distance_pval %>%
 ```{r}
 ## DISTANCE TO SEEP
 
-groupplot(mydata = Full_data %>% filter(CowTagID != "V13"), x = dist_to_seep_m, y = spRichness, fw = NA) +
+groupplot(mydata = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), x = dist_to_seep_m, y = spRichness, fw = NA) +
     geom_text_repel(aes(label = CowTagID), size = 3)+
   scale_color_manual(values = mypalette)
 
-anova(lm(data = Full_data %>% filter(CowTagID != "V13"), spRichness ~ dist_to_seep_m)) # significant
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ dist_to_seep_m)) # **
 ```
 
-## Regression models
-```{r, eval = F}
+### Species Richness ~ covariates with distance to seep
+```{r}
+Rich_Param <- Full_data %>% 
+  select(-c(lat, lon)) %>% 
+  relocate(dist_to_seep_m, .before = Salinity) %>% 
+  filter(CowTagID != "V13",
+         CowTagID != "VSEEP") %>% 
+  pivot_longer(cols = Salinity:meanRugosity, names_to = "Parameter", values_to = "Values")
 
-summary(lm(data = Full_data, spRichness ~ N_percent))
-summary(lm(data = Full_data, spRichness ~ del15N))
-summary(lm(data = Full_data, spRichness ~ C_N))
-summary(lm(data = Full_data, spRichness ~ N_percent * del15N * C_N))
+anti_dist <- Distance_pval %>% 
+  filter(pvalue > 0.05) %>% 
+  select(Parameter)
 
-summary(lm(data = Full_data, spRichness ~ Sand)) # significant
-summary(lm(data = Full_data, spRichness ~ meanRugosity)) # significant
+# remove parameters which were not significantly correlated to distance to seep
+Rich_Param <- Rich_Param %>% 
+  anti_join(anti_dist)
 
-summary(lm(data = Full_data, meanRugosity ~ dist_to_seep_m))
-summary(lm(data = Full_data, spRichness ~ dist_to_seep_m)) # significant
 
-summary(lm(data = Full_data, N_percent ~ dist_to_seep_m)) 
-summary(lm(data = Full_data, C_N ~ dist_to_seep_m)) 
-summary(lm(data = Full_data, del15N ~ dist_to_seep_m)) 
+## Plot
+# ~ species richness
+groupplot(mydata = Rich_Param, y = Values, x = spRichness, fw = Parameter)
+
+# ~ distance to seep
+groupplot(mydata = Rich_Param, y = Values, x = dist_to_seep_m, fw = Parameter)
+  
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ VisibleHumidic_Like)) # *
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ Sand)) # **
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ Sand * VisibleHumidic_Like)) # Sand *** and VisibleHumidic_Like ** ; no interactive effect
 
 ```
+
+### Additional regression models
+```{r}
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ N_percent))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ N_percent * Sand)) # Sand **
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ N_percent * VisibleHumidic_Like)) # VisibleHumidic_Like **
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ N_percent * Sand * VisibleHumidic_Like)) # Sand *** and VisibleHumidic_Like *** ; N_percent:VisibleHumidic_Like p= 0.056 ; N_percent:VisibleHumidic_Like:Sand p = 0.054
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ C_N))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ C_N * Sand)) # Sand **
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ C_N * VisibleHumidic_Like)) # VisibleHumidic_Like **
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ C_N * Sand * VisibleHumidic_Like)) # Sand *** and VisibleHumidic_Like *** and Sand:VisibleHumidic_Like * and C_N:Sand:VisibleHumidic_Like **
+
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ del15N))
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ del15N * Sand)) # del15N * and Sand **
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ del15N * VisibleHumidic_Like)) # del15N * and VisibleHumidic_Like **
+anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), spRichness ~ del15N * Sand * VisibleHumidic_Like)) # del15N * and Sand *** and VisibleHumidic_Like ** ; no interactive effects
+```
+
+
+
+
 
 ## Plotting stacked % cover
 
@@ -782,11 +965,11 @@ nMDSplot2 <- ggplot(data = speciesData, # site characteristics
            y = speciesMDS2)) +
   geom_point(aes(color = Taxon_Group),
              size = 3) +
-  geom_point(data = speciesDatab, # CowTagIDs
-             aes(x = speciesMDS1b,
-                 y = speciesMDS2b), 
-             shape = 3,
-             size = 3) +
+  # geom_point(data = speciesDatab, # CowTagIDs
+  #            aes(x = speciesMDS1b,
+  #                y = speciesMDS2b), 
+  #            shape = 3,
+  #            size = 3) +
   geom_text_repel(data = speciesData, # site characteristics
                   aes(x = speciesMDS1,
                       y = speciesMDS2,
@@ -963,6 +1146,21 @@ res_data %>%
   geom_point(color = if_else(res > 0, "black", "red")) +
   geom_text_repel(aes(label = CowTagID)) +
   theme_bw()
+
+
+# plot residuals against distance parameter
+respval <- anova(lm(data = res_data, res ~ dist_to_seep_m))[5]$'Pr(>F)'[1]
+
+res_data %>% 
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (Species Richness ~ Mean Rugosity)",
+       x = "Distance to seepage point (m)",
+       caption = paste("p-value:",round(respval,2)))
+
 ```
 
 
@@ -1103,11 +1301,276 @@ VarariPCA3
 
 
 
+# Plotting full biogeochemical regressions
+## For loop create plots of all parameters against each other
+### With seep
+```{r, message = F, warning = F, eval = F}
+red_Full <- Full_data %>% 
+  select(-c(Location, lat, lon))
+
+p <- list()
+
+
+for(i in 2:ncol(red_Full)) {
+  
+  x.col <- colnames(red_Full[,i]) # select ith parameter as x axis variable
+  
+  q <- list()
+  
+  for(j in 3:ncol(red_Full)) {
+    
+    y.col <- colnames(red_Full[,j]) # select jth parameter as y axis variable
+    
+    temp <- red_Full %>% 
+      rename('x' = x.col,
+             'y' = y.col)
+    
+    q[[j-2]] <- ggplot(data = temp, aes(x = x, y = y)) +
+      geom_point() +
+      geom_smooth(color = "black", method = "lm") + 
+      theme_bw() + 
+      theme(axis.title.x = element_blank(),
+            axis.title = element_text(size = 8)) +
+      labs(y = y.col)
+      
+  }
+  
+  p[[i-1]] <- (q[[1]]+q[[2]]+q[[3]]+q[[4]]+q[[5]]+q[[6]])/
+  (q[[7]]+q[[8]]+q[[9]]+q[[10]]+q[[11]]+q[[12]])/
+  (q[[13]]+q[[14]]+q[[15]]+q[[16]]+q[[17]]+q[[18]])/
+  (q[[19]]+q[[20]]+q[[21]]+q[[22]]+q[[23]]) + 
+    plot_annotation(title = paste("~", x.col))
+  
+  
+}
+
+# Save all plots in a single pdf
+pdf(here("Output","Full_biogeochem_regression_withSeep.pdf"), onefile = TRUE)
+for (i in 1:length(p)) {
+  tplot <- p[[i]]
+  print(tplot)
+}
+dev.off()
+```
+
+### Parameter regression pvalues with seep
+```{r}
+red_Full <- Full_data %>% 
+  select(-c(Location, lat, lon))
+
+seepParam_pval <- tibble(Parameter_Ind = as.character(),
+                         Parameter_Dep = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric())
+
+
+for(i in 2:ncol(red_Full)) {
+  
+  Parameter_Ind <- colnames(red_Full[,i]) # select ith parameter as x axis variable 
+  
+  temp1 <- tibble(Parameter_Ind = as.character(),
+                         Parameter_Dep = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric()) 
+  
+  for(j in 3:ncol(red_Full)) {
+  
+  if(i != j){
+    Parameter_Dep <- colnames(red_Full[,j]) # select ith parameter as x axis variable
+  } else if(j < 25) {
+    Parameter_Dep <- colnames(red_Full[,(j+1)]) # select ith parameter as x axis variable
+  } else if(j == 25) {
+    Parameter_Dep <- colnames(red_Full[,2]) # select ith parameter as x axis variable
+  }
+    
+  mod <- lm(paste(Parameter_Ind, "~", Parameter_Dep), data = red_Full)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  adj_r_squared <- summary(mod)[9]$adj.r.squared
+  
+  temp <- as_tibble(cbind(Parameter_Ind, Parameter_Dep, pvalue, adj_r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           adj_r_squared = as.numeric(adj_r_squared))
+  
+  temp1 <- temp1 %>% 
+    rbind(temp)
+  
+  }
+  
+    seepParam_pval <- seepParam_pval %>% 
+    rbind(temp1) %>% 
+      distinct()
+}
+
+# view table of pvalues
+seepParam_pval
+write_csv(seepParam_pval, here("Data", "biogeochem_pvalues.csv"))
+
+```
+
+
+### No seep
+```{r, message = F, warning = F, eval = F}
+red_Full <- Full_data %>%
+  select(-c(Location, lat, lon)) %>% 
+  filter(CowTagID != "VSEEP")
+
+p <- list()
+
+
+for(i in 2:ncol(red_Full)) {
+  
+  x.col <- colnames(red_Full[,i]) # select ith parameter as x axis variable
+  
+  q <- list()
+  
+  for(j in 3:ncol(red_Full)) {
+    
+    y.col <- colnames(red_Full[,j]) # select jth parameter as y axis variable
+    
+    temp <- red_Full %>% 
+      rename('x' = x.col,
+             'y' = y.col)
+    
+    q[[j-2]] <- ggplot(data = temp, aes(x = x, y = y)) +
+      geom_point() +
+      geom_smooth(color = "black", method = "lm") + 
+      theme_bw() + 
+      theme(axis.title.x = element_blank(),
+            axis.title = element_text(size = 8)) +
+      labs(y = y.col)
+      
+  }
+  
+  p[[i-1]] <- (q[[1]]+q[[2]]+q[[3]]+q[[4]]+q[[5]]+q[[6]])/
+  (q[[7]]+q[[8]]+q[[9]]+q[[10]]+q[[11]]+q[[12]])/
+  (q[[13]]+q[[14]]+q[[15]]+q[[16]]+q[[17]]+q[[18]])/
+  (q[[19]]+q[[20]]+q[[21]]+q[[22]]+q[[23]]) + 
+    plot_annotation(title = paste("~", x.col))
+  
+  
+}
+
+# Save all plots in a single pdf
+pdf(here("Output","Full_biogeochem_regression_noSeep.pdf"), onefile = TRUE)
+for (i in 1:length(p)) {
+  tplot <- p[[i]]
+  print(tplot)
+}
+dev.off()
+```
+
+
+### Parameter regression pvalues without seep
+```{r}
+red_Full_noseep <- Full_data %>%
+  select(-c(Location, lat, lon)) %>% 
+  filter(CowTagID != "VSEEP")
+
+seepParam_pval_noSeep <- tibble(Parameter_Ind = as.character(),
+                         Parameter_Dep = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric())
+
+
+for(i in 2:ncol(red_Full_noseep)) {
+  
+  Parameter_Ind <- colnames(red_Full_noseep[,i]) # select ith parameter as x axis variable 
+  
+  temp1 <- tibble(Parameter_Ind = as.character(),
+                         Parameter_Dep = as.character(),
+                        pvalue = as.numeric(),
+                        adj_r_squared = as.numeric()) 
+  
+  for(j in 3:ncol(red_Full_noseep)) {
+  
+  if(i != j){
+    Parameter_Dep <- colnames(red_Full_noseep[,j]) # select ith parameter as x axis variable
+  } else if(j < 25) {
+    Parameter_Dep <- colnames(red_Full_noseep[,(j+1)]) # select ith parameter as x axis variable
+  } else if(j == 25) {
+    Parameter_Dep <- colnames(red_Full_noseep[,2]) # select ith parameter as x axis variable
+  }
+    
+  mod <- lm(paste(Parameter_Ind, "~", Parameter_Dep), data = red_Full_noseep)
+  pvalue <- summary(mod)[4]$coefficients[8]
+  adj_r_squared <- summary(mod)[9]$adj.r.squared
+  
+  temp <- as_tibble(cbind(Parameter_Ind, Parameter_Dep, pvalue, adj_r_squared)) %>% 
+    mutate(pvalue = as.numeric(pvalue),
+           adj_r_squared = as.numeric(adj_r_squared))
+  
+  temp1 <- temp1 %>% 
+    rbind(temp)
+  
+  }
+  
+    seepParam_pval_noSeep <- seepParam_pval_noSeep %>% 
+    rbind(temp1) %>% 
+      distinct()
+}
+
+# view table of pvalues
+seepParam_pval_noSeep
+write_csv(seepParam_pval_noSeep, here("Data", "biogeochem_pvalues_noSeep.csv"))
+```
+
+
+## Plotting richness along parameters
+
+### with seep
+```{r}
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = Phosphate_umolL, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Phosphate (umol L-1)")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = pH, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ pH")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = TA, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ TA")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = DeadCoral, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Dead Coral % cover")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = dist_to_seep_m, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Distance to seep (m)")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = TA, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ TA")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = TSalinity, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Salinity")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = Sand, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Sand")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = meanRugosity, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Mean Rugosity")
+```
+
+### no seep
+```{r}
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = Ammonia_umolL, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Ammonia (umol L-1)")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = DeadCoral, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Dead Coral % cover")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = dist_to_seep_m, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Distance to seep (m)")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = VisibleHumidic_Like, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ VisibleHumidic_Like")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = Sand, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Sand")
+
+red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = meanRugosity, by = CowTagID)$CowTagID
+colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Mean Rugosity")
+```
 
 
 
-
-
+## richness across macroalgal taxa
 ```{r, eval = F}
 
 abun <- comp %>% 
@@ -1157,6 +1620,7 @@ c <- abun %>%
 a + (c / b)
 
 ```
+
 
 ## Algae % cover ~ N_percent
 ```{r, eval = F}
@@ -1235,4 +1699,67 @@ a + (b / c)
 ```
 
 
+
+
+
+
+# Mapping Survey Locations
+
+```{r}
+
+# mean lat and long for the maps
+LocationGPS <- Full_data %>%
+  filter(CowTagID != "V13") %>% 
+  group_by(Location) %>% # varari vs cabral
+  summarise(lon = median(lon, na.rm = TRUE),
+            lat = median(lat, na.rm = TRUE))
+
+
+# Varari
+VarariBaseMap<-get_map(LocationGPS %>% filter(Location == "Varari") %>% select(lon,lat), maptype = 'satellite', zoom = 19)
+
+# base map
+# Varari
+VmapSites <- ggmap(VarariBaseMap) +
+  geom_point(data = Full_data %>% filter(CowTagID != "V13"),
+             aes(x = lon, y = lat),
+             color = "white",
+             size = 2) + 
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari Sample Locations") +
+  geom_label(data = Full_data %>% filter(CowTagID != "V13"),
+             aes(x = lon, y = lat,
+                 label = CowTagID),
+             size = 2, alpha = 0.8)
+
+VmapSites
+```
+
+```{r}
+### Map Varari clusters
+
+# isolate Varari seep
+VSeepPt <- Full_data %>% filter(CowTagID == "VSEEP") 
+  
+
+reg_varari_map <- ggmap(VarariBaseMap) +
+  geom_point(data = Full_data %>% filter(CowTagID != "VSEEP", CowTagID != "V13"),
+             aes(x = lon, y = lat, fill = N_percent),
+             shape = 21,
+             color = "black",
+             fill = "white",
+             size = 3) + # set color aesthetics
+  #scale_fill_gradient(low = "yellow", high = "red") +
+  geom_point(data = VSeepPt, # star the seepage point
+             aes(x = lon, y = lat),
+             shape = 18, # selects the palette color corresponding to the associated cluster number
+             color = "white",
+             size = 4) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+        title = "Varari Survey Locations",
+       fill = "Relative SGD Influence")
+
+reg_varari_map
+
+```
 
