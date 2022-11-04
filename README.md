@@ -2,6 +2,9 @@
 
 This repository holds the data, analyses, and figures for a master degree's thesis project at California State University, Northridge by Danielle Barnas under the advisemnt of Dr. Nyssa Silbiger.  Data were collected in Mo'orea, French Polynesia along the western shore fringing coral reef in Ha'apiti. Data, scripts, and output are related to a benthic community composition study on two coral reefs.  Community is analyzed for species and functional trait diversity of coral reefs impacted by submarine groundwater discharge (SGD).
 
+Map of Mo'orea depicting two survey locations: Cabral and Varari  
+![Moorea_Map.png](Output/Moorea_Map.png)
+
 [Data](Data/)  
 - Site characteristics at each survey point (i.e., rugosity, distance from seepage point, substrate type, CT logger depth) from July 2022, and data dictionary describing parameters.
     - [Full_Metadata.csv](Data/Full_Metadata.csv)
@@ -24,15 +27,15 @@ This repository holds the data, analyses, and figures for a master degree's thes
 - Processing and analyses of species richness and taxonomic groups along the SGD gradient. Analyses include linear regressions, PCA, nMDS and perMANOVA to assess direct or indirect influences of biogeochemistry, nutrients, or site characteristics/structure.
     - [RegressionAnalysis_Varari_noSeep13](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/RegressionAnalysis_Varari_noSeep13.html)  
 
-
 [Output](Output/)  
-- [Varari Sample Location Map](Output/SGDZones/Varari/Varari_CowTagID_Map.pdf)
-- [Varari Cluster Map (full biogeochem)](Output/SGDZones/Varari/Varari_Cluster_Map_Range.pdf)
-- [*T. ornata* tissue Nitrogen ~ Silicate linear regression](Output/Tissue_N_Silicate_Figures.pdf)
-- [Varari Cluster Map (*T. ornata*)](Output/SGDZones/Varari/Varari_Turb_Cluster_Map_Range.pdf)
-- [Varari Species Accumulation Curve](Output/Species_Accumulation_Varari.pdf)
-- [Varari Species Richness ~ Clusters barplot](Output/V_richness_barplot.pdf)
 
+- [Species Accumulation Curve (Varari)](Output/Species_Accumulation_Varari.pdf)
+- [*T. ornata* tissue Nitrogen ~ CV Silicate (umol L-1) Regression](Output/Tissue_N_Silicate_Figures_CV.pdf)
+- [PCA](Output/PCA)
+- [nMDS](Output/nMDS)
+
+Map of Varari suvey locations
+![Varari Sample Location Map](Output/SGDZones/Varari/Varari_CowTagID_Map.png)
 
 
 Analyses for functional entity diversity are adapted from Teixido et al. 2018 (DOI: 10.1038/s41467-018-07592-1)
