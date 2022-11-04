@@ -70,7 +70,8 @@ meta <- meta %>%
   select(Location, CowTagID, LiveCoral:Sand, dist_to_seep_m, adj_CT_depth_cm, meanRugosity) %>% 
   filter(Location == "Varari",
          CowTagID != "VSEEP",
-         CowTagID != "V13")
+         CowTagID != "V13") %>%
+  mutate(meanRugosity = 1/meanRugosity) # invert for intuitiveness. Increasing rugosity = increased structure
 
 cvtemp <- ctTemp %>% 
   select(CowTagID, CVTemp)
@@ -403,7 +404,8 @@ p1_full_loading <- PC_loadings_full %>%
            size = 3) +
   #coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
   theme_bw() +
-  theme(panel.grid = element_blank()) +
+  theme(panel.grid = element_blank(),
+        legend.position = "none") +
   scale_color_gradient(low = pretty_palette[6], high = pretty_palette[5]) + # set color scale
   labs(title = "Varari Loadings (CV Values)",
        x = "PC1 - 25.0%", y = "PC2 - 19.7%")
@@ -411,24 +413,24 @@ p1_full_loading <- PC_loadings_full %>%
 p1_full_loading
 ggsave(here("Output", "PCA", "CV_PCAloadings.png"), p1_full_loading, height = 14, width = 10)
 
-p1_full_loadingBlank <- PC_loadings_full %>%
-  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
-    geom_segment(aes(x = 0,
-                     y = 0,
-                     xend = PC1*10,
-                     yend = PC2*10,
-                     color = PC1),
-      arrow = arrow(length = unit(0.2,"cm"),), 
-      #color = pretty_palette[1],
-      size = 1) +
-  #coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
-  theme_bw() +
-  theme(panel.grid = element_blank()) +
-  scale_color_gradient(low = pretty_palette[6], high = pretty_palette[5]) + # set color scale
-  labs(title = "Varari Loadings (CV Values)",
-       x = "PC1 - 25.0%", y = "PC2 - 19.7%")
+# p1_full_loadingBlank <- PC_loadings_full %>%
+#   ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+#     geom_segment(aes(x = 0,
+#                      y = 0,
+#                      xend = PC1*10,
+#                      yend = PC2*10,
+#                      color = PC1),
+#       arrow = arrow(length = unit(0.2,"cm"),), 
+#       #color = pretty_palette[1],
+#       size = 1) +
+#   #coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
+#   theme_bw() +
+#   theme(panel.grid = element_blank()) +
+#   scale_color_gradient(low = pretty_palette[6], high = pretty_palette[5]) + # set color scale
+#   labs(title = "Varari Loadings (CV Values)",
+#        x = "PC1 - 25.0%", y = "PC2 - 19.7%")
 
-ggsave(here("Output", "PCA", "CV_PCAloadings_blank.png"), p1_full_loadingBlank, height = 14, width = 10)
+#ggsave(here("Output", "PCA", "CV_PCAloadings_blank.png"), p1_full_loadingBlank, height = 14, width = 10)
 ```
 
 
@@ -476,6 +478,10 @@ summary(lm(data = pca_fulldata_all, PC2 ~ dist_to_seep_m))
 
 ```{r}
 
+# isolate Varari seep
+VSeepPt <- chem %>% filter(CowTagID == "VSEEP") %>% select(CowTagID, lat, lon)
+
+
 # mean lat and long for the maps
 LocationGPS <- pca_fulldata_all %>%
   group_by(Location) %>% # varari vs cabral
@@ -502,11 +508,11 @@ VmapSites <- ggmap(VarariBaseMap) +
              size = 2, alpha = 0.8)
 
 VmapSites
+```
 
+
+```{r}
 ### Map Varari colored by PC1
-
-# isolate Varari seep
-VSeepPt <- chem %>% filter(CowTagID == "VSEEP") %>% select(CowTagID, lat, lon)
   
 
 reg_varari_map <- ggmap(VarariBaseMap) +
@@ -533,6 +539,9 @@ reg_varari_map <- ggmap(VarariBaseMap) +
 reg_varari_map
 ggsave(here("Output", "PCA", "CV_map_colorPC1.png"), reg_varari_map, height = 10, width = 10)
 
+
+reg_varari_map + p1_full_loading
+
 ```
 
 
@@ -557,29 +566,29 @@ summary(pca_full2)
 # PC2: 16.48 %
 
 # Extract the scores and loadings
-PC_scores_full2 <-as_tibble(pca_full2$x[,1:2]) # scores for each sample location
+PC_scores_full2 <- as_tibble(pca_full2$x[,1:2]) # scores for each sample location
 PC_loadings_full2 <- as_tibble(pca_full2$rotation) %>% # loadings for each parameter
   bind_cols(labels = rownames(pca_full2$rotation))
 
 # Put it with all the original data
-pca_fulldata_all2<-means %>% 
+pca_fulldata_all2 <- means %>% 
   bind_cols(PC_scores_full2)
 
 ```
 
 ## scores plot
 ```{r}
-p2_full<-pca_fulldata_all2 %>%
+p2_full <- pca_fulldata_all2 %>%
   ggplot(aes(x = PC1, 
-             y = PC2))+
+             y = PC2)) +
   geom_point(shape = 21,
              color = "white",
              fill = "white",
              size = 3) +
   geom_text_repel(aes(label = CowTagID)) +
-  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
-  scale_fill_hue(l = 45)+ 
-  theme_bw()+
+  scale_colour_hue(l = 45) + # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45) + 
+  theme_bw() +
   theme(legend.position = "none", 
         panel.background = element_rect(fill = pretty_palette[3]),
         panel.grid = element_blank()) +
@@ -610,7 +619,8 @@ p2_full_loading <- PC_loadings_full2 %>%
            size = 3) +
   coord_cartesian(xlim = c(-4, 5), ylim = c(-5, 6)) +
   theme_bw() +
-  theme(panel.grid = element_blank()) +
+  theme(panel.grid = element_blank(),
+        legend.position = "none") +
   scale_color_gradient(low = pretty_palette[6], high = pretty_palette[5]) + # set color scale
   labs(title = "Varari Loadings (Mean Values)",
        x = "PC1 = 37.6%", y = "PC2 - 16.5%")
@@ -618,23 +628,23 @@ p2_full_loading <- PC_loadings_full2 %>%
 p2_full_loading
 ggsave(here("Output", "PCA", "Means_PCAloadings.png"), p2_full_loading, height = 5, width = 6)
 
-p2_full_loadingBlank <- PC_loadings_full2 %>%
-  ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
-    geom_segment(aes(x = 0,
-                     y = 0,
-                     xend = PC1*10,
-                     yend = PC2*10,
-                     color = PC1),
-      arrow = arrow(length = unit(0.2,"cm"),), 
-      #color = pretty_palette[1],
-      size = 1) +
-  theme_bw() +
-  theme(panel.grid = element_blank()) +
-  scale_color_gradient(low = pretty_palette[6], high = pretty_palette[5]) + # set color scale
-  labs(title = "Varari Loadings (Mean Values)",
-       x = "PC1 = 37.6%", y = "PC2 - 16.5%")
-p2_full_loadingBlank
-ggsave(here("Output", "PCA", "Means_PCAloadings_blank.png"), p2_full_loadingBlank, height = 5, width = 6)
+# p2_full_loadingBlank <- PC_loadings_full2 %>%
+#   ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+#     geom_segment(aes(x = 0,
+#                      y = 0,
+#                      xend = PC1*10,
+#                      yend = PC2*10,
+#                      color = PC1),
+#       arrow = arrow(length = unit(0.2,"cm"),), 
+#       #color = pretty_palette[1],
+#       size = 1) +
+#   theme_bw() +
+#   theme(panel.grid = element_blank()) +
+#   scale_color_gradient(low = pretty_palette[6], high = pretty_palette[5]) + # set color scale
+#   labs(title = "Varari Loadings (Mean Values)",
+#        x = "PC1 = 37.6%", y = "PC2 - 16.5%")
+#p2_full_loadingBlank
+#ggsave(here("Output", "PCA", "Means_PCAloadings_blank.png"), p2_full_loadingBlank, height = 5, width = 6)
 
 ```
 
@@ -663,12 +673,17 @@ anova(lm(data = pca_fulldata_all2, spRichness ~ PC1))
 anova(lm(data = pca_fulldata_all2, spRichness ~ PC2))
 
 pca_fulldata_all2 %>% 
-  groupplot(x = PC1, y = spRichness, fw = NA) +
-  scale_color_manual(values = mypalette)
+  groupplot(x = PC1, y = spRichness, fw = Location) +
+  scale_color_manual(values = mypalette) + 
+  theme(legend.position = "none",
+        panel.grid = element_blank()) +
+  labs(caption = paste("p =", round(anova(lm(data = pca_fulldata_all2, spRichness ~ PC1))[5]$'Pr(>F)'[1],3)))
 
 pca_fulldata_all2 %>% 
-  groupplot(x = PC2, y = spRichness, fw = NA) +
-  scale_color_manual(values = mypalette)
+  groupplot(x = PC2, y = spRichness, fw = Location) +
+  scale_color_manual(values = mypalette) + 
+  theme(legend.position = "none",
+        panel.grid = element_blank())
 
 
 summary(lm(data = pca_fulldata_all2, PC1 ~ dist_to_seep_m))
@@ -707,6 +722,9 @@ reg_varari_map_means <- ggmap(VarariBaseMap) +
 
 reg_varari_map_means
 ggsave(here("Output", "PCA", "means_map_colorPC1.png"), reg_varari_map_means, height = 10, width = 10)
+
+reg_varari_map_means + p2_full_loading
+
 ```
 
 PC2 Axis
@@ -774,25 +792,24 @@ res_data_means <- means %>%
   relocate(res, .after = lon)
 
 #plot predictor variable vs. standardized residuals
-res_data %>% 
+rug_res_plot <- res_data %>% 
   ggplot(aes(x = meanRugosity,
              y = res)) +
   geom_point() +
   geom_text_repel(aes(label = CowTagID)) +
-  theme_bw()
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (Richness ~ Rugosity)",
+       x = "Mean Rugosity")
+ggsave(plot = rug_res_plot, here("Output","rugosity_v_residuals.png"), width = 6, height = 6)
 
-res_data %>% 
-  ggplot(aes(x = Sand,
-             y = res)) +
-  geom_point() +
-  geom_text_repel(aes(label = CowTagID)) +
-  theme_bw()
 
 # removed interaction with substrate as well
-anova(lm(data = res_data, Sand ~ res)) 
-anova(lm(data = res_data, DeadCoral ~ res))
-anova(lm(data = res_data, LiveCoral ~ res))
-anova(lm(data = res_data, Rubble ~ res))
+anova(lm(data = res_data, res ~ Sand)) 
+anova(lm(data = res_data, res ~ DeadCoral)) 
+anova(lm(data = res_data, res ~ Silicate_umolL)) 
+anova(lm(data = res_data_means, res ~ Silicate_umolL)) 
+
 ```
 
 ```{r}
@@ -806,13 +823,14 @@ res_data %>%
  # geom_text_repel(aes(label = CowTagID)) +
   geom_smooth(method = "lm", color = pretty_palette[5]) +
   theme_bw() + theme(panel.grid = element_blank()) +
-  labs(y = "Residuals (Species Richness ~ Mean Rugosity)",
-       x = "Species Richness",
+  labs(x = "Residuals (Species Richness ~ Mean Rugosity)",
+       y = "Species Richness",
        caption = paste("p-value < 8.37e-06")) #round(respval1,3)))
 
 
 # plot residuals against distance parameter
 respval2 <- anova(lm(data = res_data, res ~ dist_to_seep_m))[5]$'Pr(>F)'[1]
+resrval2 <- summary((lm(data = res_data, res ~ dist_to_seep_m)))$r.squared
 
 res_dist_plot<-res_data %>% 
   ggplot(aes(x = dist_to_seep_m,
@@ -822,8 +840,7 @@ res_dist_plot<-res_data %>%
   theme_bw() + theme(panel.grid = element_blank()) +
   labs(y = "Residuals (Species Richness ~ Mean Rugosity)",
        x = "Distance to seepage point (m)",
-       title = "CV values",
-       caption = paste("p-value:",round(respval2,3)))
+       caption = paste("p-value:",round(respval2,3),"\n r-squared:", round(resrval2, 2)))
 res_dist_plot
 ggsave(here("Output", "Residuals_Distance.png"), res_dist_plot, height = 4, width = 5)
 
@@ -837,6 +854,7 @@ resPCAcv <- pca_fulldata_all %>%
   right_join(res_data)
 
 respval3 <- anova(lm(data = resPCAmeans, res ~ PC2))[5]$'Pr(>F)'[1]
+respval3
 
 res_pc1_plot<-resPCAmeans %>% 
   ggplot(aes(x = PC2,
@@ -848,21 +866,6 @@ res_pc1_plot<-resPCAmeans %>%
        x = "PC2",
        title = "Mean values",
        caption = paste("p-value:",round(respval3,3)))
-res_pc1_plot
-
-
-respval4 <- anova(lm(data = res_data, res ~ dist_to_seep_m))[5]$'Pr(>F)'[1]
-resrval4 <- summary((lm(data = res_data, res ~ dist_to_seep_m)))$r.squared
-
-res_data %>%
-  ggplot(aes(x = dist_to_seep_m,
-             y = res)) +
-  geom_point(size = 3) +
-  geom_smooth(method = "lm", color = pretty_palette[5]) +
-  theme_bw() + theme(panel.grid = element_blank()) +
-  labs(x = "Distance to seep (m)",
-       y = "Residuals (Richness ~ Rugosity)",
-       caption = paste("p-value:",round(respval4,3),"\n r-squared:", round(resrval4, 2)))
 
 ```
 
@@ -974,15 +977,21 @@ Residuals_pval %>%
 ```
 
 ```{r}
-res_data %>% 
-  ggplot(aes(x = res,
-             y = VisibleHumidic_Like)) +
+
+pval <- anova(lm(data = res_data, res ~ VisibleHumidic_Like))[5]$'Pr(>F)'
+
+ggplot(data = res_data,
+       aes(x = VisibleHumidic_Like,
+           y = res)) +
   geom_point() +
   geom_smooth(method = "lm", color = "black") +
+  geom_text_repel(aes(label = CowTagID)) +
   theme_bw() +
-  theme(panel.grid = element_blank())
-
-summary(lm(data = res_data, VisibleHumidic_Like ~ res))
+  theme(panel.grid = element_blank()) +
+    labs(x = "CV of Visible Humidics-like",
+       y = "Residuals (Richness ~ Rugosity",
+       title = "CV Values",
+       caption = paste("p =", round(pval,3)))
 ```
 
 
@@ -1040,35 +1049,23 @@ Residuals_means_pval %>%
 ```
 
 ```{r}
-ggplot(data = res_data_means,
-       aes(x = del15N,
-           y = res)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  geom_text_repel(aes(label = CowTagID)) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
 
-ggplot(data = res_data_means,
-       aes(x = Ammonia_umolL,
-           y = res)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  geom_text_repel(aes(label = CowTagID)) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
+pval2 <- anova(lm(data = res_data_means, res ~ VisibleHumidic_Like))[5]$'Pr(>F)'
 
 ggplot(data = res_data_means,
        aes(x = VisibleHumidic_Like,
            y = res)) +
   geom_point() +
-  geom_smooth(method = "lm") +
+  geom_smooth(method = "lm", color = "black") +
   geom_text_repel(aes(label = CowTagID)) +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(panel.grid = element_blank()) +
+  labs(x = "Mean Visible Humidics-like",
+       y = "Residuals (Richness ~ Rugosity",
+       title = "Mean Values",
+       caption = paste("p =", round(pval2,3)))
   
 ```
-
 
 
 
@@ -1089,8 +1086,8 @@ nMDS:
 - remove non-numerical data
 - distance = is the type of dissimilarity matrix
 - k is number of dimensions (you can try different ones to look at different stress)
-```{r, eval = F, echo = F}
 
+```{r}
 paramMDS <- res_data %>%
   select(CowTagID, # res, cannot use residuals because of negative values
          Salinity, Temperature, pH, 
@@ -1109,6 +1106,7 @@ paramOrd <- metaMDS(paramMDS, k=2, distance='bray')
 paramOrd$stress
 stressplot(paramOrd)
 ```
+
 ## Function to perform nMDS
 ```{r}
 mynMDS_group <- function(mdsord){
@@ -1185,10 +1183,14 @@ paramnMDS_ct <- mynMDS_CowTag(mdsord = paramOrd, param_df = res_data, param_sele
 
 ## Example for running nmds plot function
 
-paramnMDSPlot <- plotmynMDS(nMDSgroup = paramnMDS, nMDScowtag = paramnMDS_ct, param_fill = dist_to_seep_m)
+paramnMDSPlot <- plotmynMDS(nMDSgroup = paramnMDS, nMDScowtag = paramnMDS_ct, param_fill = dist_to_seep_m) + 
+  theme(panel.grid = element_blank(),
+          legend.position = "left") + 
+  labs(fill = "Dist") + 
+  scale_fill_gradient(low = pretty_palette[5], high = pretty_palette[6])
 
 paramnMDSPlot
-ggsave(here("Output","nMDS","nMDS_Varari_param_dist.png"), nMDSplot, width = 6, height = 6)
+#ggsave(here("Output","nMDS","nMDS_Varari_param_dist.png"), nMDSplot, width = 6, height = 6)
 ```
 
 
@@ -1226,9 +1228,14 @@ taxanMDS_ct <- mynMDS_CowTag(mdsord = speciesOrd, param_df = res_data,
                               param_select = c('CowTagID', 'dist_to_seep_m', 'VisibleHumidic_Like', 'Ammonia_umolL', 'del15N'))
 
 # plotting
-taxanMDSPlot <- plotmynMDS(nMDSgroup = taxanMDS, nMDScowtag = taxanMDS_ct, param_fill = dist_to_seep_m) + labs(title = "CV values")
+taxanMDSPlot <- plotmynMDS(nMDSgroup = taxanMDS, nMDScowtag = taxanMDS_ct, param_fill = dist_to_seep_m) + labs(title = "CV values") + 
+  theme(panel.grid = element_blank(),
+          legend.position = "left") + 
+  labs(fill = "Dist") + 
+  scale_fill_gradient(low = pretty_palette[5], high = pretty_palette[6])
 
-ggsave(here("Output","nMDS","nMDS_Varari_taxa_dist.png"), taxanMDSPlot, width = 6, height = 6)
+
+#ggsave(here("Output","nMDS","nMDS_Varari_taxa_dist.png"), taxanMDSPlot, width = 6, height = 6)
 ```
 
 
@@ -1274,12 +1281,15 @@ taxanMDS_ct_means <- mynMDS_CowTag(mdsord = speciesOrd, param_df = res_data_mean
                               param_select = c('CowTagID', 'dist_to_seep_m', 'VisibleHumidic_Like', 'Ammonia_umolL', 'del15N'))
 
 # plotting
-taxanMDS_meansPlot <- plotmynMDS(nMDSgroup = taxanMDS, nMDScowtag = taxanMDS_ct_means, param_fill = dist_to_seep_m) + labs(title = "Mean values")
+taxanMDS_meansPlot <- plotmynMDS(nMDSgroup = taxanMDS, nMDScowtag = taxanMDS_ct_means, param_fill = dist_to_seep_m) + labs(title = "Mean values") + 
+  theme(panel.grid = element_blank(),
+          legend.position = "left") + 
+  labs(fill = "Dist") + 
+  scale_fill_gradient(low = pretty_palette[5], high = pretty_palette[6])
 
-taxanMDSPlot 
 #+ taxanMDS_meansPlot
 
-ggsave(here("Output","nMDS","nMDS_Varari_taxa_dist_mean.png"), taxanMDS_meansPlot, width = 6, height = 6)
+#ggsave(here("Output","nMDS","nMDS_Varari_taxa_dist_mean.png"), taxanMDS_meansPlot, width = 6, height = 6)
 ```
 
 
@@ -1351,23 +1361,14 @@ calcnMDS_ct <- mynMDS_CowTag(mdsord = calcOrd, param_df = res_data,
                               param_select = c('CowTagID', 'dist_to_seep_m', 'VisibleHumidic_Like', 'Ammonia_umolL', 'del15N'))
 
 # plotting
-calcnMDSPlot <- plotmynMDS(nMDSgroup = calcanMDS, nMDScowtag = calcnMDS_ct, param_fill = dist_to_seep_m) + labs(title = "CV Values")
+calcnMDSPlot <- plotmynMDS(nMDSgroup = calcanMDS, nMDScowtag = calcnMDS_ct, param_fill = dist_to_seep_m) + labs(title = "CV Values") + 
+  theme(panel.grid = element_blank(),
+          legend.position = "left") + 
+  labs(fill = "Dist") + 
+  scale_fill_gradient(low = pretty_palette[5], high = pretty_palette[6])
 
 
-
-# running nMDS
-calcanMDS <- mynMDS_group(mdsord = calcOrd) # same as above
-calcnMDS_ct_means <- mynMDS_CowTag(mdsord = calcOrd, param_df = res_data_means, 
-                              param_select = c('CowTagID', 'dist_to_seep_m', 'VisibleHumidic_Like', 'Ammonia_umolL', 'del15N'))
-
-# plotting
-calcnMDS_meansPlot <- plotmynMDS(nMDSgroup = calcanMDS, nMDScowtag = calcnMDS_ct_means, param_fill = dist_to_seep_m) + labs(title = "Mean Values")
-
-
-calcnMDSPlot
-# + calcnMDS_meansPlot
-
-ggsave(here("Output","nMDS","nMDS_Varari_calcifier_dist_mean.png"), calcnMDSPlot, width = 6, height = 6)
+#ggsave(here("Output","nMDS","nMDS_Varari_calcifier_dist_mean.png"), calcnMDSPlot, width = 6, height = 6)
 ```
 
 
@@ -1439,10 +1440,14 @@ calcMacronMDS_ct <- mynMDS_CowTag(mdsord = calcMacroOrd, param_df = res_data,
                               param_select = c('CowTagID', 'dist_to_seep_m', 'VisibleHumidic_Like', 'Ammonia_umolL', 'del15N'))
 
 # plotting
-calcMacronMDSPlot <- plotmynMDS(nMDSgroup = calcMacroanMDS, nMDScowtag = calcMacronMDS_ct, param_fill = dist_to_seep_m) + labs(title = "CV Values")
+calcMacronMDSPlot <- plotmynMDS(nMDSgroup = calcMacroanMDS, nMDScowtag = calcMacronMDS_ct, param_fill = dist_to_seep_m) + labs(title = "CV Values") + 
+  theme(panel.grid = element_blank(),
+          legend.position = "left") + 
+  labs(fill = "Dist") + 
+  scale_fill_gradient(low = pretty_palette[5], high = pretty_palette[6])
 
-calcMacronMDSPlot
-ggsave(here("Output","nMDS","nMDS_Varari_calcifierMacroalgae_dist_mean.png"), calcMacronMDSPlot, width = 6, height = 6)
+
+#ggsave(here("Output","nMDS","nMDS_Varari_calcifierMacroalgae_dist_mean.png"), calcMacronMDSPlot, width = 6, height = 6)
 
 ```
 
@@ -1526,26 +1531,26 @@ calcAlgnMDSPlot <- plotmynMDS(nMDSgroup = calcAlgnMDS, nMDScowtag = calcAlgnMDS_
 calcAlgnMDSPlot
 ggsave(here("Output","nMDS","nMDS_Varari_calcifierAlgae_dist.png"), calcAlgnMDSPlot, width = 7, height = 6)
 
-# plotting
-calcAlgnMDSPlotBlank <- ggplot(data = calcAlgnMDS,
-                     aes(x = MDS1,
-                         y = MDS2)) +
-    geom_point(data = calcAlgnMDS_ct,
-               aes(x = MDS1b,
-                   y = MDS2b,
-                   fill = dist_to_seep_m),
-             shape = 22,
-             size = 4,
-             color = "black") +
-    theme_bw() +
-    theme(panel.grid = element_blank(),
-          legend.position = "top") + 
-  labs(title = "CV Values", fill = "Dist") + 
-  scale_fill_gradient(low = pretty_palette[5], high = pretty_palette[6]) + # set color scale, darker color is close to seep
-  coord_cartesian(xlim = c(-1.5, 0.8), ylim = c(-0.8, 0.7))
-
-calcAlgnMDSPlotBlank
-ggsave(here("Output","nMDS","nMDS_Varari_calcifierAlgae_dist_Blank.png"), calcAlgnMDSPlotBlank, width = 5, height = 5)
+# # plotting
+# calcAlgnMDSPlotBlank <- ggplot(data = calcAlgnMDS,
+#                      aes(x = MDS1,
+#                          y = MDS2)) +
+#     geom_point(data = calcAlgnMDS_ct,
+#                aes(x = MDS1b,
+#                    y = MDS2b,
+#                    fill = dist_to_seep_m),
+#              shape = 22,
+#              size = 4,
+#              color = "black") +
+#     theme_bw() +
+#     theme(panel.grid = element_blank(),
+#           legend.position = "top") + 
+#   labs(title = "CV Values", fill = "Dist") + 
+#   scale_fill_gradient(low = pretty_palette[5], high = pretty_palette[6]) + # set color scale, darker color is close to seep
+#   coord_cartesian(xlim = c(-1.5, 0.8), ylim = c(-0.8, 0.7))
+# 
+# #calcAlgnMDSPlotBlank
+# #ggsave(here("Output","nMDS","nMDS_Varari_calcifierAlgae_dist_Blank.png"), calcAlgnMDSPlotBlank, width = 5, height = 5)
 
 ```
 
