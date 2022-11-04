@@ -2,9 +2,20 @@
 
 This repository holds the data, analyses, and figures for a master degree's thesis project at California State University, Northridge by Danielle Barnas under the advisemnt of Dr. Nyssa Silbiger.  Data were collected in Mo'orea, French Polynesia along the western shore fringing coral reef in Ha'apiti. Data, scripts, and output are related to a benthic community composition study on two coral reefs.  Community is analyzed for species and functional trait diversity of coral reefs impacted by submarine groundwater discharge (SGD).
 
-[Data](Data/Surveys/)  
+[Data](Data/)  
+- Site characteristics at each survey point (i.e., rugosity, distance from seepage point, substrate type, CT logger depth) from July 2022, and data dictionary describing parameters.
+    - [Full_Metadata.csv](Data/Full_Metadata.csv)
+    - [Site_Metadata_Data_Dictionary.csv](Data/Site_Metadata_Data_Dictionary.csv)
+- Survey metadata for each survey point (i.e., date, time, photoID, raw rugosity, notes sand conditions) from July 2022.
+    - [Survey_Metadata.csv](Data/Surveys/Survey_Metadata.csv)
+- Biogeochemical and *Turbinaria ornata* tissue nitrogen data collected in August 2021 (dry season biogeochemistry), March 2022 (wet season biogeochemistry), and July 2022 (*T. ornata*). Data are processed either as biogoechemical means or coefficients of variance across sample seasons.
+    - [Nutrient_Processed_CV.csv](Data/Biogeochem/Nutrient_Processed_CV.csv)
+    - [Nutrient_Processed_MeanSeason.csv](Data/Biogeochem/Nutrient_Processed_MeanSeason.csv)
+- Organization and assignment of species into taxonomic or functional groups.
+    - [Distinct_Taxa.csv](Data/Surveys/Distinct_Taxa.csv)
+
 [Scripts](Scripts/)  
-- Cleaning and organization of all biogeochemical parameters and *Turbinaria ornata* tissue Nitrogen samples from August 2021 (wet season biogeochemistry), March 2022 (dry season biogeochemistry) and July 2022 (*T. ornata*).
+- Cleaning and organization of all biogeochemical parameters and *Turbinaria ornata* tissue Nitrogen samples from August 2021 (dry season biogeochemistry), March 2022 (wet season biogeochemistry) and July 2022 (*T. ornata*).
     - [Full_Nutrient_Processing.R](Scripts/Full_Nutrient_Processing.R)
 - Cleaning and organization of all site characteristics (i.e., rugosity, distance from seepage point, substrate type, CT logger depth) from July 2022.
     - [Site_Metadata.R](Scripts/Site_Metadata.R)
