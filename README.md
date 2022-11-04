@@ -1,17 +1,17 @@
 # Community Functional Diversity
 
-This repository is for a master's thesis project at California State University, Northridge.  Data are collected in Mo'orea, French Polynesia along the western shore fringing coral reef.  This repository holds data, scripts, and output for community composition surveys of two coral reefs.  Community is analyzed for functional trait diversity of coral reefs impacted by submarine groundwater discharge.
-
-**Community composition surveys**
-Two coral reefs with unique SGD sources and signatures
+This repository holds the data, analyses, and figures for a master degree's thesis project at California State University, Northridge by Danielle Barnas under the advisemnt of Dr. Nyssa Silbiger.  Data were collected in Mo'orea, French Polynesia along the western shore fringing coral reef in Ha'apiti. Data, scripts, and output are related to a benthic community composition study on two coral reefs.  Community is analyzed for species and functional trait diversity of coral reefs impacted by submarine groundwater discharge (SGD).
 
 [Data](Data/Surveys/)  
 [Scripts](Scripts/)  
-- [Species Accumulation Curve](Scripts/Sp_Accumulation_Curve_2022.R)
-- Clustering Analysis (LCM with variable selection)
-    - [Varari LCM with VSEEP](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Clustering/SGD_Clustering_Analysis_August2021.html)
-    - [Varari LCM without VSEEP](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Clustering/SGD_noSeep_Clusters_LCM_Aug2021.html)
-- [Species Richness ~ Varari Cluster Zones](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/Species_Richness.html)  
+- Cleaning and organization of all biogeochemical parameters and *Turbinaria ornata* tissue Nitrogen samples from August 2021 (wet season biogeochemistry), March 2022 (dry season biogeochemistry) and July 2022 (*T. ornata*).
+    - [Full_Nutrient_Processing.R](Scripts/Full_Nutrient_Processing.R)
+- Cleaning and organization of all site characteristics (i.e., rugosity, distance from seepage point, substrate type, CT logger depth) from July 2022.
+    - [Site_Metadata.R](Scripts/Site_Metadata.R)
+- Species accumulation curve assessing whether benthic community composition surveys successfully captured the majority of species available within each reef community in July 2022.
+    - [Sp_Accumulation_Curve_2022.R](Scripts/Sp_Accumulation_Curve_2022.R)
+- Processing and analyses of species richness and taxonomic groups along the SGD gradient. Analyses include linear regressions, PCA, nMDS and perMANOVA to assess direct or indirect influences of biogeochemistry, nutrients, or site characteristics/structure.
+    - [RegressionAnalysis_Varari_noSeep13](https://raw.githack.com/dbarnas/Community_Functional_Diversity/main/Scripts/RegressionAnalysis_Varari_noSeep13.html)  
 
 
 [Output](Output/)  
