@@ -1,0 +1,489 @@
+---
+title: "Community Functional Trait Analysis along SGD"
+author: "Danielle Barnas"
+date: "2022-11-29"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE, warning = F}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Install necessary libraries
+```{r, eval = F}
+if("tidyverse" %in% rownames(installed.packages()) == FALSE){install.packages("tidyverse")}
+if("here" %in% rownames(installed.packages()) == FALSE){install.packages("here")}
+if("ggrepel" %in% rownames(installed.packages()) == FALSE){install.packages("ggrepel")}
+if("PNWColors" %in% rownames(installed.packages()) == FALSE){install.packages("PNWColors")}
+if("vegan" %in% rownames(installed.packages()) == FALSE){install.packages("vegan")}
+if("pairwiseAdonis" %in% rownames(installed.packages()) == FALSE){ devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")}
+if("patchwork" %in% rownames(installed.packages()) == FALSE){install.packages("patchwork")}
+if("ggmap" %in% rownames(installed.packages()) == FALSE){install.packages("ggmap")}
+```
+
+
+# Load Libraries
+```{r, message = F}
+library(tidyverse)
+library(here)
+library(ggrepel)
+library(PNWColors)
+library(vegan)
+library(pairwiseAdonis)
+library(patchwork)
+library(ggmap)
+
+set.seed(7)
+```
+
+
+# Read in Data
+```{r, message = F}
+traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
+species <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
+envi <- read_csv(here("Data", "Full_Metadata.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrient_Processed_CV.csv"))
+```
+
+
+# Functions
+
+## Create function to order cowtagID's when plotting
+```{r}
+order <- function(data, param, by){
+
+  param<- enquo(param)
+  by<- enquo(by)
+  
+  orderParam <- data %>%
+     arrange(!!param) %>%
+     distinct(!!by) %>% 
+     mutate(CowTagID = as_factor(as.character(!!by)))
+
+  # sort factor levels by N_percent
+  ParamLevels <- paste(orderParam$CowTagID)
+  # assign order to factor levels by % N
+  data$CowTagID <- factor(data$CowTagID, levels = ParamLevels)
+  # levels(data$CowTagID) # check
+
+return(data)
+}
+
+```
+
+
+# Process data
+```{r}
+
+# remove abiotic IDs
+abiotic <- traits %>% 
+  filter(Taxa == "Bare Rock" | Taxa == "Bare Rock - exposed" | Taxa == "Rubble" | Taxa == "Sand")
+
+# remove maya's survey sites for now
+maya <- species %>% 
+  select(CowTagID) %>% 
+  filter(CowTagID == "Reef_Ambient_2" | CowTagID == "Reef_Ambient_1" | 
+           CowTagID == "RockWall_SGD_1"| CowTagID == "RockWall_SGD_2" | CowTagID == "RockWall_SGD_3" |
+           CowTagID == "Sand_SGD_2"| CowTagID == "Sand_SGD_1") %>% 
+  distinct()
+
+
+# join all biogeochemical data
+chem <- chem %>% 
+  select(-c(del15N:N_percent)) %>% 
+  filter(Location == "Varari" & CowTagID != "VSEEP") %>% 
+  left_join(envi)
+
+# keep relevant attributes
+red_trait <- traits %>% 
+  select(Identified, Taxa, Genus, Taxon_Group, Morphology, Secondary_Morphology, Life_Span, MS_cat, Zooxanthellate, Calcification, Energetic_Resource, Feeding_Mode)
+
+# full join with above removals
+full_comp <- species %>% 
+  anti_join(maya) %>% 
+  select(Location, CowTagID, Taxa) %>% 
+  left_join(red_trait) %>% 
+  anti_join(abiotic) %>% 
+  filter(Identified == "yes") %>% # remove yet identified organisms
+  select(-Identified) %>% # remove attribute
+  filter(Location == "Varari") %>%  # only varari for now
+  filter(CowTagID != "VSEEP") # remove seep
+
+```
+
+
+Functional Richness
+```{r}
+# CALCULATE FUNCTIONAL RICHNESS
+# functional trait richness values
+richness <- as_tibble(distinct(full_comp['CowTagID']))
+
+for(i in 3:ncol(full_comp)){
+  
+  attr <- colnames(full_comp[i])
+  
+  temp <- full_comp %>% 
+    group_by(CowTagID) %>% 
+    distinct(full_comp[i]) %>%
+    count(colnames(full_comp[i])) %>% 
+    ungroup() %>% 
+    select(n)
+  
+  colnames(temp)[1] <- attr # rename n as i'th attribute
+  
+  richness <- richness %>% 
+    cbind(temp)
+}
+
+# full join with environmental data
+trait_richness <- richness %>% 
+  left_join(chem)
+
+# CALCULATE FUNCTIONAL ENTITY RICHNESS
+# primary morphology
+full_trait_rich <- full_comp %>% 
+  select(-c(Location, Taxa, Genus)) %>% 
+  select(-Secondary_Morphology) %>% # will run separate entity analysis with second morphology
+  distinct() %>% 
+  unite((Taxon_Group:Feeding_Mode), col = "Entity", sep = "_", remove = T) %>% 
+  group_by(CowTagID) %>% 
+  count(Entity) %>% 
+  summarise(Entity_Richness = sum(n)) %>% 
+  left_join(chem)
+
+# secondary morphology
+secondary_trait_rich <- full_comp %>% 
+  select(-c(Location, Taxa, Genus)) %>% 
+  select(-Morphology) %>% # ran separate entity analysis with original morphology
+  distinct() %>% 
+  unite((Taxon_Group:Feeding_Mode), col = "Entity", sep = "_", remove = T) %>% 
+  group_by(CowTagID) %>% 
+  count(Entity) %>% 
+  summarise(Entity_Richness = sum(n)) %>% 
+  left_join(chem)
+
+```
+
+
+Percent Cover
+```{r}
+# CALCULATE SPECIES PERCENT COVER
+species <- species %>% 
+  anti_join(maya) %>% 
+  select(CowTagID, Taxa, SpeciesCounts) %>% 
+  group_by(CowTagID) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  mutate(cover = SpeciesCounts/total * 100) %>% 
+  select(-total)
+
+
+# CALCULATE TRAIT PERCENT COVER
+full_cover <- full_comp %>% 
+  left_join(species)
+
+# full entities
+full_trait_cover <- full_cover %>% 
+  select(-c(Location, Taxa, Genus)) %>% 
+  select(-Secondary_Morphology) %>% # will run separate entity analysis with second morphology
+  unite((Taxon_Group:Feeding_Mode), col = "Entity", sep = " - ", remove = T) %>% 
+  group_by(CowTagID, Entity) %>% 
+  summarise(Entity_Cover = sum(cover)) %>% 
+  left_join(chem)
+
+# taxon group
+taxon_cover <- full_cover %>% 
+  group_by(CowTagID, Taxon_Group) %>% 
+  summarise(cover = sum(cover))
+
+# primary morphology
+morph_cover <- full_cover %>% 
+  group_by(CowTagID, Morphology) %>% 
+  summarise(cover = sum(cover))
+
+tax_morph_cover <- full_cover %>% 
+  unite(col = Taxon_Morphology, Taxon_Group, Morphology, sep = " - ") %>% 
+  group_by(CowTagID, Taxon_Morphology) %>% 
+  summarise(cover = sum(cover))
+
+# secondary morphology
+secondary_morph_cover <- full_cover %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  summarise(cover = sum(cover))
+  
+tax_second_morph_cover <- full_cover %>% 
+  unite(col = Taxon_Morphology, Taxon_Group, Secondary_Morphology, sep = " - ") %>% 
+  group_by(CowTagID, Taxon_Morphology) %>% 
+  summarise(cover = sum(cover))
+
+# calcifiers
+calc_cover <- full_cover %>% 
+  group_by(CowTagID, Calcification) %>% 
+  summarise(cover = sum(cover))
+
+# Wide format percent cover
+
+
+```
+
+
+Presence - Absence
+```{r}
+# PRESENCE - ABSENCE
+PA <- full_comp %>% 
+  distinct(CowTagID, Taxon_Group) %>% 
+  group_by(CowTagID) %>% 
+  count(Taxon_Group) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = Taxon_Group, values_from = n) %>%  # extend out to establish NAs
+  pivot_longer(names_to = "Taxon_Group", values_to = "Presence", cols = 2:11) %>%  #long form to turn NAs into 0's for absence
+  mutate(Presence = if_else(is.na(Presence), 0, 1)) %>%  # presence-absence of species per CowTagID
+  left_join(chem)
+
+full_comp %>% 
+  distinct(CowTagID, Taxon_Group) %>% 
+  ggplot(aes(x = Taxon_Group, fill = Taxon_Group)) +
+  geom_bar(position = "dodge") +
+  facet_wrap(~CowTagID) +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+
+
+
+
+# Hypothesis 1:
+### Functional traits change along SGD gradient
+
+
+Linear regression of categorical trait richness ~ SGD parameter
+```{r}
+full_trait_rich %>% 
+  ggplot(aes(x = del15N, y = Entity_Richness)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+summary(lm(Entity_Richness ~ del15N, data = full_trait_rich))
+
+
+
+secondary_trait_rich %>% 
+  ggplot(aes(x = del15N, y = Entity_Richness)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+summary(lm(Entity_Richness ~ del15N, data = secondary_trait_rich))
+
+
+
+```
+
+```{r}
+long_rich_counts <- trait_richness %>% 
+  pivot_longer(cols = Taxa:Feeding_Mode, names_to = "Traits", values_to = "Richness")
+
+# use 
+long_rich_counts %>% 
+  ggplot(aes(x = Silicate_umolL, y = Richness)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Traits, scales = "free_y")
+long_rich_counts %>% 
+  mutate(Richness = as_factor(Richness)) %>% 
+  ggplot(aes(y = del15N, x = Richness)) +
+  geom_col() +
+  facet_wrap(~Traits, scales = "free")
+
+anova(lm(Genus ~ del15N, data = trait_richness))
+anova(lm(Life_Span ~ del15N, data = trait_richness))
+anova(lm(Morphology ~ del15N, data = trait_richness))
+anova(lm(MS_cat ~ del15N, data = trait_richness))
+anova(lm(Taxa ~ del15N, data = trait_richness))
+
+
+```
+
+
+
+ 
+# Hypothesis 2:
+### Relationship of species richness and functional richness change along SGD gradient
+
+
+- linear regression of species richness ~ functional richness
+
+
+#### Visualization and Analysis
+```{r}
+trait_richness %>% 
+  pivot_longer(cols = Taxon_Group:Feeding_Mode, names_to = "Traits", values_to = "Richness") %>% 
+  ggplot(aes(x = Taxa, y = Richness)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Traits, scales = "free_y") +
+  labs(x = "Species Richness")
+
+# all other trait categories significant except Life_Span
+summary(lm(Life_Span ~ Taxa, data = trait_richness))
+
+
+## compare species richness to functional entity richness
+trait_richness %>% 
+  select(CowTagID, Taxa) %>% 
+  full_join(full_trait_rich) %>% 
+  ggplot(aes(x = Taxa, y = Entity_Richness)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+
+trait_richness %>% 
+  select(CowTagID, Taxa) %>% 
+  full_join(secondary_trait_rich) %>% 
+  ggplot(aes(x = Taxa, y = Entity_Richness)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+
+```
+
+
+
+# Hypothesis 3:
+### Functional identities change along SGD gradient
+
+Presence and Absence of traits
+```{r}
+# order by SGD
+full_comp_envi <- full_comp %>% 
+  left_join(chem)
+full_comp_envi$CowTagID <- order(data = full_comp_envi, param = N_percent, by = CowTagID)$CowTagID
+
+# Categorical Trais in SGD gradient
+full_comp_envi %>% 
+  select(CowTagID, Taxa) %>% 
+  ggplot(aes(x = CowTagID, fill = Taxa)) +
+  geom_bar()
+
+full_comp_envi %>% 
+  select(CowTagID, Taxon_Group) %>% 
+  ggplot(aes(x = CowTagID, fill = Taxon_Group)) +
+  geom_bar()
+
+full_comp_envi %>% 
+  select(CowTagID, Morphology) %>% 
+  ggplot(aes(x = CowTagID, fill = Morphology)) +
+  geom_bar()
+
+full_comp_envi %>% 
+  select(CowTagID, Secondary_Morphology) %>% 
+  ggplot(aes(x = CowTagID, fill = Secondary_Morphology)) +
+  geom_bar()
+
+
+# PRESENCE ABSENCE
+full_comp %>% 
+  distinct(CowTagID, Taxon_Group) %>% 
+  ggplot(aes(x = Taxon_Group, fill = Taxon_Group)) +
+  geom_bar(position = "dodge") +
+  facet_wrap(~CowTagID)
+
+full_comp %>% 
+  distinct(CowTagID, Taxon_Group) %>% 
+  group_by(CowTagID) %>% 
+  count(Taxon_Group) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = Taxon_Group, values_from = n) %>%  # extend out to establish NAs
+  pivot_longer(names_to = "Taxon_Group", values_to = "Presence", cols = 2:11) %>%  #long form to turn NAs into 0's for absence
+  mutate(Presence = if_else(is.na(Presence), 0, 1)) %>%  # presence-absence of species per CowTagID
+  left_join(envi) %>% 
+  ggplot(aes(x = del15N, y = Taxon_Group)) +
+  geom_col()
+
+  
+```
+
+
+nMDS
+```{r}
+# set levels as numerical order of plates
+CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
+
+richPerm <- Full_data %>%
+  filter(CowTagID != "VSEEP",
+         CowTagID != "V13") %>% 
+ select(CowTagID, Salinity:N_percent, dist_to_seep_m:meanRugosity)
+richPerm$CowTagID <- factor(richPerm$CowTagID, levels = CTlevels)
+richPerm <- richPerm %>% 
+  arrange(CowTagID) %>% # arrange data in order of CowTagID for ordination plot later
+  select(-CowTagID)
+
+richOrd <- metaMDS(richPerm, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+richOrd$stress
+
+# stress plot - want to minimize scatter
+stressplot(richOrd)
+
+# get points for site characteristics
+richRow <- rownames(richOrd$species) # get characteristic names
+
+# with substrate
+# richMDS1 <- c(richOrd$species[1:23]) # MDS1 for characteristics
+# richMDS2 <- c(richOrd$species[24:46]) # MDS2 for characteristics
+
+# without substrate
+richMDS1 <- c(richOrd$species[1:19]) # MDS1 for characteristics
+richMDS2 <- c(richOrd$species[20:38]) # MDS2 for characteristics
+
+richData <- as_tibble(cbind(richRow, richMDS1, richMDS2)) %>%  # bind all cols into tibble
+  mutate(richMDS1 = as.numeric(richMDS1), # as numeric 
+         richMDS2 = as.numeric(richMDS2))
+# get points for CowTagIDs
+richRowb <- as.character(CTlevels) # assign CowTagID names
+richMDS1b <- c(richOrd$points[1:19]) # MDS1 for CowTagID
+richMDS2b <- c(richOrd$points[20:38]) # MDS2 for CowTagID
+richDatab <- as_tibble(cbind(richRowb, richMDS1b, richMDS2b)) %>%  # bind all cols into tibble
+  mutate(richMDS1b = as.numeric(richMDS1b), # as numeric 
+         richMDS2b = as.numeric(richMDS2b))
+
+# plotting
+nMDSplot <- ggplot(data = richData, # sit characteristics
+       aes(x = richMDS1,
+           y = richMDS2)) +
+  geom_point(color = "red", shape = 2) +
+  geom_point(data = richDatab, # CowTagIDs
+             aes(x = richMDS1b,
+                 y = richMDS2b),
+             color = "black") +
+  geom_text_repel(data = richData, # site characteristics
+                  aes(x = richMDS1,
+                      y = richMDS2,
+                      label = richRow),
+                  size = 3) +
+  geom_text_repel(data = richDatab, # CowTagIDs
+                  aes(x = richMDS1b,
+                      y = richMDS2b,
+                      label = richRowb),
+                  size = 3) +
+  #coord_cartesian(xlim = c(-0.23, 0.25), ylim = c(-0.16, 0.09)) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+nMDSplot
+
+
+
+
+```
+
+
+
+
+
+
+
+
