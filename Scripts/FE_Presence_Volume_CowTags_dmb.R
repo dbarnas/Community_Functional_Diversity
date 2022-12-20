@@ -304,6 +304,32 @@ qAll
 ggsave(here("Output", "Teixido", "Teixido_Figure1volume_dmb_CowTags.png"), qAll, width = 6, height = 5)
 
 
+### Linear Regression Sp and FE and Vol4D ~ SGD
+reg.Fric <- Fric %>%
+  as_tibble() %>%
+  mutate(CowTagID = relative.sgd) %>%
+  relocate(CowTagID, .before = NbSp) %>%
+  left_join(meta)
+
+summary(lm(data = reg.Fric, NbSp ~ dist_to_seep_m)) # **
+summary(lm(data = reg.Fric, NbSpP ~ dist_to_seep_m)) # **
+summary(lm(data = reg.Fric, NbFEs ~ dist_to_seep_m)) # **
+summary(lm(data = reg.Fric, NbFEsP ~ dist_to_seep_m)) # **
+summary(lm(data = reg.Fric, Vol8D ~ dist_to_seep_m)) # not significant
+
+summary(lm(data = reg.Fric, NbSp ~ N_percent)) # not significant
+summary(lm(data = reg.Fric, NbSpP ~ N_percent)) # not significant
+summary(lm(data = reg.Fric, NbFEs ~ N_percent)) # not significant
+summary(lm(data = reg.Fric, NbFEsP ~ N_percent)) # not significant
+summary(lm(data = reg.Fric, Vol8D ~ N_percent)) # not significant
+
+summary(lm(data = reg.Fric, NbSp ~ meanRugosity)) # **
+summary(lm(data = reg.Fric, NbSpP ~ meanRugosity)) # **
+summary(lm(data = reg.Fric, NbFEs ~ meanRugosity)) # *
+summary(lm(data = reg.Fric, NbFEsP ~ meanRugosity)) # *
+summary(lm(data = reg.Fric, Vol8D ~ meanRugosity)) # **
+
+
 ### Intersecting functional space using PCoA (modified Teixido script)
 
 
