@@ -143,7 +143,7 @@ p1 <- pCover %>%
   theme(legend.direction = "horizontal",
         legend.position = c(.18, .1))
 p1
-ggsave(here("Output","Calcifier_del15N.png"), p1, width = 10, height = 10)
+#ggsave(here("Output","Calcifier_del15N.png"), p1, width = 10, height = 10)
 
 
 # percent N
@@ -163,7 +163,7 @@ p2 <- pCover %>%
   theme_bw() +
   theme(legend.position = "none")
 p2
-ggsave(here("Output","Calcifier_Npercent.png"), p2, width = 10, height = 10)
+#ggsave(here("Output","Calcifier_Npercent.png"), p2, width = 10, height = 10)
 
 
 # C:N ratio
@@ -183,7 +183,7 @@ p3 <- pCover %>%
   theme_bw() +
   theme(legend.position = "none")
 p3
-ggsave(here("Output","Calcifier_CN.png"), p3, width = 10, height = 10)
+#ggsave(here("Output","Calcifier_CN.png"), p3, width = 10, height = 10)
 
 
 modBenthic15N<-lm(log((TotalCalc+1)/(TotalAlgae+1))~del15N, data = pCover)
@@ -259,16 +259,6 @@ pval(mydata = redCover, x = del15N, num = TotalCalc, den = TotalAlgae)
 
 plotfun(mydata = redCover, x = C_N, num = TotalCalc, den = TotalAlgae)
 pval(mydata = redCover, x = C_N, num = TotalCalc, den = TotalAlgae)
-
-
-
-
-
-
-
-
-
-
 
 
 

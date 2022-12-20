@@ -1332,7 +1332,7 @@ permanovamodel_15N_mean
 
 calcifiersComp <- comp %>%
   left_join(taxa) %>% 
-  filter(Taxa != 'Hard Substrate', Taxa != 'Sand') %>% 
+  filter(Taxon_Group != 'Hard Substrate', Taxon_Group!= 'Sand') %>% 
   select(CowTagID, Taxa, Taxon_Group, sp_percent) %>% 
   mutate(Taxon_Group = if_else(Taxon_Group == "Coral", "Calcifiers",
                        if_else(Taxon_Group == "CCA", "Calcifiers", Taxon_Group)))
@@ -1409,7 +1409,7 @@ permanovamodel_15N
 
 calcMacroComp <- comp %>%
   left_join(taxa) %>% 
-  filter(Taxa != 'Hard Substrate', Taxa != 'Sand') %>% 
+  filter(Taxon_Group != 'Hard Substrate', Taxon_Group != 'Sand') %>% 
   select(CowTagID, Taxa, Taxon_Group, sp_percent) %>% 
   mutate(Taxon_Group = if_else(Taxon_Group == "Coral", "Calcifiers",
                        if_else(Taxon_Group == "CCA", "Calcifiers",
@@ -1488,7 +1488,7 @@ permanovamodel_15N
 
 calcAlgComp <- comp %>%
   left_join(taxa) %>% 
-  filter(Taxa != 'Hard Substrate', Taxa != 'Sand') %>% 
+  filter(Taxon_Group != 'Hard Substrate', Taxon_Group != 'Sand') %>% 
   select(CowTagID, Taxa, Taxon_Group, sp_percent) %>% 
   mutate(Taxon_Group = if_else(Taxon_Group == "Coral", "Calcifiers",
                        if_else(Taxon_Group == "CCA", "Calcifiers",
@@ -1615,7 +1615,7 @@ permanovamodel_15N
 ```{r}
 speciesMDS2 <- comp %>%
   left_join(taxa) %>% 
-  filter(Taxa != 'Hard Substrate', Taxa != 'Sand') %>% 
+  filter(Taxon_Group != 'Hard Substrate', Taxon_Group != 'Sand') %>% 
   select(CowTagID, Taxa,sp_percent) %>% 
   group_by(CowTagID, Taxa) %>% 
   summarise(perc = sum(sp_percent, na.rm = TRUE)) %>% 
@@ -1655,20 +1655,20 @@ speciesPermFull2 <- cbind(speciesMDS2, CTlevels) %>%  # bind cowTagIDs
   rename(CowTagID = CTlevels) %>% 
   left_join(res_data %>% select(CowTagID, dist_to_seep_m, VisibleHumidic_Like, Ammonia_umolL, del15N))
 
-permanovamodel2<-adonis2(speciesPermFull2[,-c(59:63)]~VisibleHumidic_Like, speciesPermFull2, permutations = 999, 
+permanovamodel2<-adonis2(speciesPermFull2[,-c(52:56)]~VisibleHumidic_Like, speciesPermFull2, permutations = 999, 
                        method="bray") # should change out cowtagid with some grouping name
 permanovamodel2 
 
 
-permanovamodel2<-adonis2(speciesPermFull2[,-c(59:63)]~dist_to_seep_m, speciesPermFull2, permutations = 999, 
+permanovamodel2<-adonis2(speciesPermFull2[,-c(52:56)]~dist_to_seep_m, speciesPermFull2, permutations = 999, 
                        method="bray") # should change out cowtagid with some grouping name
 permanovamodel2 # *
 
-permanovamodel2<-adonis2(speciesPermFull2[,-c(59:63)]~Ammonia_umolL, speciesPermFull2, permutations = 999, 
+permanovamodel2<-adonis2(speciesPermFull2[,-c(52:56)]~Ammonia_umolL, speciesPermFull2, permutations = 999, 
                        method="bray") # should change out cowtagid with some grouping name
 permanovamodel2 
 
-permanovamodel2<-adonis2(speciesPermFull2[,-c(59:63)]~del15N, speciesPermFull2, permutations = 999, 
+permanovamodel2<-adonis2(speciesPermFull2[,-c(52:56)]~del15N, speciesPermFull2, permutations = 999, 
                        method="bray") # should change out cowtagid with some grouping name
 permanovamodel2 
 ```

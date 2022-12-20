@@ -25,7 +25,7 @@ if("ggmap" %in% rownames(installed.packages()) == FALSE){install.packages("ggmap
 ```
 
 
-# Load Libraries
+# Load Libraries and create color palette
 ```{r, message = F}
 library(tidyverse)
 library(here)
@@ -35,8 +35,15 @@ library(vegan)
 library(pairwiseAdonis)
 library(patchwork)
 library(ggmap)
+library(ggforce)
 
 set.seed(7)
+
+# create palettes
+mypalette <- pnw_palette(name="Bay")
+midpalette <- pnw_palette(name = "Bay", n = 15)
+pretty_palette <- c("#d8a7b1", "#e9ddd4","#b9b7bd", "#67595e", "#ef7c8e", "#fae8e0", "#747474") 
+# 1 is rosewater, 2 is dusty rose, 3 is pewter, 4 is coffee pot, 5 is hot pink, 6 is cream, 7 is light grey
 ```
 
 
@@ -74,12 +81,79 @@ return(data)
 
 ```
 
+## Function to perform nMDS
+```{r}
+nMDS_species <- function(mdsord){
+  
+  # get points for species
+Group <- rownames(mdsord$species) # get characteristic names
+MDS1 <- c(mdsord$species[,1]) # MDS1 for characteristics
+MDS2 <- c(mdsord$species[,2]) # MDS2 for characteristics
+Data <- as_tibble(cbind(Group, MDS1, MDS2)) %>%  # bind all cols into tibble
+  mutate(MDS1 = as.numeric(MDS1), # as numeric 
+         MDS2 = as.numeric(MDS2)) %>% 
+  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
+  select(MDS1, MDS2, Group)
+
+ return(Data) 
+}
+
+nMDS_points <- function(mdsord, param_df, param_select){
+# get points for
+Groupb <- as.character(CTlevels) # assign CowTagID
+MDS1b <- mdsord$points[,1] # MDS1 for CowTagID
+MDS2b <- mdsord$points[,2] # MDS2 for CowTagID
+Datab <- as_tibble(cbind(Groupb, MDS1b, MDS2b)) %>%  # bind all cols into tibble
+  mutate(MDS1b = as.numeric(MDS1b), # as numeric
+         MDS2b = as.numeric(MDS2b)) %>% 
+  rename(CowTagID = Groupb)
+
+joinDF <- param_df %>% 
+  select(param_select)
+
+Datab <- Datab %>% 
+  left_join(joinDF)
+
+ return(Datab) 
+}
+
+```
+
+## Function to plot nMDS
+```{r}
+plot_nMDS <- function(nMDSgroup, nMDScowtag, param_fill){
+
+  
+  nMDSplot <- ggplot(data = nMDSgroup,
+                     aes(x = MDS1,
+                         y = MDS2)) +
+    geom_point(color = "black") +
+    geom_point(data = nMDScowtag,
+               aes(x = MDS1b,
+                   y = MDS2b,
+                   color = !!enquo(param_fill)),
+               size = 3) +
+    geom_text_repel(data = nMDSgroup, # site characteristics
+                  aes(x = MDS1,
+                      y = MDS2,
+                      label = Group),
+                  size = 3) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.position = "right")
+  
+  return(nMDSplot)
+}
+```
+
+
 
 # Process data
 ```{r}
 
 # remove abiotic IDs
 abiotic <- traits %>% 
+  select(Taxa) %>% 
   filter(Taxa == "Bare Rock" | Taxa == "Bare Rock - exposed" | Taxa == "Rubble" | Taxa == "Sand")
 
 # remove maya's survey sites for now
@@ -87,7 +161,8 @@ maya <- species %>%
   select(CowTagID) %>% 
   filter(CowTagID == "Reef_Ambient_2" | CowTagID == "Reef_Ambient_1" | 
            CowTagID == "RockWall_SGD_1"| CowTagID == "RockWall_SGD_2" | CowTagID == "RockWall_SGD_3" |
-           CowTagID == "Sand_SGD_2"| CowTagID == "Sand_SGD_1") %>% 
+           CowTagID == "Sand_SGD_2"| CowTagID == "Sand_SGD_1" |
+           CowTagID ==  "VSEEP" | CowTagID == "V13") %>% # also removing seep and 13 for now
   distinct()
 
 
@@ -95,8 +170,17 @@ maya <- species %>%
 chem <- chem %>% 
   select(-c(del15N:N_percent)) %>% 
   filter(Location == "Varari" & CowTagID != "VSEEP") %>% 
-  left_join(envi)
+  left_join(envi) %>% 
+  select(-c(Location, lat, lon, Dist_CT_cm, Depth_cm, Tidal_diff))
 
+# subset biogeochemical
+waterchem <- chem  %>% 
+  select(CowTagID, Salinity:N_percent)
+turbchem <- chem %>% 
+  select(CowTagID, del15N:N_percent)
+structure <- chem %>% 
+  select(CowTagID, LiveCoral:meanRugosity)
+  
 # keep relevant attributes
 red_trait <- traits %>% 
   select(Identified, Taxa, Genus, Taxon_Group, Morphology, Secondary_Morphology, Life_Span, MS_cat, Zooxanthellate, Calcification, Energetic_Resource, Feeding_Mode)
@@ -110,7 +194,7 @@ full_comp <- species %>%
   filter(Identified == "yes") %>% # remove yet identified organisms
   select(-Identified) %>% # remove attribute
   filter(Location == "Varari") %>%  # only varari for now
-  filter(CowTagID != "VSEEP") # remove seep
+  filter(CowTagID != "VSEEP", CowTagID != "V13") # remove seep and V13
 
 ```
 
@@ -151,7 +235,7 @@ full_trait_rich <- full_comp %>%
   unite((Taxon_Group:Feeding_Mode), col = "Entity", sep = "_", remove = T) %>% 
   group_by(CowTagID) %>% 
   count(Entity) %>% 
-  summarise(Entity_Richness = sum(n)) %>% 
+  summarise(entity_richness = sum(n)) %>% 
   left_join(chem)
 
 # secondary morphology
@@ -162,17 +246,64 @@ secondary_trait_rich <- full_comp %>%
   unite((Taxon_Group:Feeding_Mode), col = "Entity", sep = "_", remove = T) %>% 
   group_by(CowTagID) %>% 
   count(Entity) %>% 
-  summarise(Entity_Richness = sum(n)) %>% 
+  summarise(entity_richness = sum(n)) %>% 
   left_join(chem)
 
+# CALCULATE SPECIES RICHNESS
+species_rich <- species %>% 
+  anti_join(maya) %>% 
+  anti_join(abiotic) %>% 
+  filter(Location == "Varari") %>% 
+  group_by(CowTagID) %>% 
+  distinct(Taxa) %>% 
+  count(Taxa) %>% 
+  summarise(species_richness = sum(n)) %>% 
+  ungroup()
+
+species_rich %>% 
+  left_join(chem) %>% 
+  ggplot(aes(x = Ammonia_umolL, y = species_richness)) +
+  geom_point() +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw()
+summary(lm(data = species_rich %>% left_join(chem), species_richness ~ Ammonia_umolL))
+## residuals
+# fit model
+resMod <- (lm(data = species_rich %>% left_join(chem), species_richness ~ meanRugosity))
+#view model summary
+summary(resMod) # **
+#calculate the standardized residuals
+res <- residuals(resMod)
+#column bind standardized residuals back to original data frame
+res_data <- species_rich %>% 
+  left_join(chem) %>% 
+  cbind(res) %>% 
+  relocate(res, .after = CowTagID)
+
+#plot predictor variable vs. standardized residuals
+res_data %>% 
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(y = "Residuals",
+       x = "Distance to seep (m)")
+summary(lm(data = res_data, res ~ dist_to_seep_m)) # **
+summary(lm(data = res_data, res ~ VisibleHumidic_Like)) # *
+summary(lm(data = res_data, res ~ Ammonia_umolL)) # 0.1
 ```
 
 
 Percent Cover
-```{r}
+```{r, message = F}
 # CALCULATE SPECIES PERCENT COVER
-species <- species %>% 
+species <-  species %>% 
   anti_join(maya) %>% 
+  anti_join(abiotic) %>% 
+  filter(Location == "Varari") %>% 
   select(CowTagID, Taxa, SpeciesCounts) %>% 
   group_by(CowTagID) %>% 
   mutate(total = sum(SpeciesCounts)) %>% 
@@ -191,54 +322,583 @@ full_trait_cover <- full_cover %>%
   unite((Taxon_Group:Feeding_Mode), col = "Entity", sep = " - ", remove = T) %>% 
   group_by(CowTagID, Entity) %>% 
   summarise(Entity_Cover = sum(cover)) %>% 
-  left_join(chem)
+  left_join(chem) %>% 
+  ungroup()
 
 # taxon group
 taxon_cover <- full_cover %>% 
   group_by(CowTagID, Taxon_Group) %>% 
-  summarise(cover = sum(cover))
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Taxon_Group, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
 
 # primary morphology
 morph_cover <- full_cover %>% 
   group_by(CowTagID, Morphology) %>% 
-  summarise(cover = sum(cover))
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Morphology, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
 
 tax_morph_cover <- full_cover %>% 
   unite(col = Taxon_Morphology, Taxon_Group, Morphology, sep = " - ") %>% 
   group_by(CowTagID, Taxon_Morphology) %>% 
-  summarise(cover = sum(cover))
+  summarise(cover = sum(cover)) %>% 
+  ungroup()
 
 # secondary morphology
 secondary_morph_cover <- full_cover %>% 
   group_by(CowTagID, Secondary_Morphology) %>% 
-  summarise(cover = sum(cover))
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Secondary_Morphology, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
   
 tax_second_morph_cover <- full_cover %>% 
   unite(col = Taxon_Morphology, Taxon_Group, Secondary_Morphology, sep = " - ") %>% 
   group_by(CowTagID, Taxon_Morphology) %>% 
-  summarise(cover = sum(cover))
+  summarise(cover = sum(cover)) %>% 
+  ungroup()
 
 # calcifiers
 calc_cover <- full_cover %>% 
   group_by(CowTagID, Calcification) %>% 
-  summarise(cover = sum(cover))
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Calcification, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
+
+# zooxanthellate
+zoox_cover <- full_cover %>% 
+  group_by(CowTagID, Zooxanthellate) %>% 
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Zooxanthellate, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
+
+# Energetic Resource
+energy_cover <- full_cover %>% 
+  group_by(CowTagID, Energetic_Resource) %>% 
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Energetic_Resource, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
+
+# feeding
+feeding_cover <- full_cover %>% 
+  group_by(CowTagID, Feeding_Mode) %>% 
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Feeding_Mode, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
 
 # Wide format percent cover
+wide_cover <- taxon_cover %>% 
+  full_join(morph_cover) %>%
+  #full_join(secondary_morph_cover) %>% 
+  full_join(calc_cover) %>% 
+  full_join(zoox_cover) %>% 
+  full_join(energy_cover) %>% 
+  full_join(feeding_cover) %>% 
+  select(-unk) # removes unknown energy source of sponges
 
+# wide format percent cover of taxon-morphologies
+wide_taxon_morph <- tax_morph_cover %>% 
+  pivot_wider(names_from = Taxon_Morphology, values_from = cover) %>% 
+  mutate_at(.vars = 2:24, .funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  group_by(CowTagID) %>% 
+  mutate(total = sum(2:24))
+```
+
+long form percent cover
+```{r}
+longTax <- taxon_cover %>% 
+  pivot_longer(cols = CCA:Anemone, names_to = "Taxon_Group", values_to = "cover") %>% 
+  left_join(structure)
+longTax %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Taxon_Group, color = Taxon_Group)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw()
+# summary(lm(data = taxon_cover %>% left_join(structure), Anemone ~ dist_to_seep_m))
+# summary(lm(data = taxon_cover %>% left_join(structure), CCA ~ dist_to_seep_m)) # *
+# summary(lm(data = taxon_cover %>% left_join(structure), Chlorophyta ~ dist_to_seep_m)) # *
+# summary(lm(data = taxon_cover %>% left_join(structure), Coral ~ dist_to_seep_m))
+# summary(lm(data = taxon_cover %>% left_join(structure), Corallimorph ~ dist_to_seep_m))
+# summary(lm(data = taxon_cover %>% left_join(structure), Demospongiae ~ dist_to_seep_m))
+# summary(lm(data = taxon_cover %>% left_join(structure), Phaeophyta ~ dist_to_seep_m))
+# summary(lm(data = taxon_cover %>% left_join(structure), Rhodophyta ~ dist_to_seep_m))
+# summary(lm(data = taxon_cover %>% left_join(structure), Turf ~ dist_to_seep_m))
+
+
+longMorph <- morph_cover %>% 
+  pivot_longer(cols = 'Branched Erect':Mushroom, names_to = "Morphology", values_to = "cover") %>% 
+  left_join(structure) 
+longMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Morphology, color = Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_bw()
+# summary(lm(data = morph_cover %>% left_join(structure), `Branched Erect` ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), `Branched Foliose` ~ dist_to_seep_m)) # ** increases near seep
+# summary(lm(data = morph_cover %>% left_join(structure), `Branched Globular` ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), `Branched Matting` ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m)) # * decreases near seep
+# summary(lm(data = morph_cover %>% left_join(structure), `Encrusting Digitate` ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), Filamentous ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), Massive ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), `Massive Digitate` ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), Mushroom ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), Polypoid ~ dist_to_seep_m))
+# summary(lm(data = morph_cover %>% left_join(structure), Vesiculate ~ dist_to_seep_m)) # ** increases near seep
+
+
+longSecMorph <- secondary_morph_cover %>% 
+  pivot_longer(cols = Branched:Mushroom, names_to = "Secondary_Morphology", values_to = "cover") %>% 
+  left_join(structure)
+longSecMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Secondary_Morphology, color = Secondary_Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw()
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Branched ~ dist_to_seep_m)) 
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), `Cushion-like` ~ dist_to_seep_m)) # ** decreases near seep
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Digitate ~ dist_to_seep_m)) 
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Filamentous ~ dist_to_seep_m)) 
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Massive ~ dist_to_seep_m)) 
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Mushroom ~ dist_to_seep_m)) 
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Polypoid ~ dist_to_seep_m)) 
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Spherical ~ dist_to_seep_m)) 
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Stolonial ~ dist_to_seep_m)) 
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Foliose ~ dist_to_seep_m)) # ** increases near seep
+# summary(lm(data = secondary_morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m)) # * decreases near seep
+```
+
+
+### Clean figures of significant trends
+```{r}
+longTax %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Taxon_Group, color = Taxon_Group)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  facet_wrap(~Taxon_Group, scales = "free") +
+  labs(x = "Distance to seep (m)", y = "% Cover of Taxonomic Group", color = "Taxon",
+       title = "Taxonomic Groups, Full Community")
+
+taxon_cover %>% 
+  select(CowTagID, CCA, Chlorophyta) %>% 
+  pivot_longer(cols = c(CCA, Chlorophyta), names_to = "Taxon_Group", values_to = "cover") %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Taxon_Group, color = Taxon_Group)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  facet_wrap(~Taxon_Group, scales = "free") +
+  labs(x = "Distance to seep (m)", y = "% Cover of Taxonomic Group", color = "Taxon",
+       title = "Taxonomic Groups, Full Community")
+summary(lm(data = taxon_cover %>% left_join(structure), CCA ~ dist_to_seep_m)) # * decrease near seep
+summary(lm(data = taxon_cover %>% left_join(structure), Chlorophyta ~ dist_to_seep_m)) # * decrease near seep
+
+
+longMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Morphology, color = Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  facet_wrap(~Morphology, scales = "free") +
+  labs(x = "Distance to seep (m)", y = "% Cover of Morphological Group", color = "Morphology",
+       title = "Morphologies, Full Community")
+summary(lm(data = morph_cover %>% left_join(structure), `Branched Foliose` ~ dist_to_seep_m)) # ** increases near seep
+summary(lm(data = morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m)) # * decreases near seep
+summary(lm(data = morph_cover %>% left_join(structure), Vesiculate ~ dist_to_seep_m)) # ** decrease near seep
+
+longSecMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Secondary_Morphology, color = Secondary_Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  facet_wrap(~Secondary_Morphology, scales = "free") +
+  labs(x = "Distance to seep (m)", y = "% Cover of Morphological Group", color = "Morphology",
+       title = "Secondary Morphologies, Full Community")
+summary(lm(data = secondary_morph_cover %>% left_join(structure), `Cushion-like` ~ dist_to_seep_m)) # ** decreases near seep
+summary(lm(data = secondary_morph_cover %>% left_join(structure), Foliose ~ dist_to_seep_m)) # ** increases near seep
+summary(lm(data = secondary_morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m)) # * decreases near seep
+```
+
+Coral vs Algae
+```{r}
+# coral
+coral_morph_cover <- full_cover %>% 
+  filter(Taxon_Group == "Coral") %>% 
+  group_by(CowTagID, Morphology) %>% 
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Morphology, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
+
+# secondary morphology
+coral_secondary_morph_cover <- full_cover %>% 
+  filter(Taxon_Group == "Coral") %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Secondary_Morphology, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
+
+longMorph <- coral_morph_cover %>% 
+  pivot_longer(cols = Encrusting:Mushroom, names_to = "Morphology", values_to = "cover") %>% 
+  left_join(structure) 
+longMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Morphology, color = Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_bw()
+# summary(lm(data = coral_morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m)) # ** increases near seep
+# summary(lm(data = coral_morph_cover %>% left_join(structure), `Branched Foliose` ~ dist_to_seep_m))
+# summary(lm(data = coral_morph_cover %>% left_join(structure), `Branched Globular` ~ dist_to_seep_m))
+# summary(lm(data = coral_morph_cover %>% left_join(structure), `Encrusting Digitate` ~ dist_to_seep_m))
+# summary(lm(data = coral_morph_cover %>% left_join(structure), Massive ~ dist_to_seep_m))
+# summary(lm(data = coral_morph_cover %>% left_join(structure), `Massive Digitate` ~ dist_to_seep_m))
+# summary(lm(data = coral_morph_cover %>% left_join(structure), Mushroom ~ dist_to_seep_m))
+
+
+longSecMorph <- coral_secondary_morph_cover %>% 
+  pivot_longer(cols = Digitate:Mushroom, names_to = "Secondary_Morphology", values_to = "cover") %>% 
+  left_join(structure)
+longSecMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Secondary_Morphology, color = Secondary_Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_bw()
+summary(lm(data = coral_secondary_morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m)) # ** decreases near seep
+```
+
+
+### Clean figures of significant trends
+```{r}
+longMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Morphology, color = Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  facet_wrap(~Morphology, scales = "free") +
+  labs(title = "Coral only Morphologies", x = "Distance to seep (m)", y = "% Cover of Morphological Group", color = "Morphology")
+summary(lm(data = coral_morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m)) # ** decreases near seep
+
+longSecMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Secondary_Morphology, color = Secondary_Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  facet_wrap(~Secondary_Morphology, scales = "free") +
+  labs(title = "Coral only Secondary Morphologies", x = "Distance to seep (m)", y = "% Cover of Morphological Group", color = "Morphology")
+
+```
+
+```{r}
+# algae
+algae_morph_cover <- full_cover %>% 
+  filter(Taxon_Group == "Chlorophyta" | Taxon_Group == "Phaeophyta" | Taxon_Group == "Rhodophyta" | Taxon_Group == "Turf" | Taxon_Group == "CCA") %>% 
+  group_by(CowTagID, Morphology) %>% 
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Morphology, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
+
+# secondary morphology
+algae_secondary_morph_cover <- full_cover %>% 
+  filter(Taxon_Group == "Chlorophyta" | Taxon_Group == "Phaeophyta" | Taxon_Group == "Rhodophyta" | Taxon_Group == "Turf" | Taxon_Group == "CCA") %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Secondary_Morphology, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup()
+
+longMorph <- algae_morph_cover %>% 
+  pivot_longer(cols = `Branched Erect`:`Branched Foliose`, names_to = "Morphology", values_to = "cover") %>% 
+  left_join(structure) 
+longMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Morphology, color = Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_bw()
+# summary(lm(data = algae_morph_cover %>% left_join(structure), `Branched Erect` ~ dist_to_seep_m))
+# summary(lm(data = algae_morph_cover %>% left_join(structure), `Branched Foliose` ~ dist_to_seep_m)) # ** increases near seep
+# summary(lm(data = algae_morph_cover %>% left_join(structure), `Branched Globular` ~ dist_to_seep_m))
+# summary(lm(data = algae_morph_cover %>% left_join(structure), `Branched Matting` ~ dist_to_seep_m))
+# summary(lm(data = algae_morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m))
+# summary(lm(data = algae_morph_cover %>% left_join(structure), Filamentous ~ dist_to_seep_m))
+# summary(lm(data = algae_morph_cover %>% left_join(structure), Vesiculate ~ dist_to_seep_m)) # ** decreases near seep
+
+
+longSecMorph <- algae_secondary_morph_cover %>% 
+  pivot_longer(cols = Branched:Foliose, names_to = "Secondary_Morphology", values_to = "cover") %>% 
+  left_join(structure)
+longSecMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Secondary_Morphology, color = Secondary_Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) +
+  theme_bw()
+# summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), Branched ~ dist_to_seep_m))
+# summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), `Cushion-like` ~ dist_to_seep_m)) # ** decreases near seep
+# summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m))
+# summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), Filamentous ~ dist_to_seep_m))
+# summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), Foliose ~ dist_to_seep_m)) # ** increases near seep
+# summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), Spherical ~ dist_to_seep_m))
+# summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), Stolonial ~ dist_to_seep_m))
+```
+```{r}
+longMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Morphology, color = Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  facet_wrap(~Morphology, scales = "free") +
+  labs(title = "Morphologies, Algae only", x = "Distance to seep (m)", y = "% Cover of Morphological Group", color = "Morphology")
+summary(lm(data = algae_morph_cover %>% left_join(structure), `Branched Foliose` ~ dist_to_seep_m)) # ** increases near seep
+summary(lm(data = algae_morph_cover %>% left_join(structure), Vesiculate ~ dist_to_seep_m)) # ** decreases near seep
+
+longSecMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Secondary_Morphology, color = Secondary_Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T, forumula = y ~ poly(x,4)) +
+  theme_bw() + theme(panel.grid = element_blank(),
+                     legend.position = "none") +
+  facet_wrap(~Secondary_Morphology, scales = "free") +
+  labs(title = "Secondary Morphologies, Algae only", x = "Distance to seep (m)", y = "% Cover of Morphological Group", color = "Morphology")
+summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), `Cushion-like` ~ dist_to_seep_m)) # ** decreases near seep
+summary(lm(data = algae_secondary_morph_cover %>% left_join(structure), Foliose ~ dist_to_seep_m)) # ** increases near seep
+
+# Filamentous turf only
+turf_cover <- full_cover %>% 
+  filter(Taxon_Group == "Chlorophyta" | Taxon_Group == "Phaeophyta" | Taxon_Group == "Rhodophyta" | Taxon_Group == "Turf" | Taxon_Group == "CCA") %>% 
+  group_by(CowTagID, Morphology) %>% 
+  summarise(cover = sum(cover)) %>% 
+  pivot_wider(names_from = Morphology, values_from = cover) %>% 
+  mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
+  ungroup() %>% 
+  left_join(structure) %>% 
+  select(CowTagID, Filamentous, dist_to_seep_m)
+turf_cover %>% 
+  ggplot(aes(x = dist_to_seep_m, y = Filamentous)) +
+  geom_point(color = "pink3") +
+  geom_smooth(method = "lm", formula = y ~ poly(x, 2), color = "pink3") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(y = "% Cover Filamentous Morphology (Turf)", x = "Distance to seep (m)")
+summary(lm(data = turf_cover, Filamentous ~ poly(dist_to_seep_m, 2))) # * unimodal turf relationship
+
+longMorph %>% 
+  ggplot(aes(x = dist_to_seep_m, y = cover, group = Morphology, color = Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T, formula = y ~ poly(x,2)) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  facet_wrap(~Morphology, scales = "free") +
+  labs(title = "Morphologies, Algae only (polynomial fit)", x = "Distance to seep (m)", y = "% Cover of Morphological Group", color = "Morphology")
+summary(lm(data = algae_morph_cover %>% left_join(structure), Filamentous ~ dist_to_seep_m)) # no signif
+summary(lm(data = algae_morph_cover %>% left_join(structure), Filamentous ~ poly(dist_to_seep_m, 2))) # 0.02 * unimodal turf relationship
+
+summary(lm(data = algae_morph_cover %>% left_join(structure), `Branched Foliose` ~ dist_to_seep_m)) # 0.001 ** 
+summary(lm(data = algae_morph_cover %>% left_join(structure), `Branched Foliose` ~ poly(dist_to_seep_m, 2))) # 4.5e-7 *** logarithmic
+
+summary(lm(data = algae_morph_cover %>% left_join(structure), Encrusting ~ dist_to_seep_m)) # no signif
+summary(lm(data = algae_morph_cover %>% left_join(structure), Encrusting ~ poly(dist_to_seep_m, 2))) # no signif
 
 ```
 
 
+
+### percent cover breakdown
+```{r}
+# ALL TAXON
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology,SpeciesCounts) %>% 
+  filter(Taxon_Group == "Chlorophyta") %>% 
+  group_by(CowTagID, Taxon_Group) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Taxon_Group) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Taxon_Group, scales = "free") +
+  labs(title = "Taxonomic Groups, full community", x = "CowTagID (increasing distance to seep", y = "% Cover")
+
+# FULL COMMUNITY MORPHOLOGIES
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Morphology == "Branched Foliose") %>% 
+  group_by(CowTagID, Morphology) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Morphology) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Morphology, scales = "free") +
+  labs(title = "Full Community Morphologies", x = "CowTagID (increasing distance to seep", y = "% Cover")
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Morphology == "Vesiculate") %>% 
+  group_by(CowTagID, Morphology) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Morphology) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Morphology, scales = "free") +
+  labs(title = "Full Community Morphologies", x = "CowTagID (increasing distance to seep", y = "% Cover")
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Morphology == "Encrusting") %>% 
+  group_by(CowTagID, Morphology) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Morphology) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Morphology, scales = "free") +
+  labs(title = "Full Community Morphologies", x = "CowTagID (increasing distance to seep", y = "% Cover")
+
+
+# FULL COMMUNITY SECONDARY MORPHOLOGIES
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Secondary_Morphology == "Foliose") %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Secondary_Morphology) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Secondary_Morphology, scales = "free") +
+  labs(title = "Full Community Secondary Morphologies", x = "CowTagID (increasing distance to seep", y = "% Cover")
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Secondary_Morphology == "Cushion-like") %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Secondary_Morphology) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Secondary_Morphology, scales = "free") +
+  labs(title = "Full Community Secondary Morphologies", x = "CowTagID (increasing distance to seep", y = "% Cover")
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Secondary_Morphology == "Encrusting") %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Secondary_Morphology) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Secondary_Morphology, scales = "free") +
+  labs(title = "Full Community Secondary Morphologies", x = "CowTagID (increasing distance to seep", y = "% Cover")
+
+
+# ENCRUSTING MORPH CORAL
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology,SpeciesCounts) %>% 
+  filter(Taxon_Group == "Coral") %>% 
+  filter(Morphology == "Encrusting") %>% 
+  group_by(CowTagID) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  labs(title = "Encrusting Coral", x = "CowTagID (increasing distance to seep", y = "% Cover")
+
+# ENCRUSTING SECONDARY MORPH CORAL
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology,SpeciesCounts) %>% 
+  filter(Taxon_Group == "Coral") %>% 
+  filter(Secondary_Morphology == "Encrusting") %>% 
+  group_by(CowTagID) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  labs(title = "Encrusting Coral, Secondary Morphology", x = "CowTagID (increasing distance to seep", y = "% Cover")
+
+# ALGAE MORPHOLOGIES
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Taxon_Group == "Chlorophyta" | Taxon_Group == "Phaeophyta" | Taxon_Group == "Rhodophyta" | Taxon_Group == "Turf" | Taxon_Group == "CCA") %>% 
+  filter(Morphology == "Branched Foliose" | Morphology == "Vesiculate") %>% 
+  group_by(CowTagID, Morphology) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Morphology) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Morphology, scales = "free") +
+  labs(title = "Algae Morphologies", x = "CowTagID (increasing distance to seep", y = "% Cover")
+
+
+# ALGAE SECONDARY MORPHOLOGIES
+full_cover %>% 
+  select(CowTagID, Taxa, Taxon_Group, Morphology, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Taxon_Group == "Chlorophyta" | Taxon_Group == "Phaeophyta" | Taxon_Group == "Rhodophyta" | Taxon_Group == "Turf" | Taxon_Group == "CCA") %>% 
+  filter(Secondary_Morphology == "Foliose" | Secondary_Morphology == "Cushion-like") %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  mutate(total = sum(SpeciesCounts)) %>% 
+  group_by(CowTagID, Taxa, Secondary_Morphology) %>% 
+  summarise(cover = SpeciesCounts / total * 100) %>% 
+  left_join(structure) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = cover, fill = Taxa)) +
+  geom_col(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank()) + 
+  facet_wrap(~Secondary_Morphology, scales = "free") +
+  labs(title = "Algae Secondary Morphologies", x = "CowTagID (increasing distance to seep", y = "% Cover")
+```
+
+
+
+
 Presence - Absence
 ```{r}
-# PRESENCE - ABSENCE
-PA <- full_comp %>% 
+# Taxon Groups
+PA_taxon <- full_comp %>% 
   distinct(CowTagID, Taxon_Group) %>% 
   group_by(CowTagID) %>% 
   count(Taxon_Group) %>% 
   ungroup() %>% 
   pivot_wider(names_from = Taxon_Group, values_from = n) %>%  # extend out to establish NAs
-  pivot_longer(names_to = "Taxon_Group", values_to = "Presence", cols = 2:11) %>%  #long form to turn NAs into 0's for absence
+  pivot_longer(names_to = "Taxon_Group", values_to = "Presence", cols = 2:ncol(.)) %>%  #long form to turn NAs into 0's for absence
   mutate(Presence = if_else(is.na(Presence), 0, 1)) %>%  # presence-absence of species per CowTagID
   left_join(chem)
 
@@ -248,6 +908,67 @@ full_comp %>%
   geom_bar(position = "dodge") +
   facet_wrap(~CowTagID) +
   theme(axis.text.x = element_text(angle = 90))
+
+full_comp %>% 
+  distinct(CowTagID, Taxon_Group) %>% 
+  left_join(chem) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), fill = Taxon_Group)) +
+  geom_bar(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+# morphology
+PA_morph <- full_comp %>% 
+  distinct(CowTagID, Morphology) %>% 
+  group_by(CowTagID) %>% 
+  count(Morphology) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = Morphology, values_from = n) %>%  # extend out to establish NAs
+  pivot_longer(names_to = "Morphology", values_to = "Presence", cols = 2:ncol(.)) %>%  #long form to turn NAs into 0's for absence
+  mutate(Presence = if_else(is.na(Presence), 0, 1)) %>%  # presence-absence of species per CowTagID
+  left_join(chem)
+
+full_comp %>% 
+  distinct(CowTagID, Morphology) %>% 
+  ggplot(aes(x = Morphology, fill = Morphology)) +
+  geom_bar(position = "dodge") +
+  facet_wrap(~CowTagID) +
+  theme(axis.text.x = element_text(angle = 90))
+
+full_comp %>% 
+  distinct(CowTagID, Morphology) %>% 
+  left_join(chem) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), fill = Morphology)) +
+  geom_bar(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+full_comp %>% 
+  distinct(CowTagID, Secondary_Morphology) %>% 
+  left_join(chem) %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), fill = Secondary_Morphology)) +
+  geom_bar(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+# corals vs algae
+full_comp %>% 
+  filter(Taxon_Group == "Coral") %>% 
+  distinct(CowTagID, Secondary_Morphology) %>% 
+  full_join(chem) %>% filter(CowTagID != "V13") %>% 
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), fill = Secondary_Morphology)) +
+  geom_bar(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+full_comp %>% 
+  filter(Taxon_Group == "Chlorophyta" | Taxon_Group == "Phaeophyta" | Taxon_Group == "Rhodophyta" | Taxon_Group == "Turf" | Taxon_Group == "CCA") %>% 
+  distinct(CowTagID, Secondary_Morphology) %>% 
+  left_join(chem) %>%
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), fill = Secondary_Morphology)) +
+  geom_bar(position = "stack") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
 
 ```
 
@@ -259,26 +980,182 @@ full_comp %>%
 ### Functional traits change along SGD gradient
 
 
-Linear regression of categorical trait richness ~ SGD parameter
+Linear regression of categorical trait richness ~ SGD parameter  
+
+Species Richness
 ```{r}
-full_trait_rich %>% 
-  ggplot(aes(x = del15N, y = Entity_Richness)) +
+# Species richness along SGD parameters
+species_rich %>% 
+  left_join(chem) %>% 
+  pivot_longer(cols = c(Salinity:meanRugosity), names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = species_richness)) +
   geom_point() +
-  geom_smooth(method = "lm")
+  geom_smooth(method = "lm") +
+  #geom_text_repel(aes(label = CowTagID)) +
+  facet_wrap(~Parameters, scales = "free")
 
-summary(lm(Entity_Richness ~ del15N, data = full_trait_rich))
+summary(lm(species_richness ~ VisibleHumidic_Like, data = species_rich %>% left_join(chem)))
+summary(lm(species_richness ~ Ammonia_umolL, data = species_rich %>% left_join(chem)))
+summary(lm(species_richness ~ dist_to_seep_m, data = species_rich %>% left_join(chem)))
+```
+
+Functional Richness
+
+ALL TAXA
+```{r}
+# order cowtagid's by SGD parameter
+full_comp$CowTagID <- order(data = full_comp %>% left_join(chem), param = dist_to_seep_m, by = CowTagID)$CowTagID
+
+# all morphs
+full_comp %>% 
+  left_join(species) %>% 
+  select(CowTagID, Morphology, SpeciesCounts) %>% 
+  group_by(CowTagID, Morphology) %>% 
+  mutate(traitCounts = sum(SpeciesCounts)) %>% 
+  ungroup() %>% 
+  select(-SpeciesCounts) %>% 
+  distinct() %>% 
+  group_by(CowTagID) %>% 
+  mutate(totalCounts = sum(traitCounts),
+         morph_cover = traitCounts / totalCounts * 100) %>% 
+  left_join(structure) %>% 
+  # plotting
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = morph_cover, fill = Morphology)) + geom_col() +
+  scale_fill_manual(values = midpalette)
+  # ggplot(aes(x = dist_to_seep_m, y = morph_cover)) +
+  # geom_point() +
+  # facet_wrap(~Morphology, scales = "free_y")
+
+full_comp %>% 
+  left_join(species) %>% 
+  select(CowTagID, Secondary_Morphology, SpeciesCounts) %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  mutate(traitCounts = sum(SpeciesCounts)) %>% 
+  ungroup() %>% 
+  select(-SpeciesCounts) %>% 
+  distinct() %>% 
+  group_by(CowTagID) %>% 
+  mutate(totalCounts = sum(traitCounts),
+         morph_cover = traitCounts / totalCounts * 100) %>% 
+  left_join(structure) %>% 
+  # plotting
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = morph_cover, fill = Secondary_Morphology)) + geom_col() +
+  scale_fill_manual(values = midpalette)
+  # ggplot(aes(x = dist_to_seep_m, y = morph_cover)) +
+  # geom_point() +
+  # facet_wrap(~Secondary_Morphology, scales = "free_y")
+```
+
+CORALS ONLY
+```{r}
+# corals
+full_comp %>% 
+  left_join(species) %>% 
+  select(CowTagID, Taxon_Group, Morphology) %>% 
+  filter(Taxon_Group == "Coral") %>% 
+  distinct() %>% 
+  group_by(CowTagID) %>% 
+  count(Morphology) %>% 
+  summarise(morph_richness = sum(n)) %>% 
+  left_join(chem) %>% 
+  mutate(CowTagID = as_factor(CowTagID)) %>% 
+  # plotting
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = morph_richness)) +
+  geom_col() +
+  theme_bw()
 
 
+full_comp %>% 
+  left_join(species) %>% 
+  select(CowTagID, Taxon_Group, Morphology, SpeciesCounts) %>% 
+  filter(Taxon_Group == "Coral") %>% 
+  group_by(CowTagID, Morphology) %>% 
+  mutate(traitCounts = sum(SpeciesCounts)) %>% 
+  ungroup() %>% 
+  select(-SpeciesCounts) %>% 
+  distinct() %>% 
+  group_by(CowTagID) %>% 
+  mutate(totalCounts = sum(traitCounts),
+         morph_cover = traitCounts / totalCounts * 100) %>% 
+  left_join(structure) %>% 
+  # plotting
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = morph_cover, fill = Morphology)) + geom_col() +
+  scale_fill_manual(values = midpalette)
+  # ggplot(aes(x = dist_to_seep_m, y = morph_cover)) +
+  # geom_point() +
+  # facet_wrap(~Morphology, scales = "free_y")
 
-secondary_trait_rich %>% 
-  ggplot(aes(x = del15N, y = Entity_Richness)) +
-  geom_point() +
-  geom_smooth(method = "lm")
+full_comp %>% 
+  left_join(species) %>% 
+  select(CowTagID, Taxon_Group, Secondary_Morphology, SpeciesCounts) %>% 
+  filter(Taxon_Group == "Coral") %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  mutate(traitCounts = sum(SpeciesCounts)) %>% 
+  ungroup() %>% 
+  select(-SpeciesCounts) %>% 
+  distinct() %>% 
+  group_by(CowTagID) %>% 
+  mutate(totalCounts = sum(traitCounts),
+         morph_cover = traitCounts / totalCounts * 100) %>% 
+  left_join(structure) %>% 
+  # plotting
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = morph_cover, fill = Secondary_Morphology)) + geom_col() +
+  scale_fill_manual(values = mypalette)
+  # ggplot(aes(x = dist_to_seep_m, y = morph_cover)) +
+  # geom_point() +
+  # facet_wrap(~Secondary_Morphology, scales = "free_y")
+```
 
-summary(lm(Entity_Richness ~ del15N, data = secondary_trait_rich))
 
+ALGAE ONLY
+```{r}
+# algae
+not_algae <- full_comp %>% 
+  select(Taxon_Group) %>% 
+  distinct() %>% 
+  filter(Taxon_Group == "Coral" |
+          Taxon_Group == "Demospongiae" |
+          Taxon_Group == "Anemone" |
+          Taxon_Group == "Corallimorph")
+full_comp %>% 
+  left_join(species) %>% 
+  select(CowTagID, Taxon_Group, Morphology, SpeciesCounts) %>% 
+  anti_join(not_algae) %>% 
+  group_by(CowTagID, Morphology) %>% 
+  mutate(traitCounts = sum(SpeciesCounts)) %>% 
+  ungroup() %>% 
+  select(-SpeciesCounts) %>% 
+  distinct() %>% 
+  group_by(CowTagID) %>% 
+  mutate(totalCounts = sum(traitCounts),
+         morph_cover = traitCounts / totalCounts * 100) %>% 
+  left_join(structure) %>% 
+  # plotting
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = morph_cover, fill = Morphology)) + geom_col() +
+  scale_fill_manual(values = midpalette)
+  # ggplot(aes(x = dist_to_seep_m, y = morph_cover)) +
+  # geom_point() +
+  # facet_wrap(~Morphology, scales = "free_y")
 
-
+full_comp %>% 
+  left_join(species) %>% 
+  select(CowTagID, Taxon_Group, Secondary_Morphology, SpeciesCounts) %>% 
+  anti_join(not_algae) %>% 
+  group_by(CowTagID, Secondary_Morphology) %>% 
+  mutate(traitCounts = sum(SpeciesCounts)) %>% 
+  ungroup() %>% 
+  select(-SpeciesCounts) %>% 
+  distinct() %>% 
+  group_by(CowTagID) %>% 
+  mutate(totalCounts = sum(traitCounts),
+         morph_cover = traitCounts / totalCounts * 100) %>% 
+  left_join(structure) %>% 
+  # plotting
+  ggplot(aes(x = fct_reorder(CowTagID, dist_to_seep_m), y = morph_cover, fill = Secondary_Morphology)) + geom_col() +
+  scale_fill_manual(values = midpalette)
+  # ggplot(aes(x = dist_to_seep_m, y = morph_cover)) +
+  # geom_point() +
+  # facet_wrap(~Secondary_Morphology, scales = "free_y")
 ```
 
 ```{r}
@@ -300,7 +1177,7 @@ long_rich_counts %>%
 anova(lm(Genus ~ del15N, data = trait_richness))
 anova(lm(Life_Span ~ del15N, data = trait_richness))
 anova(lm(Morphology ~ del15N, data = trait_richness))
-anova(lm(MS_cat ~ del15N, data = trait_richness))
+anova(lm(MS_cat ~ del15N, data = trait_richness)) # * 
 anova(lm(Taxa ~ del15N, data = trait_richness))
 
 
@@ -313,40 +1190,153 @@ anova(lm(Taxa ~ del15N, data = trait_richness))
 ### Relationship of species richness and functional richness change along SGD gradient
 
 
-- linear regression of species richness ~ functional richness
+Ratios of Functional Trait to Species Richness
 
-
-#### Visualization and Analysis
+Subset of Trait Groups
 ```{r}
-trait_richness %>% 
-  pivot_longer(cols = Taxon_Group:Feeding_Mode, names_to = "Traits", values_to = "Richness") %>% 
-  ggplot(aes(x = Taxa, y = Richness)) +
+full_rich <- trait_richness %>% 
+  left_join(species_rich)
+
+# TAXON GROUPS ONLY
+trait_rich <- full_rich %>% 
+  select(CowTagID, Taxon_Group) %>% 
+  left_join(species_rich) %>% 
+  mutate(T_S = Taxon_Group / species_richness) # calculate ratio of traits to species
+trait_rich %>% 
+  ggplot(aes(x = species_richness, y = Taxon_Group)) +
   geom_point() +
   geom_smooth(method = "lm") +
-  facet_wrap(~Traits, scales = "free_y") +
-  labs(x = "Species Richness")
-
-# all other trait categories significant except Life_Span
-summary(lm(Life_Span ~ Taxa, data = trait_richness))
-
-
-## compare species richness to functional entity richness
-trait_richness %>% 
-  select(CowTagID, Taxa) %>% 
-  full_join(full_trait_rich) %>% 
-  ggplot(aes(x = Taxa, y = Entity_Richness)) +
+  geom_text_repel(aes(label = CowTagID))
+chem_rich <- trait_rich %>%  # join biogeochemical data
+  left_join(waterchem)
+chem_rich %>% 
+  pivot_longer(-c(CowTagID:T_S), names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = T_S)) +
   geom_point() +
-  geom_smooth(method = "lm")
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free") +
+  labs(title = "Ratio of Taxonomic Groups:Species richness by SGD parameter")
+# chem_rich %>% 
+#   pivot_longer(-c(CowTagID:T_S), names_to = "Parameters", values_to = "Values") %>% 
+#   ggplot(aes(y = Values, x = as_factor(Taxon_Group))) +
+#   geom_boxplot() +
+#   geom_jitter() +
+#   facet_wrap(~Parameters, scales = "free")
+anova(lm(data = chem_rich, Silicate_umolL ~ T_S))
+anova(lm(data = chem_rich, M_C ~ T_S)) # *
+anova(lm(data = chem_rich, Ammonia_umolL ~ T_S)) # .
+anova(lm(data = chem_rich, del15N ~ T_S))
 
 
-trait_richness %>% 
-  select(CowTagID, Taxa) %>% 
-  full_join(secondary_trait_rich) %>% 
-  ggplot(aes(x = Taxa, y = Entity_Richness)) +
+# PRIMARY MORPHOLOGIES ONLY
+trait_rich <- full_rich %>% 
+  select(CowTagID, Morphology) %>% 
+  left_join(species_rich) %>% 
+  mutate(T_S = Morphology / species_richness) # calculate ratio of traits to species
+trait_rich %>% 
+  ggplot(aes(x = species_richness, y = Morphology)) +
   geom_point() +
-  geom_smooth(method = "lm")
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = CowTagID))
+chem_rich <- trait_rich %>%  # join biogeochemical data
+  left_join(waterchem)
+chem_rich %>% 
+  pivot_longer(-c(CowTagID:T_S), names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = T_S)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free") +
+  labs(title = "Ratio of Morphological Traits:Species richness by SGD parameter")
+
+anova(lm(data = chem_rich, Silicate_umolL ~ T_S))
+anova(lm(data = chem_rich, Ammonia_umolL ~ T_S)) # *
+anova(lm(data = chem_rich, del15N ~ T_S)) 
+anova(lm(data = chem_rich, M_C ~ T_S)) # *
 
 
+# SECONDARY MORPHOLOGIES ONLY
+trait_rich <- full_rich %>% 
+  select(CowTagID, Secondary_Morphology) %>% 
+  left_join(species_rich) %>% 
+  mutate(T_S = Secondary_Morphology / species_richness) # calculate ratio of traits to species
+trait_rich %>% 
+  ggplot(aes(x = species_richness, y = Secondary_Morphology)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = CowTagID))
+chem_rich <- trait_rich %>%  # join biogeochemical data
+  left_join(waterchem)
+chem_rich %>% 
+  pivot_longer(-c(CowTagID:T_S), names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = T_S)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free") +
+  labs(title = "Ratio of Secondary Morphological Traits:Species richness by SGD parameter")
+
+anova(lm(data = chem_rich, Silicate_umolL ~ T_S))
+anova(lm(data = chem_rich, Ammonia_umolL ~ T_S))
+anova(lm(data = chem_rich, del15N ~ T_S))
+anova(lm(data = chem_rich, VisibleHumidic_Like ~ T_S))
+
+```
+
+
+FULL ENTITIES with PRIMARY MORPHOLOGIES
+```{r}
+entity_rich <- full_trait_rich %>%  # full_trait_rich or secondary_trait_rich
+  select(CowTagID, entity_richness) %>% 
+  left_join(species_rich) %>% 
+  mutate(T_S = entity_richness / species_richness) # calculate ratio of traits to species
+
+entity_rich %>% 
+  ggplot(aes(x = species_richness, y = entity_richness)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = CowTagID)) +
+  labs(title = "Functional entity richness to species richness")
+summary(lm(data = entity_rich, entity_richness ~ species_richness))
+
+chem_entity_rich <- entity_rich %>% 
+  left_join(waterchem)
+
+chem_entity_rich %>% 
+  pivot_longer(-c(CowTagID:T_S), names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = T_S)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free") +
+  labs(title = "Ratio of Functional Entity:Species richness by SGD parameter")
+# no significant relationships
+
+```
+
+FULL ENTITIES with SECONDARY MORPHOLOGIES
+```{r}
+entity_rich <- secondary_trait_rich %>%  # full_trait_rich or secondary_trait_rich
+  select(CowTagID, entity_richness) %>% 
+  left_join(species_rich) %>% 
+  mutate(T_S = entity_richness / species_richness) # calculate ratio of traits to species
+
+entity_rich %>% 
+  ggplot(aes(x = species_richness, y = entity_richness)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = CowTagID))
+summary(lm(data = entity_rich, entity_richness ~ species_richness))
+
+chem_entity_rich <- entity_rich %>% 
+  left_join(waterchem)
+
+chem_entity_rich %>% 
+  pivot_longer(-c(CowTagID:T_S), names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = T_S)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free") +
+  labs(title = "Ratio of Functional Entity (secondary morphology):Species richness by SGD parameter")
+
+summary(lm(data = chem_entity_rich, T_S ~ Temperature)) # *
 ```
 
 
@@ -354,136 +1344,475 @@ trait_richness %>%
 # Hypothesis 3:
 ### Functional identities change along SGD gradient
 
-Presence and Absence of traits
-```{r}
-# order by SGD
-full_comp_envi <- full_comp %>% 
-  left_join(chem)
-full_comp_envi$CowTagID <- order(data = full_comp_envi, param = N_percent, by = CowTagID)$CowTagID
 
-# Categorical Trais in SGD gradient
-full_comp_envi %>% 
-  select(CowTagID, Taxa) %>% 
-  ggplot(aes(x = CowTagID, fill = Taxa)) +
-  geom_bar()
-
-full_comp_envi %>% 
-  select(CowTagID, Taxon_Group) %>% 
-  ggplot(aes(x = CowTagID, fill = Taxon_Group)) +
-  geom_bar()
-
-full_comp_envi %>% 
-  select(CowTagID, Morphology) %>% 
-  ggplot(aes(x = CowTagID, fill = Morphology)) +
-  geom_bar()
-
-full_comp_envi %>% 
-  select(CowTagID, Secondary_Morphology) %>% 
-  ggplot(aes(x = CowTagID, fill = Secondary_Morphology)) +
-  geom_bar()
-
-
-# PRESENCE ABSENCE
-full_comp %>% 
-  distinct(CowTagID, Taxon_Group) %>% 
-  ggplot(aes(x = Taxon_Group, fill = Taxon_Group)) +
-  geom_bar(position = "dodge") +
-  facet_wrap(~CowTagID)
-
-full_comp %>% 
-  distinct(CowTagID, Taxon_Group) %>% 
-  group_by(CowTagID) %>% 
-  count(Taxon_Group) %>% 
-  ungroup() %>% 
-  pivot_wider(names_from = Taxon_Group, values_from = n) %>%  # extend out to establish NAs
-  pivot_longer(names_to = "Taxon_Group", values_to = "Presence", cols = 2:11) %>%  #long form to turn NAs into 0's for absence
-  mutate(Presence = if_else(is.na(Presence), 0, 1)) %>%  # presence-absence of species per CowTagID
-  left_join(envi) %>% 
-  ggplot(aes(x = del15N, y = Taxon_Group)) +
-  geom_col()
-
-  
-```
-
-
-nMDS
+## nMDS
 ```{r}
 # set levels as numerical order of plates
 CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
 
-richPerm <- Full_data %>%
-  filter(CowTagID != "VSEEP",
+# all attributes from chem
+allChem <- colnames(chem) 
+```
+
+
+Sites by biogeochemical parameters
+```{r}
+# used figure to determine high vs low sgd sites for species selection for chapter 2
+perm1 <- chem %>% 
+  select(-c(del15N:N_percent)) %>% 
+  left_join(envi) %>% 
+  filter(Location == "Varari",
+         CowTagID != "VSEEP",
          CowTagID != "V13") %>% 
- select(CowTagID, Salinity:N_percent, dist_to_seep_m:meanRugosity)
-richPerm$CowTagID <- factor(richPerm$CowTagID, levels = CTlevels)
-richPerm <- richPerm %>% 
-  arrange(CowTagID) %>% # arrange data in order of CowTagID for ordination plot later
+  mutate(dist_to_seep_m = if_else(CowTagID == "V13", dist_to_seep_m*-1, dist_to_seep_m)) %>% 
+  select(CowTagID, Salinity, Silicate_umolL, Temperature, pH, Ammonia_umolL,VisibleHumidic_Like, del15N, N_percent, dist_to_seep_m)
+  #select(-c(Location, lat, lon, C_N, LiveCoral:Sand, Dist_CT_cm, Depth_cm, Tidal_diff, adj_CT_depth_cm))
+
+# arrange data in order of CowTagID for ordination plot later
+perm1$CowTagID <- factor(perm1$CowTagID, levels = CTlevels)
+perm1 <- perm1 %>% 
+  arrange(CowTagID) %>% 
+  ungroup() %>% 
   select(-CowTagID)
 
-richOrd <- metaMDS(richPerm, k=2, distance='bray') 
+ord1 <- metaMDS(perm1, k=2, distance='bray') 
 
 # stress with k=2 dimensions. Is it < 0.3? 
-richOrd$stress
+ord1$stress
 
 # stress plot - want to minimize scatter
-stressplot(richOrd)
+stressplot(ord1)
 
-# get points for site characteristics
-richRow <- rownames(richOrd$species) # get characteristic names
+param_mds <- nMDS_species(ord1)
+param_mds_cat <- nMDS_points(ord1, chem, allChem)
+# provide educated guesses to relative sgd level to test hypothesis for grouping
+param_mds_cat <- param_mds_cat %>% 
+  mutate(relSGD = if_else(CowTagID == "V1"|CowTagID == "V2"|CowTagID == "V3"|CowTagID == "V4"|CowTagID == "V16", "Low SGD",
+                   if_else(CowTagID == "V14"|CowTagID == "V17"|CowTagID == "V18"|CowTagID == "V11"|CowTagID == "V15", "High SGD", "Moderate SGD")))
 
-# with substrate
-# richMDS1 <- c(richOrd$species[1:23]) # MDS1 for characteristics
-# richMDS2 <- c(richOrd$species[24:46]) # MDS2 for characteristics
-
-# without substrate
-richMDS1 <- c(richOrd$species[1:19]) # MDS1 for characteristics
-richMDS2 <- c(richOrd$species[20:38]) # MDS2 for characteristics
-
-richData <- as_tibble(cbind(richRow, richMDS1, richMDS2)) %>%  # bind all cols into tibble
-  mutate(richMDS1 = as.numeric(richMDS1), # as numeric 
-         richMDS2 = as.numeric(richMDS2))
-# get points for CowTagIDs
-richRowb <- as.character(CTlevels) # assign CowTagID names
-richMDS1b <- c(richOrd$points[1:19]) # MDS1 for CowTagID
-richMDS2b <- c(richOrd$points[20:38]) # MDS2 for CowTagID
-richDatab <- as_tibble(cbind(richRowb, richMDS1b, richMDS2b)) %>%  # bind all cols into tibble
-  mutate(richMDS1b = as.numeric(richMDS1b), # as numeric 
-         richMDS2b = as.numeric(richMDS2b))
-
-# plotting
-nMDSplot <- ggplot(data = richData, # sit characteristics
-       aes(x = richMDS1,
-           y = richMDS2)) +
-  geom_point(color = "red", shape = 2) +
-  geom_point(data = richDatab, # CowTagIDs
-             aes(x = richMDS1b,
-                 y = richMDS2b),
-             color = "black") +
-  geom_text_repel(data = richData, # site characteristics
-                  aes(x = richMDS1,
-                      y = richMDS2,
-                      label = richRow),
-                  size = 3) +
-  geom_text_repel(data = richDatab, # CowTagIDs
-                  aes(x = richMDS1b,
-                      y = richMDS2b,
-                      label = richRowb),
-                  size = 3) +
-  #coord_cartesian(xlim = c(-0.23, 0.25), ylim = c(-0.16, 0.09)) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
-
-nMDSplot
+# plot_nMDS(nMDSgroup = param_mds, nMDScowtag = param_mds_cat, param_fill = VisibleHumidic_Like) +
+#       geom_label_repel(data = param_mds_cat, # site characteristics
+#                   aes(x = MDS1b,
+#                       y = MDS2b,
+#                       label = CowTagID),
+#                   size = 5) +
+#   scale_color_gradient(low = "yellow", high = "red") # set color scale
 
 
+### POINTS ENCIRCLED AND COLORED BY RELATIVE SGD
+ggplot(data = param_mds_cat,
+       aes(x = MDS1b, y = MDS2b, color = relSGD))+
+  geom_point(size = 2) +
+  # geom_point(data = V_pca_Data_all %>% filter(Plate_Seep=="Seep"), aes(x = PC1, y = PC2,shape = Day_Night ), color = "black")+
+  coord_cartesian(xlim = c(-0.3, 0.3), ylim = c(-0.2, 0.2)) +
+  #scale_shape_manual(values = c(22,16))+
+  scale_colour_hue(l = 45)+
+  scale_fill_hue(l = 45)+
+  geom_hline(yintercept = 0, lty = 2)+
+  geom_vline(xintercept = 0, lty = 2)+
+  ggforce::geom_mark_ellipse(
+    aes(fill = relSGD, label = relSGD, color = relSGD), 
+    alpha = .15, show.legend = FALSE,  label.buffer = unit(1, "mm"))+
+  labs(title = "Grouped by Relative SGD")+
+       #x = paste0("PC1 ","(",perc.explained_wet[1],"%)"),
+       #y = paste0("PC2 ","(",perc.explained_wet[2],"%)"))+
+  theme_bw()+
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16),
+        plot.title = element_text(hjust = 0.5, size = 18))
+
+permanovamodel<-adonis2(param_mds_cat %>% select(CowTagID, Salinity, Silicate_umolL, Temperature, pH, Ammonia_umolL,VisibleHumidic_Like, del15N, N_percent, dist_to_seep_m)~dist_to_seep_m, speciesPermFull, permutations = 999, 
+                       method="bray") 
+permanovamodel
 
 
 ```
 
 
 
+All Traits
+```{r}
+# all traits
+perm1 <- wide_cover
+
+# arrange data in order of CowTagID for ordination plot later
+perm1$CowTagID <- factor(perm1$CowTagID, levels = CTlevels)
+perm1 <- perm1 %>% 
+  arrange(CowTagID) %>% 
+  ungroup() %>% 
+  select(-CowTagID)
+
+ord1 <- metaMDS(perm1, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+ord1$stress
+
+# stress plot - want to minimize scatter
+stressplot(ord1)
+
+all_mds <- nMDS_species(ord1)
+all_mds_cat <- nMDS_points(ord1, chem, allChem)
+plot_nMDS(nMDSgroup = all_mds, nMDScowtag = all_mds_cat, param_fill = Silicate_umolL) +
+  scale_color_gradient(low = "yellow", high = "red") # set color scale
+```
+
+Morphology only
+```{r}
+# select morpho traits
+perm2 <- wide_cover %>%
+  select(CowTagID,`Branched Erect`:Mushroom)
+#perm2 %>% group_by(CowTagID) %>% mutate(cover = sum(2:ncol(perm2)))
+
+# arrange data in order of CowTagID for ordination plot later
+perm2$CowTagID <- factor(perm2$CowTagID, levels = CTlevels)
+perm2 <- perm2 %>% 
+  arrange(CowTagID) %>% 
+  ungroup() %>% 
+  select(-CowTagID)
+
+ord2 <- metaMDS(perm2, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+ord2$stress
+
+# stress plot - want to minimize scatter
+stressplot(ord2)
+
+# morphology only nMDS
+morph_mds <- nMDS_species(ord2)
+morph_mds_cat <- nMDS_points(ord2, chem, allChem)
+plot_nMDS(nMDSgroup = morph_mds, nMDScowtag = morph_mds_cat, param_fill = dist_to_seep_m) +
+  scale_color_gradient(low = "yellow", high = "red") # set color scale
+```
+
+need to edit
+```{r, eval = F}
+# extract parameters for the PCA, excluding CT depth
+pca_fulldata <- perm2 %>% 
+  left_join(chem) %>% 
+  select(Salinity, Temperature, pH, 
+         Phosphate_umolL, Silicate_umolL, NN_umolL, Ammonia_umolL,
+         M_C, HIX, VisibleHumidic_Like, Tryptophan_Like, Tyrosine_Like
+         #del15N, C_N, N_percent,  remove because of mean values
+         #meanRugosity
+         ) # removed TA, substrate, distance to seep, and CT depth, and rugosity
+
+# Run the PCA
+pca_full <- prcomp(pca_fulldata, scale. = TRUE, center = TRUE)
+
+# Proportion of variance
+summary(pca_full)
+# PC1: 24.97 %
+# PC2: 19.68 %
+
+# Extract the scores and loadings
+PC_scores_full <-as_tibble(pca_full$x[,1:2]) # scores for each sample location
+PC_loadings_full<-as_tibble(pca_full$rotation) %>% # loadings for each parameter
+  bind_cols(labels = rownames(pca_full$rotation))
+
+# Put it with all the original data
+pca_fulldata_all<-Full_data %>% 
+  bind_cols(PC_scores_full)
+
+p1_full <- pca_fulldata_all %>%
+  ggplot(aes(x = PC1, 
+             y = PC2))+
+  geom_point(shape = 21,
+             color = "white",
+             fill = "white",
+             size = 3) +
+  geom_text_repel(aes(label = CowTagID)) +
+  scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  scale_fill_hue(l = 45)+ 
+  theme_bw()+
+  theme(legend.position = "none", 
+        panel.background = element_rect(fill = pretty_palette[3]),  
+        panel.grid = element_blank()) +
+  labs(title = "Varari Scores Plot (CV Values)",
+       x = "PC1 - 25.0%", y = "PC2 - 19.7%")
+
+p1_full
+```
+
+Taxon - Morphology
+```{r}
+# select morpho traits
+perm3 <- wide_taxon_morph
+perm3 <- wide_cover %>% 
+  select(CowTagID:Mushroom)
+
+# arrange data in order of CowTagID for ordination plot later
+perm3$CowTagID <- factor(perm3$CowTagID, levels = CTlevels)
+perm3 <- perm3 %>% 
+  arrange(CowTagID) %>% 
+  ungroup() %>% 
+  select(-CowTagID)
+
+ord3 <- metaMDS(perm3, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+ord3$stress
+
+# stress plot - want to minimize scatter
+stressplot(ord3)
+
+# morphology only nMDS
+morph_mds <- nMDS_species(ord3)
+morph_mds_cat <- nMDS_points(ord3, chem, allChem)
+plot_nMDS(nMDSgroup = morph_mds, nMDScowtag = morph_mds_cat, param_fill = Silicate_umolL) +
+  scale_color_gradient(low = "yellow", high = "red") # set color scale
+```
 
 
+Presence-Absence: Taxon groups
+```{r}
+# select morpho traits
+perm4 <- PA_taxon %>% 
+  select(CowTagID:Presence) %>% 
+  pivot_wider(names_from = Taxon_Group, values_from = Presence)
+
+# arrange data in order of CowTagID for ordination plot later
+perm4$CowTagID <- factor(perm4$CowTagID, levels = CTlevels)
+perm4 <- perm4 %>% 
+  arrange(CowTagID) %>% 
+  ungroup() %>% 
+  select(-CowTagID)
+
+ord4 <- metaMDS(perm4, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+ord4$stress
+
+# stress plot - want to minimize scatter
+stressplot(ord4)
+
+# morphology only nMDS
+PAtax_mds <- nMDS_species(ord4)
+PAtax_mds_cat <- nMDS_points(ord4, chem, allChem)
+plot_nMDS(nMDSgroup = PAtax_mds, nMDScowtag = PAtax_mds_cat, param_fill = Silicate_umolL) +
+  scale_color_gradient(low = "yellow", high = "red") # set color scale
+```
+
+Presence-Absence: Morphology groups
+```{r}
+# select morpho traits
+perm5 <- PA_morph %>% 
+  select(CowTagID:Presence) %>% 
+  pivot_wider(names_from = Morphology, values_from = Presence)
+
+# arrange data in order of CowTagID for ordination plot later
+perm5$CowTagID <- factor(perm5$CowTagID, levels = CTlevels)
+perm5 <- perm5 %>% 
+  arrange(CowTagID) %>% 
+  ungroup() %>% 
+  select(-CowTagID)
+
+ord5 <- metaMDS(perm5, k=2, distance='bray') 
+
+# stress with k=2 dimensions. Is it < 0.3? 
+ord5$stress
+
+# stress plot - want to minimize scatter
+stressplot(ord5)
+
+# morphology only nMDS
+PAmorph_mds <- nMDS_species(ord5)
+PAmorph_mds_cat <- nMDS_points(ord5, chem, allChem)
+plot_nMDS(nMDSgroup = PAtax_mds, nMDScowtag = PAtax_mds_cat, param_fill = Silicate_umolL) +
+  scale_color_gradient(low = "yellow", high = "red") # set color scale
+```
+
+## Residuals (remove structure/substrate)
+
+Filamentous: residuals correlated with distance, p = 0.02
+```{r}
+algae_morph_cover %>% 
+  left_join(chem) %>% 
+  pivot_longer(cols = c(LiveCoral:meanRugosity), names_to = "Parameters", values_to = "Values") %>% 
+  select(CowTagID, Filamentous, Vesiculate, `Branched Foliose`, Parameters, Values) %>% 
+  ggplot(aes(x = Values, y = Filamentous, color = Parameters)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free")
+
+#fit model: linear relationship
+resMod <- lm(Filamentous ~ meanRugosity, data=algae_morph_cover %>% left_join(chem))
+
+#view model summary
+summary(resMod) # strong significance
+
+#calculate the standardized residuals
+res <- residuals(resMod)
+
+#column bind standardized residuals back to original data frame
+res_data <- algae_morph_cover %>% 
+  left_join(chem) %>% 
+  cbind(res) %>% 
+  relocate(res, .after = CowTagID)
+
+#plot predictor variable vs. standardized residuals
+rug_res_plot <- res_data %>% 
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method="lm", formula = y~poly(x,2)) +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (% Cover Filamentous Algae ~ Rugosity)",
+       x = "Distance to seep (m)")
+rug_res_plot
+summary(lm(data = res_data, res ~ poly(dist_to_seep_m,2)))
+summary(lm(data = res_data, res ~ dist_to_seep_m))
+```
+
+Vesiculate: residuals correlated to distance, p = 0.03
+```{r}
+algae_morph_cover %>% 
+  left_join(chem) %>% 
+  pivot_longer(cols = c(LiveCoral:meanRugosity), names_to = "Parameters", values_to = "Values") %>% 
+  select(CowTagID, Filamentous, Vesiculate, `Branched Foliose`, Parameters, Values) %>% 
+  ggplot(aes(x = Values, y = Vesiculate, color = Parameters)) +
+  geom_point() + 
+  geom_smooth(method = "lm", formula = y~poly(x,2)) +
+  facet_wrap(~Parameters, scales = "free")
+
+# algae_secondary_morph_cover %>% 
+#   left_join(chem) %>% 
+#   pivot_longer(cols = c(LiveCoral:meanRugosity), names_to = "Parameters", values_to = "Values") %>% 
+#   select(CowTagID, Filamentous, Foliose, `Cushion-like`, Parameters, Values)
+
+#fit model: polynomial regression
+resMod <- lm(Vesiculate ~ poly(meanRugosity,2), data=algae_morph_cover %>% left_join(chem))
+
+#view model summary
+summary(resMod) 
+
+#calculate the standardized residuals
+res <- residuals(resMod)
+
+#column bind standardized residuals back to original data frame
+res_data <- algae_morph_cover %>% 
+  left_join(chem) %>% 
+  cbind(res) %>% 
+  relocate(res, .after = CowTagID)
+
+#plot predictor variable vs. standardized residuals
+rug_res_plot <- res_data %>% 
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (% Cover Vsiculate Algae ~ Rugosity)",
+       x = "Distance to seep (m)")
+rug_res_plot
+summary(lm(data = res_data, res ~ dist_to_seep_m))
+```
+
+
+Branched Foliose: residuals correlated to distance, p = 0.007
+```{r}
+algae_morph_cover %>% 
+  left_join(chem) %>% 
+  pivot_longer(cols = c(LiveCoral:meanRugosity), names_to = "Parameters", values_to = "Values") %>% 
+  select(CowTagID, Filamentous, Vesiculate, `Branched Foliose`, Parameters, Values) %>% 
+  ggplot(aes(x = Values, y = `Branched Foliose`, color = Parameters)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  facet_wrap(~Parameters, scales = "free")
+
+# algae_secondary_morph_cover %>% 
+#   left_join(chem) %>% 
+#   pivot_longer(cols = c(LiveCoral:meanRugosity), names_to = "Parameters", values_to = "Values") %>% 
+#   select(CowTagID, Filamentous, Foliose, `Cushion-like`, Parameters, Values)
+
+#fit model: linear regression slightly better fit (p= 0.004 vs 0.006)
+# resMod <- lm(`Branched Foliose` ~ poly(meanRugosity,2), data=algae_morph_cover %>% left_join(chem))
+resMod <- lm(`Branched Foliose` ~ meanRugosity, data=algae_morph_cover %>% left_join(chem))
+
+#view model summary
+summary(resMod) 
+
+#calculate the standardized residuals
+res <- residuals(resMod)
+
+#column bind standardized residuals back to original data frame
+res_data <- algae_morph_cover %>% 
+  left_join(chem) %>% 
+  cbind(res) %>% 
+  relocate(res, .after = CowTagID)
+
+#plot predictor variable vs. standardized residuals
+rug_res_plot <- res_data %>% 
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (% Cover Branched Foliose Algae ~ Rugosity)",
+       x = "Distance to seep (m)")
+rug_res_plot
+summary(lm(data = res_data, res ~ dist_to_seep_m))
+```
+
+Cushion-like: residuals correlated to distance, p = 0.02
+```{r}
+# algae_morph_cover %>% 
+#   left_join(chem) %>% 
+#   pivot_longer(cols = c(LiveCoral:meanRugosity), names_to = "Parameters", values_to = "Values") %>% 
+#   select(CowTagID, Filamentous, Vesiculate, `Branched Foliose`, Parameters, Values) %>% 
+#   ggplot(aes(x = Values, y = `Branched Foliose`, color = Parameters)) +
+#   geom_point() + 
+#   geom_smooth(method = "lm", formula = y~poly(x,2)) +
+#   facet_wrap(~Parameters, scales = "free")
+
+algae_secondary_morph_cover %>%
+  left_join(chem) %>%
+  pivot_longer(cols = c(LiveCoral:meanRugosity), names_to = "Parameters", values_to = "Values") %>%
+  select(CowTagID, Filamentous, Foliose, `Cushion-like`, Parameters, Values) %>% 
+  ggplot(aes(x = Values, y = `Cushion-like`, color = Parameters)) +
+  geom_point() + 
+  geom_smooth(method = "lm", formula = y~poly(x,2)) +
+  facet_wrap(~Parameters, scales = "free")
+
+#fit model: linear regression slightly better fit (p= 0.004 vs 0.006)
+# resMod <- lm(`Branched Foliose` ~ poly(meanRugosity,2), data=algae_morph_cover %>% left_join(chem))
+resMod <- lm(`Cushion-like` ~ poly(meanRugosity,2), data=algae_secondary_morph_cover %>% left_join(chem))
+
+#view model summary
+summary(resMod) 
+
+#calculate the standardized residuals
+res <- residuals(resMod)
+
+#column bind standardized residuals back to original data frame
+res_data <- algae_secondary_morph_cover %>% 
+  left_join(chem) %>% 
+  cbind(res) %>% 
+  relocate(res, .after = CowTagID)
+
+#plot predictor variable vs. standardized residuals
+rug_res_plot <- res_data %>% 
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (% Cover Cushion-like Algae ~ Rugosity)",
+       x = "Distance to seep (m)")
+rug_res_plot
+summary(lm(data = res_data, res ~ dist_to_seep_m))
+```
 
 
 

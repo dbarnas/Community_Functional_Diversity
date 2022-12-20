@@ -637,7 +637,7 @@ VarariPCA <- p1_full + p1_full_loading +
                                                                      margin = margin(t = 10, b = 20,
                                                                                      unit = "pt"))))
 
-ggsave(plot = VarariPCA, filename = here("Output","VarariPCA_meta.png"), width = 14, height = 6)
+#(plot = VarariPCA, filename = here("Output","VarariPCA_meta.png"), width = 14, height = 6)
 VarariPCA
 ```
 
@@ -749,7 +749,7 @@ VarariPCA2 <- p1_full2 + p1_full_loading2 +
                                                                      margin = margin(t = 10, b = 20,
                                                                                      unit = "pt"))))
 
-ggsave(plot = VarariPCA2, filename = here("Output","VarariPCA_meta_noSubstrate.png"), width = 14, height = 6)
+#ggsave(plot = VarariPCA2, filename = here("Output","VarariPCA_meta_noSubstrate.png"), width = 14, height = 6)
 VarariPCA2
 ```
 
@@ -1294,7 +1294,7 @@ VarariPCA3 <- p1_full3 + p1_full_loading3 +
                                                                      margin = margin(t = 10, b = 20,
                                                                                      unit = "pt"))))
 
-ggsave(plot = VarariPCA3, filename = here("Output","VarariPCA_meta_residuals.png"), width = 14, height = 6)
+#ggsave(plot = VarariPCA3, filename = here("Output","VarariPCA_meta_residuals.png"), width = 14, height = 6)
 VarariPCA3
 ```
 
