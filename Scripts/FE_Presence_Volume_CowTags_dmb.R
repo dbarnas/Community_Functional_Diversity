@@ -15,6 +15,7 @@ library(PNWColors)
 traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
 myspecies <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
 meta <- read_csv(here("Data", "Full_Metadata.csv"))
+chem <- read_csv(here("Data", "Biogeochem", "Nutrient_Processed_CV.csv"))
 
 myspecies <- myspecies %>%
   filter(Location == "Varari", # only analyze varari for now
@@ -570,7 +571,55 @@ dev.off()
 
 
 
+########################################### VOLUME MAPPED ALONG REEF
 
+library(ggmap)
+library(maptools)
+
+# mean lat and long for the maps
+LocationGPS <- chem %>%
+  filter(Location == "Varari",
+         CowTagID != "V13") %>%
+  group_by(Location) %>% # varari vs cabral
+  summarise(lon = median(lon, na.rm = TRUE),
+            lat = median(lat, na.rm = TRUE))
+
+# Full_data <- Fric %>%
+#   as_tibble() %>%
+#   mutate(CowTagID = relative.sgd) %>%
+#   relocate(CowTagID, .before = NbSp) %>%
+#   left_join(chem) %>%
+#   select(CowTagID:Vol8D, lat, lon)
+
+VarariBaseMap <- get_map(LocationGPS %>% filter(Location == "Varari") %>% select(lon,lat), maptype = 'satellite', zoom = 19)
+
+VmapSites <- ggmap(VarariBaseMap) +
+  geom_point(data = Full_data %>% filter(CowTagID != "V13"),
+             aes(x = lon, y = lat),
+             color = "white",
+             size = 2) +
+  labs(x = "Longitude", y = "Latitude",  #label x and y axes
+       title = "Varari Sample Locations") +
+  geom_label(data = Full_data %>% filter(CowTagID != "V13"),
+             aes(x = lon, y = lat,
+                 label = CowTagID),
+             size = 1.5)
+
+VmapSites
+
+
+volSites <- VmapSites + ggplot(data = All.ch.tib, aes(x = x, y = y)) +
+  geom_polygon(aes(fill = CowTagID, color = CowTagID), alpha = 0.5) + # create polygon using product of convex.hull(tri.mesh)
+  labs(x = "PCoA 1", y = "PCoA 2") +
+  geom_point(data = as_tibble(All.m.sgd), aes(x = PC1, y = PC2, color = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  scale_fill_manual(values = cols) +
+  scale_color_manual(values = cols) +
+  facet_wrap(~CowTagID) +
+  xlim(min(fd.coord.sgd[,1]), max(fd.coord.sgd[,1])) + ylim(min(fd.coord.sgd[,2]), max(fd.coord.sgd[,2]))
+
+ggsave(here("Output","Teixido", "SiteMap_Volume.png"), volSites, width = 10, height = 9)
 
 
 
