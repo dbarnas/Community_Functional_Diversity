@@ -35,7 +35,8 @@ metadata <- turb %>%
   full_join(sub) %>%
   full_join(dist) %>%
   full_join(depth) %>%
-  full_join(rug)
+  full_join(rug) %>%
+  select(-c(Dist_CT_cm, Depth_cm, Tidal_diff))
 
 write_csv(metadata, here("Data","Full_Metadata.csv"))
 
@@ -53,9 +54,6 @@ Attribute <- c("Location",
                "lat",
                "lon",
                "dist_to_seep_m",
-               "Dist_CT_cm",
-               "Depth_cm",
-               "Tidal_diff",
                "adj_CT_depth_cm",
                "meanRugosity"
                )
@@ -72,9 +70,6 @@ Units <- c(NA,
            NA,
            "meters (m)",
            "centimeters (cm)",
-           "centimeters (cm)",
-           "centimeters (cm)",
-           "centimeters (cm)",
            "meters (m)"
            )
 Description <- c("One of two coral reef survey sites (Cabral or Varari)",
@@ -89,9 +84,6 @@ Description <- c("One of two coral reef survey sites (Cabral or Varari)",
                  "Latatitude of survey locations recorded on a Garmin GPS",
                  "Longitude of survey locations recorded on a Garmin GPS",
                  "Linear distance from each survey location to the location labeled as SEEP",
-                 "Raw distance (or depth) measured from water surface to HOBO Conductivity-Temperature logger sensor at each survey location using a transect tape",
-                 "Depth recorded by a HOBO Water Level logger at the location labeled as SEEP. Used as a reference for tidal changes during depth surveys",
-                 "Difference in depth between two sequentially surveyed depths, as recorded by a HOBO Water Level logger at the location labeled as SEEP",
                  "Ajusted distance (or depth) measured from water surface to HOBO Conductiity-Temperature logger sensor at each survey location using a transect tape. Corrected for tidal changes",
                  "Average rugosity measured using a 2.03m link chain across 3 randomly chosen lines within the survey box of each survey location. Values range from 0-1, with 0 indicating higher substrate complexity and 1 indicating a flat surface"
                  )

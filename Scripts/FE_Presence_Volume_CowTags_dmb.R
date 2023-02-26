@@ -1,4 +1,4 @@
-### Comparing across each quadrat
+### Comparing functional presence and volume across each quadrat
 
 
 library(tidyverse)
@@ -84,6 +84,7 @@ entity <- traits %>%
 
 # relative SGD levels
 #relative.sgd <- c("Low", "Moderate", "High")
+# OR CowTagIDs as factors
 relative.sgd <- quad.label$CowTagID
 
 ## Computing multidimensional functional space
@@ -94,7 +95,7 @@ source(here("Scripts", "Teixido", "quality_funct_space.R"))
 qfs <- quality_funct_space(mat_funct = entity, # distinct functional trait entities (NAs not allowed. Traits can be different types: numeric, ordinal, nominal)
                            traits_weights = NULL, # default = same weight for all traits
                            nbdim = 14, # default = 7 max number of dimensions
-                           metric = "Gower", # other option is "Euclidean" for cluster::daisy dissimilarity matrix calculation
+                           metric = "Gower", # other option is "Euclidean" for cluster::daisy dissimilarity matrix calculation; when using Gower's distance, number of dimensions tested should be lower than number of species
                            dendro = FALSE, # whether the best functional dendrogram should be looked for. default = FALSE
                            plot = "DMB_quality_funct_space") # set the name of the jpeg file for plots illustrating the quality of functional space. NA means no plot
 
@@ -138,7 +139,9 @@ sprich <- myspecies %>%
   left_join(quad.label)
 
 
+## Percent Cover
 # Set categories of relative SGD (based on clustering or PERMANOVA from biogeochemistry)
+# OR Set categories of CowTagIDs (will sort later based on biogeochemistr or nutrients)
 sgd.sp <- myspecies %>%
   left_join(quad.label) %>%
   pivot_longer(cols = Turf:ncol(.), names_to = "Taxa", values_to = "cover") %>% # reset to pivot by SGD
@@ -150,6 +153,7 @@ sgd.sp <- myspecies %>%
   pivot_wider(names_from = Taxa, values_from = cover)  # pivot species wide by relative SGD
 
 # relative sgd as rownames
+# OR CowTagIDs as rownames
 sgd.sp <- column_to_rownames(.data = sgd.sp, var = "CowTagID")
 sgd.sp <- as.data.frame(sgd.sp)
 
@@ -203,9 +207,9 @@ tagOrder <- meta %>%
   filter(Location == "Varari",
          CowTagID != "Seep",
          CowTagID != "V13") %>%
-  arrange(desc(dist_to_seep_m)) %>%
+  arrange(desc(dist_to_seep_m)) %>% # set arrange factor
   select(CowTagID)
-tagOrder <- tagOrder$CowTagID[1:19]
+tagOrder <- tagOrder$CowTagID[1:19] # set cowtag order as arrange factor order
 
 
 ############################################# plot convex hull
@@ -304,6 +308,8 @@ qAll
 ggsave(here("Output", "Teixido", "Teixido_Figure1volume_dmb_CowTags.png"), qAll, width = 6, height = 5)
 
 
+
+
 ### Linear Regression Sp and FE and Vol4D ~ SGD
 reg.Fric <- Fric %>%
   as_tibble() %>%
@@ -312,22 +318,88 @@ reg.Fric <- Fric %>%
   left_join(meta)
 
 summary(lm(data = reg.Fric, NbSp ~ dist_to_seep_m)) # **
-summary(lm(data = reg.Fric, NbSpP ~ dist_to_seep_m)) # **
 summary(lm(data = reg.Fric, NbFEs ~ dist_to_seep_m)) # **
-summary(lm(data = reg.Fric, NbFEsP ~ dist_to_seep_m)) # **
 summary(lm(data = reg.Fric, Vol8D ~ dist_to_seep_m)) # not significant
 
 summary(lm(data = reg.Fric, NbSp ~ N_percent)) # not significant
-summary(lm(data = reg.Fric, NbSpP ~ N_percent)) # not significant
 summary(lm(data = reg.Fric, NbFEs ~ N_percent)) # not significant
-summary(lm(data = reg.Fric, NbFEsP ~ N_percent)) # not significant
 summary(lm(data = reg.Fric, Vol8D ~ N_percent)) # not significant
 
+summary(lm(data = reg.Fric, NbSp ~ del15N)) # not significant
+summary(lm(data = reg.Fric, NbFEs ~ del15N)) # . 0.099 not significant
+summary(lm(data = reg.Fric, Vol8D ~ del15N)) # not significant
+
 summary(lm(data = reg.Fric, NbSp ~ meanRugosity)) # **
-summary(lm(data = reg.Fric, NbSpP ~ meanRugosity)) # **
 summary(lm(data = reg.Fric, NbFEs ~ meanRugosity)) # *
-summary(lm(data = reg.Fric, NbFEsP ~ meanRugosity)) # *
 summary(lm(data = reg.Fric, Vol8D ~ meanRugosity)) # **
+
+summary(lm(data = reg.Fric, NbSp ~ adj_CT_depth_cm)) # not significant
+summary(lm(data = reg.Fric, NbFEs ~ adj_CT_depth_cm)) # not significant
+summary(lm(data = reg.Fric, Vol8D ~ adj_CT_depth_cm)) # not significant
+
+
+
+
+### Calculate regressions again with Residuals (remove structure/substrate)
+
+#fit model: linear relationship
+resModSpR <- lm(NbSp ~ meanRugosity, data=reg.Fric) # species richness
+resModFER <- lm(NbFEs ~ meanRugosity, data=reg.Fric) # entity richness
+resModVol <- lm(Vol8D ~ meanRugosity, data=reg.Fric) # entity volume
+
+#view model summary
+summary(resModSpR) # strong significance
+summary(resModFER) # significance
+summary(resModVol) # strong significance
+
+#calculate the standardized residuals
+resSpR <- residuals(resModSpR)
+resFER <- residuals(resModFER)
+resVol <- residuals(resModVol)
+
+#column bind standardized residuals back to original data frame
+res_data <- reg.Fric %>%
+  cbind(resSpR) %>%
+  cbind(resFER) %>%
+  cbind(resVol)
+
+
+
+#plot predictor variable vs. standardized residuals
+rug_res_plot <- res_data %>%
+  ggplot(aes(x = dist_to_seep_m,
+             y = res)) +
+  geom_point() +
+  geom_smooth(method="lm", formula = y~poly(x,2)) +
+  geom_text_repel(aes(label = CowTagID)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  labs(y = "Residuals (% Cover Filamentous Algae ~ Rugosity)",
+       x = "Distance to seep (m)")
+rug_res_plot
+summary(lm(data = res_data, res ~ poly(dist_to_seep_m,2)))
+summary(lm(data = res_data, resFER ~ dist_to_seep_m))
+
+reg.Fric %>%
+  ggplot(aes(x = dist_to_seep_m, y = NbFEs/NbSp)) +
+  geom_point(aes(color = dist_to_seep_m)) +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  geom_label(aes(label = CowTagID))
+
+summary(lm(data = reg.Fric, (NbFEs/NbSp) ~ dist_to_seep_m))
+
+# ratio of FE:Sp richness ~ distance to seep
+# value of 1 would show that each species has its own function, and any lower values show lower functional diversity
+
+
+## Can use the three values above, and also community composition: either relative abundance or presence-absence
+## then can do a permanova / nMDS of community comp with the volume / FErichness
+
+
+
+
+
 
 
 ### Intersecting functional space using PCoA (modified Teixido script)

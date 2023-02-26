@@ -12,79 +12,115 @@ library(vegan) # permanova
 library(pairwiseAdonis)
 
 #### Read in Data ####
-cluster <- read_csv(here("Data", "Surveys", "Cluster_metadata.csv"))
-turbcluster <- read_csv(here("Data", "Surveys", "Cluster_turb_metadata.csv"))
+cluster <- read_csv(here("Data", "Biogeochem", "Cluster_metadata_FullSeasons_noseep.csv"))
+#turbcluster <- read_csv(here("Data", "Surveys", "Cluster_turb_metadata_noSeep.csv"))
 
 #### CLUSTERS FROM FULL BIOGEOCHEM ####
 
 ### parse V_clusters to factor
 cluster <- cluster %>%
-  mutate(V_cluster = as.factor(V_cluster))
-turbcluster <- turbcluster %>%
-  rename(V_cluster = V_cluster_turb) %>%
-  mutate(V_cluster = as.factor(V_cluster))
+  mutate(cluster = as.factor(cluster))
+# turbcluster <- turbcluster %>%
+#   rename(V_cluster = V_cluster_turb) %>%
+#   mutate(V_cluster = as.factor(V_cluster))
+
+Vclust <- cluster %>% filter(Location == "Varari")
+Cclust <- cluster %>% filter(Location == "Cabral")
 
 
 # manova with all three clusters
-model1 <- manova(data = cluster,
-              cbind(Salinity, TA, pH, Phosphate_umolL, # bind response variables
-                    Silicate_umolL, NN_umolL, del15N,
-                    C_N, N_percent) ~ V_cluster)
-summary(model1) # **
+modelV <- manova(data = Vclust,
+                 cbind(Salinity, TA, pH, Phosphate_umolL, # bind response variables
+                       Silicate_umolL, NN_umolL, Ammonia_umolL,
+                       M_C, HIX, VisibleHumidic_Like, Tryptophan_Like, Tyrosine_Like,
+                       del15N, C_N, N_percent) ~ cluster)
+summary(modelV)
+
+modelC <- manova(data = Cclust,
+                 cbind(Salinity, TA, pH, Phosphate_umolL, # bind response variables
+                       Silicate_umolL, NN_umolL, Ammonia_umolL,
+                       M_C, HIX, VisibleHumidic_Like, Tryptophan_Like, Tyrosine_Like,
+                       del15N, C_N, N_percent) ~ cluster)
+summary(modelC)
 
 
+#### VARARI
 # manova by cluster duo:
-clusterHL <- cluster %>% filter(V_cluster %in% c("High", "Low"))
-clusterHM <- cluster %>% filter(V_cluster %in% c("High", "Mid"))
-clusterLM <- cluster %>% filter(V_cluster %in% c("Low", "Mid"))
+VclusterHL <- Vclust %>% filter(cluster %in% c("High", "Low"))
+VclusterHM <- Vclust %>% filter(cluster %in% c("High", "Mid"))
+VclusterLM <- Vclust %>% filter(cluster %in% c("Low", "Mid"))
 
-modelHL <- manova(data = clusterHL,
-                         cbind(TA, Phosphate_umolL, # bind response variables
-                               Silicate_umolL, NN_umolL, del15N,
-                               C_N, N_percent) ~ V_cluster) # cannot run model when response variables outnumber sample size
-# removed pH and Salinity (lowest discrimitive power)
+modelHLV <- manova(data = VclusterHL,
+                   cbind(pH, NN_umolL, Salinity,
+                         Silicate_umolL, del15N,
+                         Tyrosine_Like, M_C) ~ cluster) # cannot run model when response variables outnumber sample size
 
-modelHM <- manova(data = clusterHM,
-                  cbind(Salinity, TA, pH, Phosphate_umolL, # bind response variables
-                        Silicate_umolL, NN_umolL, del15N,
-                        C_N, N_percent) ~ V_cluster)
+modelHMV <- manova(data = VclusterHM,
+                   cbind(pH, NN_umolL, Salinity,
+                         Silicate_umolL, del15N,
+                         Tyrosine_Like, M_C) ~ cluster)
 
-modelLM <- manova(data = clusterLM,
-                  cbind(Salinity, TA, pH, Phosphate_umolL, # bind response variables
-                        Silicate_umolL, NN_umolL, del15N,
-                        C_N, N_percent) ~ V_cluster)
+modelLMV <- manova(data = VclusterLM,
+                   cbind(pH, NN_umolL, Salinity,
+                         Silicate_umolL, del15N,
+                         Tyrosine_Like, M_C) ~ cluster)
 
-summary(modelHL) # p > 0.06
-summary(modelHM) # p > 0.08
-summary(modelLM) # **
+summary(modelHLV) # p > 0.3
+summary(modelHMV) # p > 0.05
+summary(modelLMV) # ***
+
+
+#### CABRAL
+# manova by cluster duo:
+CclusterHL <- Cclust %>% filter(cluster %in% c("High", "Low"))
+CclusterHM <- Cclust %>% filter(cluster %in% c("High", "Mid"))
+CclusterLM <- Cclust %>% filter(cluster %in% c("Low", "Mid"))
+
+modelHLC <- manova(data = CclusterHL,
+                   cbind(Tyrosine_Like, VisibleHumidic_Like,
+                         Phosphate_umolL) ~ cluster) # , Tryptophan_Like, M_C, N_percent, NN_umolL
+
+modelHMC <- manova(data = CclusterHM,
+                   cbind(Tyrosine_Like, VisibleHumidic_Like,
+                         Phosphate_umolL) ~ cluster) # cannot run model when response variables outnumber sample size
+
+modelLMC <- manova(data = CclusterLM,
+                   cbind(Tyrosine_Like, VisibleHumidic_Like,
+                         Phosphate_umolL) ~ cluster) # , Tryptophan_Like, M_C, N_percent, NN_umolL
+
+summary(modelHLC) # ***
+summary(modelHMC) # p > 0.1
+summary(modelLMC) # **
+
+
 
 
 
 #### CLUSTERS FROM TURB ONLY ####
 
-# manova with all three clusters
-model2 <- manova(data = turbcluster,
-                 cbind(del15N, C_N, N_percent) ~ V_cluster)
-summary(model2) # ***
-
-# manova by cluster duo:
-clusterHLt <- turbcluster %>% filter(V_cluster %in% c("High", "Low"))
-clusterHMt <- turbcluster %>% filter(V_cluster %in% c("High", "Mid"))
-clusterLMt <- turbcluster %>% filter(V_cluster %in% c("Low", "Mid"))
-
-modelHLt <- manova(data = clusterHLt,
-                  cbind(del15N, C_N, N_percent) ~ V_cluster) # bind response variables
-
-modelHMt <- manova(data = clusterHMt,
-                   cbind(del15N, C_N, N_percent) ~ V_cluster) # bind response variables
-
-modelLMt <- manova(data = clusterLMt,
-                   cbind(del15N, C_N, N_percent) ~ V_cluster) # bind response variables
-
-
-summary(modelHLt) # ***
-summary(modelHMt) # **
-summary(modelLMt) # ***
+# # manova with all three clusters
+# model2 <- manova(data = turbcluster,
+#                  cbind(del15N, C_N, N_percent) ~ V_cluster)
+# summary(model2) # ***
+#
+# # manova by cluster duo:
+# clusterHLt <- turbcluster %>% filter(V_cluster %in% c("High", "Low"))
+# clusterHMt <- turbcluster %>% filter(V_cluster %in% c("High", "Mid"))
+# clusterLMt <- turbcluster %>% filter(V_cluster %in% c("Low", "Mid"))
+#
+# modelHLt <- manova(data = clusterHLt,
+#                   cbind(del15N, C_N, N_percent) ~ V_cluster) # bind response variables
+#
+# modelHMt <- manova(data = clusterHMt,
+#                    cbind(del15N, C_N, N_percent) ~ V_cluster) # bind response variables
+#
+# modelLMt <- manova(data = clusterLMt,
+#                    cbind(del15N, C_N, N_percent) ~ V_cluster) # bind response variables
+#
+#
+# summary(modelHLt) # ***
+# summary(modelHMt) # **
+# summary(modelLMt) # ***
 
 
 ###################################
@@ -106,41 +142,61 @@ summary(modelLMt) # ***
 
 
 # select numerical and single category data only
-cluster_reduced <- cluster %>%
-  select(-c(Location, CowTagID, lat, lon)) %>%
-  select(Salinity, TA, pH, Phosphate_umolL, # only including discriminitive parameters from LCM
-         Silicate_umolL, NN_umolL, del15N,
-         C_N, N_percent, V_cluster)
+V_reduced <- cluster %>%
+  filter(Location == "Varari") %>%
+  select(pH, NN_umolL, Salinity, # only including discriminitive parameters from LCM
+         Silicate_umolL, del15N,
+         Tyrosine_Like, M_C, cluster)
+
+C_reduced <- cluster %>%
+  filter(Location == "Cabral") %>%
+  select(Tyrosine_Like, VisibleHumidic_Like, # only including discriminitive parameters from LCM
+         Phosphate_umolL, cluster)
 
 # numerical data only
-mds_data <- cluster_reduced %>%
-  select(Salinity:N_percent)
+V_mds_data <- V_reduced %>%
+  select(pH:M_C)
+
+C_mds_data <- C_reduced %>%
+  select(Tyrosine_Like:Phosphate_umolL)
 
 #create the ordination output using bray curtis dissimilarity matrix
 # numerical data only
-ord<-metaMDS(mds_data,k=2, distance='bray')
+Vord <- metaMDS(V_mds_data, k=2, distance='bray')
+Cord <- metaMDS(C_mds_data, k=2, distance='bray')
 
 #let's look at the stress with k=2 dimensions. Is it < 0.3?
-ord$stress
+Vord$stress
+Cord$stress
 
 # Let's look at the stress plot
 # want to minimize scatter
-stressplot(ord)
-
-# basic plot
-# dots represent sites (sandwich locations) and + represents parameters
-ordiplot(ord)
-
-# add text
-ordiplot(ord, type = 'text')
+stressplot(Vord)
+stressplot(Cord)
 
 # add back on the cluster IDs
-mds_data <- cluster_reduced
+V_mds_data <- V_mds_data %>% cbind(V_reduced$cluster) %>% rename(cluster = 'V_reduced$cluster')
+C_mds_data <- C_mds_data %>% cbind(C_reduced$cluster) %>% rename(cluster = 'C_reduced$cluster')
 
 # numeric data only
-model3 <- adonis(mds_data[,1:9]~V_cluster, mds_data, permutations = 999,
+V_mds <- cluster %>%
+  filter(Location == "Varari") %>%
+  select(pH, NN_umolL, Salinity, # only including discriminitive parameters from LCM
+         Silicate_umolL, del15N,
+         Tyrosine_Like, M_C, Ammonia_umolL,
+         VisibleHumidic_Like, cluster)
+model2V <- adonis2(V_mds[,1:9]~cluster, V_mds, permutations = 999,
                        method="bray")
-model3
+model2V
+
+C_mds <- cluster %>%
+  filter(Location == "Cabral") %>%
+  select(Tyrosine_Like, VisibleHumidic_Like, # only including discriminitive parameters from LCM
+         Phosphate_umolL, Tryptophan_Like,
+         M_C, N_percent, NN_umolL, C_N, TA, cluster)
+model2C <- adonis2(C_mds[,1:9]~cluster, C_mds, permutations = 999,
+                 method="bray")
+model2C
 
 # If we are to trust the results of the permanova,
 # then we have to assume that the dispersion among
@@ -151,75 +207,22 @@ model3
 # reasonably similar
 # A rule of thumb is that one number should *not* be twice as high as any other
 
-disper<-vegdist(mds_data[,1:9])
-betadisper(disper, mds_data$V_cluster)
+disperV<-vegdist(V_mds[,1:9])
+betadisper(disperV, V_mds$cluster)
+
+disperC<-vegdist(C_mds[,1:9], na.rm=T)
+betadisper(disperC, C_mds$cluster)
 
 ### Dispersion is all over the place, so cannot trust
 
-pairwise.adonis(mds_data[,1:9], mds_data$V_cluster, perm=999)
+pairwise.adonis(V_mds[,1:9], V_mds$cluster, perm=999)
+pairwise.adonis(C_mds[,1:9], C_mds$cluster, perm=999)
 
 #Get coefficients to see which species are most important in explaining site differences:
-model3$coefficients
+model2V$coefficients
+model2C$coefficients
 
 
-
-
-
-#### PERMANOVA WITH ALL TURBINARIA DATA ####
-
-# select numerical and single category data only
-turbcluster_reduced <- turbcluster %>%
-  select(del15N, C_N, N_percent, V_cluster)
-
-# numerical data only
-mds_turbdata <- turbcluster_reduced %>%
-  select(del15N:N_percent)
-
-#create the ordination output using bray curtis dissimilarity matrix
-# numerical data only
-ord<-metaMDS(mds_turbdata,k=2, distance='bray')
-
-#let's look at the stress with k=2 dimensions. Is it < 0.3?
-ord$stress
-
-# Let's look at the stress plot
-# want to minimize scatter
-stressplot(ord)
-
-# basic plot
-# dots represent sites (sandwich locations) and + represents parameters
-ordiplot(ord)
-
-# add text
-ordiplot(ord, type = 'text')
-
-# add back on the cluster IDs
-mds_turbdata <- turbcluster_reduced
-
-# numeric data only
-model4 <- adonis(mds_turbdata[,1:3]~V_cluster, mds_turbdata, permutations = 999,
-                 method="bray")
-model4
-
-# If we are to trust the results of the permanova,
-# then we have to assume that the dispersion among
-# data is the same in each group. We can test with
-# assumption with a PermDisp test:
-
-# Look at the Average distance to median...these numbers should be
-# reasonably similar
-# A rule of thumb is that one number should *not* be twice as high as any other
-
-disper<-vegdist(mds_data[,1:3])
-betadisper(disper, mds_turbdata$V_cluster)
-
-### Dispersion is all over the place, so cannot trust
-
-# post-hoc
-pairwise.adonis(mds_turbdata[,1:3], mds_turbdata$V_cluster, perm=999)
-
-#Get coefficients to see which parameters are most important in explaining site differences:
-model4$coefficients
 
 
 

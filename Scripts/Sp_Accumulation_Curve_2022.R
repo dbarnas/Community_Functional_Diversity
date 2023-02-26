@@ -20,7 +20,9 @@ abiotic <- survey %>%
 
 Vquad <- survey %>%
   anti_join(abiotic) %>%
-  filter(Location == "Varari" | Location == "Varari_Maya") %>%
+  filter(Location == "Varari") %>%
+  filter(CowTagID != "VSEEP" & CowTagID != "V13") %>%
+         #| Location == "Varari_Maya") %>% # remove maya sites while not used for analysis
   select(CowTagID, Taxa)
 
 # remove any duplicate species from dataframe to only display one of each across full survey
@@ -37,7 +39,7 @@ Vquad <- Vquad %>%
 # create column "n" containing a value of 1 next to each species
 Vquad <- Vquad %>%
   group_by(CowTagID) %>%
-  count(Taxa) %>%
+  dplyr::count(Taxa) %>%
   ungroup()
 
 # replace values of 1 with values of 0 for all NA species (indicating no new species for a later survey)
@@ -77,8 +79,8 @@ plot1 <- Vquad %>%
   geom_smooth(color = "black")
 plot1
 
-ggsave(here("Output", "Species_Accumulation_Varari.png"), plot1, height = 5, width = 5, device = "png")
-ggsave(here("Output", "Species_Accumulation_Varari.pdf"), plot1, height = 5, width = 5, device = "pdf")
+# ggsave(here("Output", "Species_Accumulation_Varari.png"), plot1, height = 5, width = 5, device = "png")
+# ggsave(here("Output", "Species_Accumulation_Varari.pdf"), plot1, height = 5, width = 5, device = "pdf")
 
 
 #############################################################################################
@@ -143,7 +145,7 @@ plot2 <- Cquad %>%
   geom_smooth(color = "black")
 plot2
 
-ggsave(here("Output", "Species_Accumulation_Cabral.png"), plot2, height = 10, width = 10, device = "png")
-ggsave(here("Output", "Species_Accumulation_Cabral.pdf"), plot2, height = 10, width = 10, device = "pdf")
+# ggsave(here("Output", "Species_Accumulation_Cabral.png"), plot2, height = 10, width = 10, device = "png")
+# ggsave(here("Output", "Species_Accumulation_Cabral.pdf"), plot2, height = 10, width = 10, device = "pdf")
 
 
