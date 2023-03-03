@@ -14,15 +14,19 @@ library(patchwork)
 
 
 #### READ IN DATA ####
-meta <- read_csv(here("Data", "Full_Metadata.csv")) %>% # input seep rugosity
-  mutate_at(vars(meanRugosity), .funs = ~if_else(is.na(meanRugosity)==TRUE, 0.975, .))
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
 comp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
 taxa <- read_csv(here("Data","Surveys","Distinct_Taxa.csv"))
 chem <- read_csv(here("Data","Biogeochem", "Nutrient_Processed_CV.csv"))
 
 
-mypalette <- pnw_palette(name = "Bay", n = 12)
+mypalette <- pnw_palette(name = "Bay", n = 10)
 
+dist <- meta %>%
+  filter(Location == "Varari",
+         CowTagID != "V13") %>%
+  arrange(dist_to_seep_m) %>%
+  select(CowTagID)
 
 #### Calculate relative abundance of taxon_groups ####
 
@@ -33,20 +37,26 @@ relative_taxon_sub_abundance <- comp %>%
   select(CowTagID, Taxa, Taxon_Group, SpeciesCounts) %>%
   group_by(CowTagID) %>%
   mutate(Total = sum(SpeciesCounts)) %>%
+  ungroup() %>%
   group_by(CowTagID,Taxon_Group) %>%
   mutate(pCover = SpeciesCounts / Total * 100,
          pCover = sum(pCover)) %>% # add any similar taxon groups
-  distinct() %>%  # rmeove duplicate taxon groups
+  distinct(CowTagID, Taxon_Group, pCover) %>%  # remove duplicate taxon groups
   ungroup()
 
-relative_taxon_sub_abundance %>%
-  ggplot(aes(x = CowTagID, y = pCover, fill = Taxon_Group)) +
-  geom_col() +
-  theme_bw() +
-  scale_fill_manual(values = mypalette)
+# order taxon-group
+mylevels <- unique(relative_taxon_sub_abundance$Taxon_Group)[3:12] # remove hard substrate and sand
+mylevels <- c(mylevels, "Hard Substrate", "Sand")
+relative_taxon_sub_abundance$Taxon_Group <- factor(relative_taxon_sub_abundance$Taxon_Group, levels = mylevels)
+
+# order cowtags
+ctlevels <- dist$CowTagID
+relative_taxon_sub_abundance$CowTagID <- factor(relative_taxon_sub_abundance$CowTagID, levels = ctlevels)
+
+mypalette[11] <- "grey" # hard substrate
+mypalette[12] <- "azure4" # sand
 
 relative_taxon_sub_abundance %>%
-  mutate(Taxon_Group = if_else(Taxon_Group == ""))
   ggplot(aes(x = CowTagID, y = pCover, fill = Taxon_Group)) +
   geom_col() +
   theme_bw() +
@@ -54,6 +64,8 @@ relative_taxon_sub_abundance %>%
 
 
 #### Plot relative abundance of taxon_groups ####
+
+
 
 relative_taxon_sub_abundance %>%
   ggplot(aes(x = CowTagID))

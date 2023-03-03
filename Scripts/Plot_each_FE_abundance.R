@@ -138,13 +138,16 @@ Full_data %>%
   filter(CowTagID == "V14" |
            CowTagID == "V20" |
            CowTagID == "V17") %>%
-  arrange(FE) %>%
-  distinct(Morph)
+  group_by(CowTagID, Calc) %>%
+  summarise(pCover = sum(pCover))
 
 Full_data %>%
   filter(Calc == "Non-AC") %>%
   distinct(Taxa)
 Full_data %>%
-  filter(Taxa == "Avrainvillea erecta") %>%
-  select(CowTagID)
-
+  filter(Taxa == "Galaxaura rugosa") %>%
+  select(CowTagID, pCover)
+Full_data %>%
+  filter(CowTagID == "V20") %>%
+  select(Taxa,pCover) %>%
+  arrange(desc(pCover))
