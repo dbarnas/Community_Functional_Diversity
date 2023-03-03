@@ -18,183 +18,127 @@ library(maptools)
 
 
 #### READ IN DATA ####
-survey <- read_csv(here("Data","Surveys","Species_Composition_2022.csv")) #%>% filter(Location == "Varari")
-richness <- read_csv(here("Data", "Surveys", "Species_Richness.csv"))
-diversity <- read_csv(here("Data", "Surveys", "Species_Diversity.csv"))
+survey <- read_csv(here("Data","Surveys","Species_Composition_2022.csv")) %>% filter(Location == "Varari")
+#richness <- read_csv(here("Data", "Surveys", "Species_Richness.csv"))
+#diversity <- read_csv(here("Data", "Surveys", "Species_Diversity.csv"))
 func <- read_csv(here("Data", "Surveys", "Distinct_Taxa.csv"))
 
-meta <- read_csv(here("Data", "Surveys", "Survey_Metadata.csv"))
-depth <- read_csv(here("Data","Adj_Sandwich_Depth.csv"))
-dist <- read_csv(here("Data", "Plate_Distance_to_Seep.csv"))
-AugChem <- read_csv(here("Data","Biogeochem","AugNutrient_Processed_CV.csv")) #%>% filter(Location == "Varari")
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
+#AugChem <- read_csv(here("Data","Biogeochem","AugNutrient_Processed_CV.csv")) #%>% filter(Location == "Varari")
 Turb22 <- read_csv(here("Data","Biogeochem","July2022", "Turb_NC.csv"))
 
 # create color palette for plotting
-mypalette <- pnw_palette(name="Bay", n=11)
+mypalette <- pnw_palette(name="Bay", n=12)
 
 
 #### CLEAN AND COMPILE DATA ####
-# remove unnecessary columns
-depth <- depth %>%
-  select(Location, CowTagID, adj_CT_depth_cm)
-dist <- dist %>%
-  select(CowTagID, lat, lon, dist_to_seep_m) %>%
-  mutate(dist_to_seep_m = if_else(CowTagID == "V13", (-1 * dist_to_seep_m), dist_to_seep_m))
 
-Full_meta <- meta %>%
-  select(Location, CowTagID, Chain1:Chain3) %>%
-  full_join(depth) %>%
-  full_join(dist) %>%
-  distinct() %>%
-  group_by(CowTagID) %>%
-  mutate(meanChain = sum(Chain1, Chain2, Chain3, na.rm = T)/3) %>% #calculate mean chain length across benthos
-  drop_na() %>% # remove surveys with no rugosity measurements
-  mutate(meanRugosity = meanChain / 2.03) %>%  # chain length = 2.03m
-  select(-c(meanChain, Chain1:Chain3))
+### relative abundance
+# species
+Sp.abundance <- survey %>%
+  # filter(Taxa != 'Bare Rock',
+  #        Taxa != 'Sand',
+  #        Taxa != 'Rubble') %>%
+  group_by(Location,CowTagID) %>% # group by species at each cowtag location
+  mutate(total = sum(SpeciesCounts)) %>%
+  mutate(pCoverSpecies = SpeciesCounts / total * 100) %>% # calculate percent cover of each species by cowtag location
+  select(Location, CowTagID, Taxa, SpeciesCounts, pCoverSpecies)
+# genera
+G.abundance <- survey %>%
+  left_join(func) %>%
+  select(Location, CowTagID, Taxa, Genus, SpeciesCounts) %>%
+  mutate(Genus = replace_na(Genus, "Abiotic")) %>% # include hard substrate as a category
+  group_by(Location,CowTagID,Genus) %>%
+  mutate(GenusCounts = sum(SpeciesCounts)) %>% # calculate total genus counts per cowtag location
+  ungroup() %>%
+  group_by(Location,CowTagID) %>%
+  mutate(total = sum(SpeciesCounts),  # total counts
+         pCoverGenus = GenusCounts / total * 100) %>%
+  select(Location, CowTagID, Genus, GenusCounts, pCoverGenus) %>%
+  distinct()
+# broader taxon groups
+T.abundance <- survey %>%
+  left_join(func) %>%
+  select(Location, CowTagID, Taxa, SpeciesCounts, Taxon_Group) %>%
+  mutate(Taxon_Group = if_else(Taxon_Group == "Sand", "Abiotic", Taxon_Group),
+         Taxon_Group = if_else(Taxon_Group == "Hard Substrate", "Abiotic", Taxon_Group)) %>%
+  group_by(Location,CowTagID,Taxon_Group) %>%
+  mutate(TaxonCounts = sum(SpeciesCounts)) %>% # calculate total taxon group counts per cowtag location
+  ungroup() %>%
+  group_by(Location,CowTagID) %>%
+  mutate(total = sum(SpeciesCounts),  # total counts
+         pCoverTaxon = TaxonCounts / total * 100) %>%
+  select(Location, CowTagID, Taxon_Group, TaxonCounts, pCoverTaxon) %>%
+  distinct()
 
-# save full metadata together as csv
-write_csv(Full_meta, here("Data","Full_Metadata.csv"))
+# species richness
+richness <- survey %>%
+  filter(Taxa != 'Bare Rock',
+         Taxa != 'Sand',
+         Taxa != 'Rubble') %>%
+  group_by(Location,CowTagID) %>%
+  count(Taxa) %>%  # counts every time a distinct species appears at a cowtag location
+  mutate(n=1) %>%  # make sure all species counts are 1 per species
+  mutate(spRich = sum(n)) %>% # calculate species richness
+  select(Location, CowTagID, spRich) %>%
+  distinct() %>% # remove redundant rows
+  left_join(meta)  # join all metadata
 
-species <- full_join(richness, diversity)
-
-Full_species <- Full_meta %>%
-  left_join(species) %>%
-  left_join(Turb22)
-
-Full_survey <- survey %>%
-  select(Location, CowTagID, Taxa, SpeciesCounts) %>%
-  full_join(func) %>%
-  select(-c(Link)) %>%
-  distinct() %>%
-  select(Location:Calcification)
-
-
-# associate silicate CV order to Top Plate ID order
-# orderSilicate <- AugChem %>%
-#   select(Silicate_umolL, Location, CowTagID) %>%
-#   distinct() %>%
-#   arrange(Silicate_umolL) %>%
-#   mutate(CowTagID = as_factor(as.character(CowTagID))) # as_factor creates levels based on current position
-
-# order CowTagIDs by Nitrogen loading
-orderNpercent <- Full_species %>%
-  arrange(N_percent) %>%
-  mutate(CowTagID = as_factor(as.character(CowTagID)))
-NLevels <- paste(orderNpercent$CowTagID) # sort factor levels by N
-Full_species$CowTagID <- factor(Full_species$CowTagID, levels = NLevels) # assign order to factor levels by N
-levels(Full_species$CowTagID) # check
 
 # order CowTagID's by distance to seep (m)
-orderdist <- Full_species %>%
+orderdist <- richness %>%
+  mutate_all( ~ if_else(dist_to_seep_m < 0, -1*dist_to_seep_m + 200, dist_to_seep_m)) %>%  # add large distance to 13 to make sure it comes out at far end of ordering (becuase 13 is upstream of seep)
   arrange(dist_to_seep_m) %>%
   mutate(CowTagID = as_factor(as.character(CowTagID)))
 distLevels <- paste(orderdist$CowTagID)
 
 
 # assign order to factor levels
-Full_species$CowTagID <- factor(Full_species$CowTagID, levels = NLevels)
-Full_species$CowTagID <- factor(Full_species$CowTagID, levels = distLevels)
-levels(Full_species$CowTagID) # check
+richness$CowTagID <- factor(richness$CowTagID, levels = distLevels)
+Sp.abundance$CowTagID <- factor(Sp.abundance$CowTagID, levels = distLevels)
+G.abundance$CowTagID <- factor(G.abundance$CowTagID, levels = distLevels)
+T.abundance$CowTagID <- factor(T.abundance$CowTagID, levels = distLevels)
+#levels(richness$CowTagID) # check
 
-### Processing
 
-# percent cover of species
-percent <- Full_survey %>%
-  select(Location, CowTagID, Taxa, SpeciesCounts) %>%
-  group_by(Location, CowTagID) %>%
-  mutate(TotalCounts = sum(SpeciesCounts)) %>%
-  ungroup() %>%
-  mutate(PercentTaxa = SpeciesCounts / TotalCounts * 100) %>%
-  select(-c(SpeciesCounts, TotalCounts))
 
-# percent cover of genera
-percent <- Full_survey %>%
-  select(Location, CowTagID, Taxon_Group) %>%
-  # mutate(Genus = if_else(Genus %in% c('coral1', 'coral2', 'coral3', 'coral4', 'coral5',
-  #                                     'coral6', 'coral7', 'coral8', 'coral9', 'coral10',
-  #                                     'coral11', 'coral12', 'coral13', 'coral14', 'brown algae1'),
-  #                        "Unidentified",
-  #                        Genus)) %>%
-  group_by(Location, CowTagID) %>%
-  count(name = 'TaxonCounts', Taxon_Group) %>%
-  mutate(TotalTaxon = sum(TaxonCounts)) %>%
-  mutate(PercentTaxon = TaxonCounts / TotalTaxon * 100) %>%
-  ungroup() %>%
-  select(-c(TaxonCounts, TotalTaxon)) %>%
-  right_join(percent)
+#### VISUALIZATIONS ####
 
-# percent cover of broad taxon groups
-percent <- taxon %>%
-  right_join(survey) %>%
-  select(CowTagID, Taxon_Group) %>%
-  group_by(CowTagID) %>%
-  count(name = 'TaxonCounts', Taxon_Group) %>%
-  mutate(TotalTaxon = sum(TaxonCounts)) %>%
-  mutate(PercentTaxon = TaxonCounts / TotalTaxon * 100) %>%
-  ungroup() %>%
-  select(-c(TaxonCounts, TotalTaxon)) %>%
-  right_join(percent)
 
-# total species richness
-richness <- richness %>%
-  left_join(AugChem) # join with site data
+# SPECIES RICHNESS BARPLOT
+richness %>%
+  ggplot(aes(x = CowTagID, y = spRich)) +
+  geom_col(fill = "palevioletred4", color = "black") +
+  labs(y = "Speices Richness") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90, size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14))
 
-# total genus richness
-richness <- genera %>%
-  right_join(survey) %>%
-  select(CowTagID, Genus) %>%
-  distinct() %>%
-  group_by(CowTagID) %>%
-  count(name = 'Count', Genus) %>%
-  mutate(GenusRichness = sum(Count)) %>%
-  distinct(CowTagID, GenusRichness) %>%
-  right_join(richness)
+
+
+# SPECIES ABUNDANCE STACKED BARPLOT
+Sp.abundance %>%
+  ggplot(aes(x = CowTagID, y = pCoverSpecies, fill = Taxa)) +
+  geom_col(position = "stack")
+
+G.abundance %>%
+  ggplot(aes(x = CowTagID, y = pCoverGenus, fill = Genus)) +
+  geom_col(position = "stack")
+
+T.abundance %>%
+  ggplot(aes(x = CowTagID, y = pCoverTaxon, fill = Taxon_Group)) +
+  geom_col(position = "stack")
 
 
 
 
-### Plotting
-
-# anti_join unidentified species
-SpNotIn <- percent %>%
-  filter(Taxa %in% c('coral1', 'coral2', 'coral3', 'coral4', 'coral5',
-                     'coral6', 'coral7', 'coral8', 'coral9', 'coral10',
-                     'coral11', 'coral12', 'coral13', 'coral14', 'brown algae1',
-                     'Halimeda2', 'Montipora', 'Porites', 'Psammocora')) #, # remove unidentified taxa
-                     #'Bare Rock', 'Bare Rock - exposed', 'Rubble', 'Sand' # remove abiotic substrates
-
-
-Genus_perc_plot <- percent %>%
-  drop_na(Silicate_umolL) %>%
-  select(Location, CowTagID, Genus, PercentGenus, Silicate_umolL) %>%
+facet_taxon_abundance <- T.abundance %>%
+  select(Location, CowTagID, Taxon_Group, pCoverTaxon) %>%
   distinct() %>%
   ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
-             y = PercentGenus,
-             fill = Genus)) +
-  geom_col() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5)
-  )
-
-
-percent %>%
-  drop_na(Silicate_umolL) %>%
-  select(Location, CowTagID, Taxon_Group, PercentTaxon, Silicate_umolL) %>%
-  distinct() %>%
-  ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
-             y = PercentTaxon,
-             fill = Taxon_Group)) +
-  geom_col() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5)
-  )
-
-taxon_perc_plot <- percent %>%
-  drop_na(Silicate_umolL) %>%
-  select(Location, CowTagID, Taxon_Group, PercentTaxon, Silicate_umolL) %>%
-  distinct() %>%
-  ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
-             y = PercentTaxon,
+             y = pCoverTaxon,
              fill = Taxon_Group)) +
   geom_col(position = "dodge") +
   theme_bw() +
@@ -214,17 +158,16 @@ taxon_perc_plot <- percent %>%
   scale_y_continuous(breaks = c(0, 25, 50, 100)) +
   scale_fill_manual(values = mypalette) +
   facet_wrap(~ Taxon_Group)
-taxon_perc_plot
+facet_taxon_abundance
 
-ggsave(here("Output", "Taxon_perc_cover.pdf"), taxon_perc_plot, device = "pdf")
+ggsave(here("Output", "PaperFigures", "facet_taxon_abundance.png"), facet_taxon_abundance, device = "png")
 
 
-taxon_perc_plot_stacked <- percent %>%
-  drop_na(Silicate_umolL) %>%
-  select(Location, CowTagID, Taxon_Group, PercentTaxon, Silicate_umolL) %>%
+stacked_taxon_abundance <- T.abundance %>%
+  select(Location, CowTagID, Taxon_Group, pCoverTaxon) %>%
   distinct() %>%
   ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
-             y = PercentTaxon,
+             y = pCoverTaxon,
              fill = Taxon_Group)) +
   geom_col(position = "stack") +
   theme_bw() +
@@ -243,18 +186,17 @@ taxon_perc_plot_stacked <- percent %>%
        fill = "Taxon Groups") +
   scale_y_continuous(breaks = c(0, 25, 50, 100)) +
   scale_fill_manual(values = mypalette)
-taxon_perc_plot_stacked
+stacked_taxon_abundance
 
-ggsave(here("Output", "Taxon_perc_cover_stacked.pdf"), taxon_perc_plot_stacked, device = "pdf")
+ggsave(here("Output", "PaperFigures", "stacked_taxon_abundance.png"), stacked_taxon_abundance, device = "png")
 
-taxon_perc_plot_bioticstacked <- percent %>%
-  drop_na(Silicate_umolL) %>%
-  select(Location, CowTagID, Taxon_Group, PercentTaxon, Silicate_umolL) %>%
+stacked_taxon_bio_abundance <- T.abundance %>%
+  select(Location, CowTagID, Taxon_Group, pCoverTaxon) %>%
   distinct() %>%
   filter(Taxon_Group != "Abiotic") %>%
   group_by(CowTagID) %>%
-  mutate(totalsum = sum(PercentTaxon),
-         newpercent = PercentTaxon / totalsum * 100) %>%
+  mutate(totalsum = sum(pCoverTaxon),
+         newpercent = pCoverTaxon / totalsum * 100) %>%
   ggplot(aes(x = CowTagID, # ordered in ascending Silicate_umolL
              y = newpercent,
              fill = Taxon_Group)) +
@@ -275,9 +217,9 @@ taxon_perc_plot_bioticstacked <- percent %>%
        fill = "Taxon Groups") +
   scale_y_continuous(breaks = c(0, 25, 50, 100)) +
   scale_fill_manual(values = mypalette)
-taxon_perc_plot_bioticstacked
+stacked_taxon_bio_abundance
 
-ggsave(here("Output", "Taxon_perc_cover_bioticstacked.pdf"), taxon_perc_plot_bioticstacked, device = "pdf")
+ggsave(here("Output", "stacked_taxon_bio_abundance.png"), stacked_taxon_bio_abundance, device = "png")
 
 
 ####

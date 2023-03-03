@@ -7,7 +7,7 @@ library(here)
 
 
 ### READ IN DATA
-survey<-read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
+survey <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
 
 ### ANALYSIS
 
@@ -20,31 +20,51 @@ abiotic <- survey %>%
 
 Vquad <- survey %>%
   anti_join(abiotic) %>%
-  filter(Location == "Varari") %>%
-  filter(CowTagID != "VSEEP" & CowTagID != "V13") %>%
+  filter(Location == "Varari",
+         CowTagID != "V13") %>%
+  #filter(CowTagID != "VSEEP" & CowTagID != "V13") %>%
          #| Location == "Varari_Maya") %>% # remove maya sites while not used for analysis
   select(CowTagID, Taxa)
 
 # remove any duplicate species from dataframe to only display one of each across full survey
-Vquad_order <- Vquad[order(Vquad[,'CowTagID'],Vquad[,'Taxa']),]
-Vquad_order <- Vquad_order[!duplicated(Vquad_order$Taxa),]
+#Vquad_order <- Vquad[order(Vquad[,'CowTagID'],Vquad[,'Taxa']),]
+#Vquad_order <- Vquad_order[!duplicated(Vquad_order$Taxa),]
+
+Vquad_dup <- duplicated(Vquad$Taxa) # returns logical vector showing which taxa are duplicated
+Vquad <- Vquad %>%
+  cbind(Vquad_dup) %>% # bind T/F vector relating which taxa are duplicated
+  arrange(CowTagID)
+Vquad_CT <- as_tibble(unique(Vquad$CowTagID)) %>% rename(CowTagID = value) # vector of vquad cowtagid's
+Vquad <- Vquad %>%
+  filter(Vquad_dup == FALSE) %>%  # only keep taxa that are NOT duplicated
+  full_join(Vquad_CT) %>%
+  mutate(Vquad_dup = if_else(is.na(Vquad_dup), TRUE, FALSE))
+
 
 # rejoin with df containing all quads
-Vquad <- Vquad %>%
-  select(CowTagID) %>%
-  left_join(Vquad_order) %>%
-  distinct() %>%
-  arrange(CowTagID)
+# Vquad <- Vquad %>%
+#   select(CowTagID) %>%
+#   left_join(Vquad_order) %>%
+#   distinct() %>%
+#   arrange(CowTagID)
 
-# create column "n" containing a value of 1 next to each species
+# create column "n" containing a value of 1 next to each species and 0 next to NAs
+# n = 0 for survey locations with no new taxa
+Vquad_0 <- Vquad %>%
+  filter(Vquad_dup == TRUE) %>%
+  mutate(n = 0) %>%
+  select(-Vquad_dup)
+# n = 1 for all new taxa at each survey location, then bind Vquad_0
 Vquad <- Vquad %>%
+  filter(Vquad_dup == FALSE) %>%
   group_by(CowTagID) %>%
   dplyr::count(Taxa) %>%
-  ungroup()
+  ungroup() %>%
+  rbind(Vquad_0)
 
 # replace values of 1 with values of 0 for all NA species (indicating no new species for a later survey)
-Vquad <- Vquad %>%
-  mutate(n = if_else(is.na(Taxa) == TRUE, true = (n = 0), false = (n = 1)))
+# Vquad <- Vquad %>%
+#   mutate(n = if_else(is.na(Taxa) == TRUE, true = (n = 0), false = (n = 1)))
 
 # add total species per quadrat survey
 Vquad <- Vquad %>%
@@ -76,11 +96,11 @@ plot1 <- Vquad %>%
         axis.line = element_line(colour = "black"),
         axis.title = element_text(size = 14),
         axis.text = element_text(size = 12)) +
-  geom_smooth(color = "black")
+  geom_smooth(color = "black", fill = "white")
 plot1
 
 # ggsave(here("Output", "Species_Accumulation_Varari.png"), plot1, height = 5, width = 5, device = "png")
-# ggsave(here("Output", "Species_Accumulation_Varari.pdf"), plot1, height = 5, width = 5, device = "pdf")
+ ggsave(here("Output", "PaperFigures", "Species_Accumulation_Varari.png"), plot1, height = 5, width = 5, device = "png")
 
 
 #############################################################################################

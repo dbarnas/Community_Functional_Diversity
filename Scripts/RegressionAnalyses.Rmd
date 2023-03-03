@@ -43,7 +43,7 @@ set.seed(7)
 # Read in data
 ```{r, message = F}
 #div <- read_csv(here("Data","Surveys","Species_Diversity.csv")) # cannot calculate species div with % cover data
-rich <- read_csv(here("Data","Surveys","Species_Richness.csv"))
+#rich <- read_csv(here("Data","Surveys","Species_Richness.csv"))
 meta <- read_csv(here("Data", "Full_Metadata.csv"))
 comp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
 taxa <- read_csv(here("Data","Surveys","Distinct_Taxa.csv"))
@@ -63,6 +63,20 @@ meta <- meta %>%
   drop_na(lat) %>% 
   select(Location, CowTagID, LiveCoral:Sand, dist_to_seep_m, adj_CT_depth_cm, meanRugosity)
 
+rich <- comp %>% 
+  select(Location, CowTagID, Taxa, SpeciesCounts) %>% 
+  mutate(Taxa = if_else(Taxa == 'Bare Rock', "Hard Substrate", Taxa),
+         Taxa = if_else(Taxa == 'Rubble', "Hard Substrate", Taxa)) %>% 
+  filter(Taxa != "Sand" & Taxa != "Hard Substrate") %>% # actually just remove the hard substrate and sand
+  group_by(Location, CowTagID, Taxa) %>% 
+  count(Taxa) %>% 
+  mutate(n = 1) %>% 
+  ungroup() %>% 
+  group_by(Location,CowTagID) %>% 
+  mutate(spRichness = sum(n)) %>% 
+  distinct(Location, CowTagID, spRichness) %>% 
+  ungroup()
+
 # join dfs
 Full_data <- rich %>% 
   full_join(chem) %>% 
@@ -75,8 +89,9 @@ comp <- comp %>%
   select(Location, CowTagID, Taxa, SpeciesCounts) %>% 
   mutate(Taxa = if_else(Taxa == 'Bare Rock', "Hard Substrate", Taxa),
          Taxa = if_else(Taxa == 'Rubble', "Hard Substrate", Taxa)) %>% 
+  filter(Taxa != "Sand" & Taxa != "Hard Substrate") %>% # actually just remove the hard substrate and sand
   group_by(Location, CowTagID, Taxa) %>% 
-  mutate(SpeciesCounts = sum(SpeciesCounts)) %>% 
+  mutate(SpeciesCounts = sum(SpeciesCounts)) %>%
   distinct() %>% 
   ungroup() %>% # ungroup by taxa to regroup by site
   group_by(Location, CowTagID) %>% 
@@ -208,19 +223,22 @@ colplot <- function(mydata, x = CowTagID, y) {
 ## Plotting
 
 ### Substrate ~ % N
-```{r}
+```{r, eval = F}
 
+groupplot(mydata = longsub, x = Silicate_umolL, y = subVal, fw = Substrate) +
+  labs(x = "Silicate (umolL)", y = "% Cover of Substrate Type")+
+  scale_color_manual(values = mypalette)
 groupplot(mydata = longsub, x = N_percent, y = subVal, fw = Substrate) +
   labs(x = "% Nitrogen", y = "% Cover of Substrate Type")+
   scale_color_manual(values = mypalette)
 
 
 
-# %N and substrate type
-# summary(lm(data = Full_data, Sand ~ N_percent))
-# summary(lm(data = Full_data, Rubble ~ N_percent))
-# summary(lm(data = Full_data, LiveCoral ~ N_percent))
-# summary(lm(data = Full_data, DeadCoral ~ N_percent))
+# %N or silicate and substrate type: all insignificant
+summary(lm(data = Full_data, Sand ~ Silicate_umolL))
+summary(lm(data = Full_data, Rubble ~ Silicate_umolL))
+summary(lm(data = Full_data, LiveCoral ~ Silicate_umolL))
+summary(lm(data = Full_data, DeadCoral ~ Silicate_umolL))
 ```
 
 
@@ -287,7 +305,7 @@ Distance_pval
 # view bar graph of pvalues with 0.05 cutoff
 Distance_pval %>% 
   ggplot(aes(x = Parameter, y = pvalue)) +
-  geom_col() +
+  geom_col(fill = if_else(Distance_pval$pvalue < 0.05, "red", "darkgrey")) +
   geom_hline(yintercept = 0.05) +
   theme_bw() +
   labs(y = "p-value: ~ Distance to Seep (m)",
@@ -316,6 +334,7 @@ Rich_Param <- Full_data %>%
   filter(CowTagID != "V13") %>% 
   pivot_longer(cols = Salinity:meanRugosity, names_to = "Parameter", values_to = "Values")
 
+# values which are not correlated with distance to seep
 anti_dist <- Distance_pval %>% 
   filter(pvalue > 0.05) %>% 
   select(Parameter)
@@ -409,7 +428,7 @@ Distance_pval
 # view bar graph of pvalues with 0.05 cutoff
 Distance_pval %>% 
   ggplot(aes(x = Parameter, y = pvalue)) +
-  geom_col() +
+  geom_col(fill = if_else(Distance_pval$pvalue < 0.05, "red", "darkgrey")) +
   geom_hline(yintercept = 0.05) +
   theme_bw() +
   labs(y = "p-value: ~ Distance to Seep (m)",
@@ -491,11 +510,11 @@ anova(lm(data = Full_data %>% filter(CowTagID != "V13", CowTagID != "VSEEP"), sp
 ```{r}
 
 # order % cover by N_percent
-longsub$CowTagID <- order(data = longsub, param = N_percent, by = CowTagID)$CowTagID
+longsub$CowTagID <- order(data = longsub, param = dist_to_seep_m, by = CowTagID)$CowTagID
 
 # ggplot
-stackplot(mydata = longsub, x = CowTagID, y = subVal, colfill = Substrate) +
-  labs(subtitle = "Low to High %N") +
+stackplot(mydata = longsub %>% filter(CowTagID != "V13"), x = CowTagID, y = subVal, colfill = Substrate) +
+  labs(subtitle = "Distance to seep (m)") +
   theme(axis.text.x = element_text(angle = 90))+
   scale_fill_manual(values = mypalette)
   
@@ -505,11 +524,11 @@ stackplot(mydata = longsub, x = CowTagID, y = subVal, colfill = Substrate) +
 ```{r}
 
 # order % cover by N_percent
-comp$CowTagID <- order(data = comp, param = N_percent, by = CowTagID)$CowTagID
+comp$CowTagID <- order(data = comp, param = dist_to_seep_m, by = CowTagID)$CowTagID
 
 # ggplot
 stackplot(mydata = comp %>% filter(Taxa != "Hard Substrate", Taxa != "Sand"), x = CowTagID, y = sp_percent, colfill = Taxa) +
-  labs(subtitle = "Low to High %N") +
+  labs(subtitle = "Distance from seep (m)") +
   scale_fill_manual(values = largepalette) +
   theme(legend.text = element_text(size = 2),
         axis.text.x = element_text(angle = 90))+
@@ -535,7 +554,7 @@ stackplot(mydata = comp %>% filter(Taxa != "Hard Substrate", Taxa != "Sand", Cow
 spPA <- comp %>% 
   select(Location, CowTagID, Taxa, SpeciesCounts) %>% 
   pivot_wider(names_from = Taxa, values_from = SpeciesCounts) %>%  # extend out to establish NAs
-  pivot_longer(names_to = "Taxa", values_to = "SpeciesCounts", cols = 3:62) %>%  #long form to turn NAs into 0's for absence
+  pivot_longer(names_to = "Taxa", values_to = "SpeciesCounts", cols = Turf:'Caulerpa racemosa') %>%  #long form to turn NAs into 0's for absence
   mutate(Presence = if_else(is.na(SpeciesCounts), 0, 1)) %>%  # presence-absence of species per CowTagID
   select(-SpeciesCounts) %>% 
   left_join(Full_data) %>% 
@@ -556,8 +575,9 @@ spPA <- comp %>%
 
 ## PCA
 ```{r}
-# extract parameters for the PCA, excluding CT depth
+# extract parameters for the PCA
 pca_fulldata <- Full_data %>% 
+  ungroup() %>% # to remove location and cowtag
   filter(CowTagID != "VSEEP", CowTagID != "V13") %>% 
   select(Salinity:adj_CT_depth_cm) # avoid rugosity for now
 
@@ -626,6 +646,44 @@ p1_full_loading <- PC_loadings_full %>%
 
 p1_full_loading
 ```
+```{r}
+
+### loadings and points on single plot. not a great visual
+
+# PC_loadings_full %>%
+#   ggplot(aes(x = PC1, y = PC2, label = labels)) + # labels are the parameters
+#     geom_segment(aes(x = 0,
+#                      y = 0,
+#                      xend = PC1*10,
+#                      yend = PC2*10),
+#       arrow = arrow(length = unit(0.1,"cm")), 
+#       color = "grey") +
+#   annotate("text", 
+#            x = PC_loadings_full$PC1*10+0.5, 
+#            y = PC_loadings_full$PC2*10+0.5,
+#            label = PC_loadings_full$labels,
+#            size = 3) +
+#   coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
+#   theme_bw() +
+#   theme(panel.grid.major = element_blank(), 
+#         panel.grid.minor = element_blank()) +
+#   labs(title = "Varari Loadings") +
+#   ### Now add CowTagID points
+#   geom_point(data = pca_fulldata_all %>% select(CowTagID, PC1, PC2),
+#              aes(x = PC1, 
+#                  y = PC2,
+#                  label = CowTagID),
+#              shape = 21,
+#              color = "black",
+#              fill = "white",
+#              size = 3) +
+#   geom_text_repel(data = pca_fulldata_all %>% select(CowTagID, PC1, PC2),
+#                   aes(x = PC1,
+#                       y = PC2,
+#                       label = CowTagID))
+#   
+```
+
 
 ```{r}
 ### Patch PCA plots
@@ -653,11 +711,15 @@ pca_fulldata_all %>%
   scale_color_manual(values = mypalette)
 
 pca_fulldata_all %>% 
+  groupplot(x = PC1, y = dist_to_seep_m, fw = NA) +
+  scale_color_manual(values = mypalette)
+
+pca_fulldata_all %>% 
   groupplot(x = PC2, y = spRichness, fw = NA) +
   scale_color_manual(values = mypalette)
 
 
-summary(lm(data = pca_fulldata_all, PC1 ~ dist_to_seep_m)) # p = 0.02
+summary(lm(data = pca_fulldata_all, PC1 ~ dist_to_seep_m)) # p = 0.01
 summary(lm(data = pca_fulldata_all, PC2 ~ dist_to_seep_m))
 
 ```
@@ -668,10 +730,11 @@ summary(lm(data = pca_fulldata_all, PC2 ~ dist_to_seep_m))
 
 ## PCA
 ```{r}
-# extract parameters for the PCA, excluding CT depth
+# extract parameters for the PCA
 pca_fulldata2 <- Full_data %>% 
+  ungroup() %>% # to remove location and cowtagid
   filter(CowTagID != "VSEEP", CowTagID != "V13") %>% 
-  select(Salinity:N_percent,dist_to_seep_m:adj_CT_depth_cm) # avoid rugosity for now
+  select(Salinity:N_percent,dist_to_seep_m:adj_CT_depth_cm) # avoid rugosity
 
 # Run the PCA
 pca_full2 <- prcomp(pca_fulldata2, scale. = TRUE, center = TRUE)
@@ -769,7 +832,7 @@ pca_fulldata_all2 %>%
   scale_color_manual(values = mypalette)
 
 
-summary(lm(data = pca_fulldata_all2, PC1 ~ dist_to_seep_m)) # p = 0.02
+summary(lm(data = pca_fulldata_all2, PC1 ~ dist_to_seep_m)) # insignificant for all 
 summary(lm(data = pca_fulldata_all2, PC2 ~ dist_to_seep_m))
 
 ```
@@ -790,7 +853,8 @@ richPerm <- Full_data %>%
   filter(CowTagID != "VSEEP",
          CowTagID != "V13") %>% 
 #  select(CowTagID, Salinity:meanRugosity)
- select(CowTagID, Salinity:N_percent, dist_to_seep_m:meanRugosity)
+ select(CowTagID, Salinity:N_percent, dist_to_seep_m:meanRugosity) 
+
 richPerm$CowTagID <- factor(richPerm$CowTagID, levels = CTlevels)
 richPerm <- richPerm %>% 
   arrange(CowTagID) %>% # arrange data in order of CowTagID for ordination plot later
@@ -901,17 +965,18 @@ speciesPerm <- comp %>%
          CowTagID != "V13") %>% 
   select(CowTagID, Taxa, sp_percent) %>% 
   pivot_wider(names_from = "Taxa", values_from = "sp_percent") %>% 
-  mutate_at(vars('Hard Substrate':'Caulerpa racemosa'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) # put 0 %cover for all NA values
+  mutate_at(vars('Turf':'Caulerpa racemosa'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) # put 0 %cover for all NA values
 
 speciesPerm$CowTagID <- factor(speciesPerm$CowTagID, levels = CTlevels)
 
+# without substrate
 SiteParam <- comp %>%
   filter(CowTagID != "VSEEP",
          CowTagID != "V13") %>% 
   select(Taxa, sp_percent, Salinity:N_percent, dist_to_seep_m:meanRugosity) %>% 
   #select(Taxa, sp_percent, Salinity:meanRugosity) %>% 
   pivot_wider(names_from = "Taxa", values_from = "sp_percent") %>% 
-  mutate_at(vars('Hard Substrate':'Caulerpa racemosa'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) %>%  # put 0 %cover for all NA values
+  mutate_at(vars('Turf':'Caulerpa racemosa'), .funs = ~if_else(is.na(.)==TRUE, 0, .)) %>%  # put 0 %cover for all NA values
   select(Salinity:meanRugosity)
 
 speciesPerm <- speciesPerm %>% 
@@ -935,25 +1000,26 @@ stressplot(speciesOrd)
 
 # get points for species
 speciesRow <- rownames(speciesOrd$species) # get characteristic names
-speciesMDS1 <- c(speciesOrd$species[1:60]) # MDS1 for characteristics
-speciesMDS2 <- c(speciesOrd$species[61:120]) # MDS2 for characteristics
+speciesMDS1 <- c(speciesOrd$species[,1]) # MDS1 for characteristics
+speciesMDS2 <- c(speciesOrd$species[,2]) # MDS2 for characteristics
 speciesData <- as_tibble(cbind(speciesRow, speciesMDS1, speciesMDS2)) %>%  # bind all cols into tibble
   mutate(speciesMDS1 = as.numeric(speciesMDS1), # as numeric 
          speciesMDS2 = as.numeric(speciesMDS2)) %>% 
   rename(Taxa = speciesRow) %>% 
   left_join(taxa) %>% 
-  mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
+  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
   select(Taxa, speciesMDS1, speciesMDS2, Taxon_Group)
 # get points for
 speciesRowb <- as.character(CTlevels) # assign CowTagID
-speciesMDS1b <- c(speciesOrd$points[1:19]) # MDS1 for CowTagID
-speciesMDS2b <- c(speciesOrd$points[20:38]) # MDS2 for CowTagID
+speciesMDS1b <- c(speciesOrd$points[,1]) # MDS1 for CowTagID
+speciesMDS2b <- c(speciesOrd$points[,2]) # MDS2 for CowTagID
 speciesDatab <- as_tibble(cbind(speciesRowb, speciesMDS1b, speciesMDS2b)) %>%  # bind all cols into tibble
   mutate(speciesMDS1b = as.numeric(speciesMDS1b), # as numeric
          speciesMDS2b = as.numeric(speciesMDS2b))
 ```
 
 ```{r}
+
 # taxonPalette <- tibble('Taxon_Group' = as.character(c("Abiotic", "Sand", "Turf", "Rhodophyta", "")),
 #                        'PalColor' = as.character())
 
@@ -967,7 +1033,7 @@ nMDSplot2 <- ggplot(data = speciesData, # site characteristics
              size = 3) +
   # geom_point(data = speciesDatab, # CowTagIDs
   #            aes(x = speciesMDS1b,
-  #                y = speciesMDS2b), 
+  #                y = speciesMDS2b),
   #            shape = 3,
   #            size = 3) +
   geom_text_repel(data = speciesData, # site characteristics
@@ -986,20 +1052,23 @@ nMDSplot2
 
 
 ```{r}
-taxonPalette <- tibble('Taxon_Group' = as.character(c("Abiotic", "Turf", "Macroalgae", "Calcifier", "Sponge", "Corallimorph", "Anemone", "Cyanobacteria")),
-                       'PalColor' = as.character(c("black", "#00496F", "#086B8B", "#2E9093", "#EDC132", "#ED950A", "#DD4124", "#b99095")))
+taxonPalette <- tibble('Taxon_Group' = as.character(c("Coral", "Turf", "Chlorophyta", "Rhodophyta","Phaeophyta", "CCA", "Demospongiae", "Corallimorph", "Anemone", "Cyanobacteria")),
+                       'PalColor' = as.character(c("black", "#00496F", "#086B8B","#086B8B","#086B8B", "#2E9093", "#EDC132", "#ED950A", "#DD4124", "#b99095")))
+# taxonPalette <- tibble('Taxon_Group' = as.character(c("Abiotic", "Turf", "Macroalgae", "Calcifier", "Sponge", "Corallimorph", "Anemone", "Cyanobacteria")),
+#                        'PalColor' = as.character(c("black", "#00496F", "#086B8B", "#2E9093", "#EDC132", "#ED950A", "#DD4124", "#b99095")))
 
 
 #taxonPalette <- pnw_palette(name = "Bay", n = 8)
 
 # broad taxonomic groups
 taxonData <- speciesData %>% 
-  mutate(Taxon_Group = if_else(Taxon_Group == "Chlorophyta", "Macroalgae", 
-                       if_else(Taxon_Group == "Rhodophyta", "Macroalgae",
-                       if_else(Taxon_Group == "Phaeophyta", "Macroalgae",
-                       if_else(Taxon_Group == "Coral", "Calcifier", 
-                       if_else(Taxon_Group == "CCA", "Calcifier",
-                       if_else(Taxon_Group == "Sand", "Abiotic", Taxon_Group))))))) %>% 
+  # mutate(Taxon_Group = if_else(Taxon_Group == "Chlorophyta", "Macroalgae", 
+  #                      if_else(Taxon_Group == "Rhodophyta", "Macroalgae",
+  #                      if_else(Taxon_Group == "Phaeophyta", "Macroalgae",
+  #                      if_else(Taxon_Group == "Coral", "Calcifier", 
+  #                      if_else(Taxon_Group == "CCA", "Calcifier"
+  #                      #if_else(Taxon_Group == "Sand", "Abiotic", Taxon_Group)
+  #                      )))))) %>% 
   left_join(taxonPalette)
 
 Pal <- as.character(taxonData$PalColor)
@@ -1039,18 +1108,18 @@ nMDSplot2b
 speciesPermFull <- cbind(speciesRowb, speciesPerm) %>%  # bind cowTagIDs
   rename(CowTagID = speciesRowb)
 
-permanovamodel2<-adonis2(speciesPermFull[,-c(1:2)]~CowTagID, speciesPermFull, permutations = 999, 
+permanovamodel2<-adonis2(speciesPermFull[,-c(1)]~CowTagID, speciesPermFull, permutations = 999, 
                        method="bray") # should change out cowtagid with some grouping name
 permanovamodel2
 
 #If we are to trust the results of the permanova, then we have to assume that the dispersion among
 #data is the same in each group. We can test with assumption with a PermDisp test:
-disper<-vegdist(speciesPermFull[,-c(1:2)])
+disper<-vegdist(speciesPermFull[,-c(1)])
 betadisper(disper, speciesPermFull$CowTagID)
 #Look at the Average distance to median...these numbers should be reasonably similar
 #A rule of thumb is that one number should not be twice as high as any other
 
-pairwise.adonis(speciesPermFull[-1], speciesPermFull$Site, perm=999)
+pairwise.adonis(speciesPermFull[-1], speciesPermFull$CowTagID, perm=999)
 
 #Get coefficients to see which species are most important in explaining site differences:
 permanovamodel2$coefficients
@@ -1098,7 +1167,7 @@ Richness_pval
 # view bar graph of pvalues with 0.05 cutoff
 Richness_pval %>% 
   ggplot(aes(x = Parameter, y = pvalue)) +
-  geom_col() +
+  geom_col(fill = if_else(Richness_pval$pvalue < 0.05, "red", "darkgrey")) +
   geom_hline(yintercept = 0.05) +
   theme_bw() +
   labs(y = "p-value: ~ Species Richness") +
@@ -1137,21 +1206,24 @@ res
 res_data <- Full_data %>% 
   filter(CowTagID != "V13", CowTagID != "VSEEP") %>% 
   cbind(res) %>% 
-  relocate(res, .after = CowTagID)
+  relocate(res, .after = CowTagID) %>% 
+  rename(spR_residuals = res)
 
 #plot predictor variable vs. standardized residuals
 res_data %>% 
   ggplot(aes(x = meanRugosity,
              y = res)) +
-  geom_point(color = if_else(res > 0, "black", "red")) +
+  geom_point(color = if_else(res > 0, "black", "red"),
+             size = 3) +
   geom_text_repel(aes(label = CowTagID)) +
   theme_bw()
 
 
 # plot residuals against distance parameter
 respval <- anova(lm(data = res_data, res ~ dist_to_seep_m))[5]$'Pr(>F)'[1]
+resr2val <- summary(lm(data = res_data, res ~ dist_to_seep_m))$'r.squared'
 
-res_data %>% 
+plot_residuals_dist2seep <- res_data %>% 
   ggplot(aes(x = dist_to_seep_m,
              y = res)) +
   geom_point() +
@@ -1159,7 +1231,11 @@ res_data %>%
   theme_bw() + theme(panel.grid = element_blank()) +
   labs(y = "Residuals (Species Richness ~ Mean Rugosity)",
        x = "Distance to seepage point (m)",
-       caption = paste("p-value:",round(respval,2)))
+       caption = paste("p-value:",round(respval,3),'\n',
+                       "r-squared:", round(resr2val,3)))
+plot_residuals_dist2seep
+
+ggsave(here("Output", "PaperFigures", "Residuals_Distance.png"),plot_residuals_dist2seep, width = 6, height = 5)
 
 ```
 
@@ -1196,7 +1272,7 @@ res_pval
 # view bar graph of pvalues with 0.05 cutoff
 res_pval %>% 
   ggplot(aes(x = Parameter, y = pvalue)) +
-  geom_col() +
+  geom_col(fill = if_else(res_pval$pvalue < 0.05, "red", "darkgrey")) +
   geom_hline(yintercept = 0.05) +
   theme_bw() +
   labs(y = "p-value: ~ Residuals") +
@@ -1214,8 +1290,8 @@ res_pval %>%
 ```{r}
 # extract parameters for the PCA, excluding CT depth
 pca_fulldata3 <- res_data %>% 
-  relocate(res, .after=lon) %>% 
-  select(res:N_percent,dist_to_seep_m:adj_CT_depth_cm) # avoid rugosity because rugosity residuals
+  relocate(spR_residuals, .after=lon) %>% 
+  select(spR_residuals:N_percent,dist_to_seep_m:adj_CT_depth_cm) # avoid rugosity because rugosity residuals
 
 # Run the PCA
 pca_full3 <- prcomp(pca_fulldata3, scale. = TRUE, center = TRUE)
@@ -1227,9 +1303,9 @@ PC_loadings_full3 <- as_tibble(pca_full3$rotation) %>% # loadings for each param
 
 # Put it with all the original data
 pca_fulldata_all3 <- res_data %>% 
-  relocate(res, .after=lon) %>% 
+  relocate(spR_residuals, .after=lon) %>% 
   bind_cols(PC_scores_full3) %>% 
-  select(-meanRugosity)
+  select(-meanRugosity) 
 
 ```
 
@@ -1518,7 +1594,7 @@ write_csv(seepParam_pval_noSeep, here("Data", "biogeochem_pvalues_noSeep.csv"))
 ## Plotting richness along parameters
 
 ### with seep
-```{r}
+```{r, eval = F}
 red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = Phosphate_umolL, by = CowTagID)$CowTagID
 colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Phosphate (umol L-1)")
 
@@ -1548,7 +1624,7 @@ colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Mean Rugosit
 ```
 
 ### no seep
-```{r}
+```{r, eval = F}
 red_Full_noseep$CowTagID <- order(data = red_Full_noseep, param = Ammonia_umolL, by = CowTagID)$CowTagID
 colplot(mydata = red_Full_noseep, y = spRichness) +labs(title = " ~ Ammonia (umol L-1)")
 

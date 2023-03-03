@@ -162,16 +162,16 @@ maya <- species %>%
   filter(CowTagID == "Reef_Ambient_2" | CowTagID == "Reef_Ambient_1" | 
            CowTagID == "RockWall_SGD_1"| CowTagID == "RockWall_SGD_2" | CowTagID == "RockWall_SGD_3" |
            CowTagID == "Sand_SGD_2"| CowTagID == "Sand_SGD_1" |
-           CowTagID ==  "VSEEP" | CowTagID == "V13") %>% # also removing seep and 13 for now
+           CowTagID ==  "VSEEP" | CowTagID == "V13") %>% # also removing seep for now
   distinct()
 
 
 # join all biogeochemical data
 chem <- chem %>% 
   select(-c(del15N:N_percent)) %>% 
-  filter(Location == "Varari" & CowTagID != "VSEEP") %>% 
+  filter(Location == "Varari" & CowTagID != "VSEEP" & CowTagID != "V13") %>% 
   left_join(envi) %>% 
-  select(-c(Location, lat, lon, Dist_CT_cm, Depth_cm, Tidal_diff))
+  select(-c(Location, lat, lon))
 
 # subset biogeochemical
 waterchem <- chem  %>% 
@@ -183,7 +183,7 @@ structure <- chem %>%
   
 # keep relevant attributes
 red_trait <- traits %>% 
-  select(Identified, Taxa, Genus, Taxon_Group, Morphology, Secondary_Morphology, Life_Span, MS_cat, Zooxanthellate, Calcification, Energetic_Resource, Feeding_Mode)
+  select(Identified, Taxa, Genus, Taxon_Group, Morphology, Secondary_Morphology, Life_Span, Max_size, MS_cat, Growth_rate, Zooxanthellate, Calcification, Energetic_Resource, Feeding_Mode)
 
 # full join with above removals
 full_comp <- species %>% 
@@ -194,7 +194,7 @@ full_comp <- species %>%
   filter(Identified == "yes") %>% # remove yet identified organisms
   select(-Identified) %>% # remove attribute
   filter(Location == "Varari") %>%  # only varari for now
-  filter(CowTagID != "VSEEP", CowTagID != "V13") # remove seep and V13
+  filter(CowTagID != "VSEEP" & CowTagID != "V13") # remove seep
 
 ```
 
@@ -267,6 +267,11 @@ species_rich %>%
   geom_text_repel(aes(label = CowTagID)) +
   theme_bw()
 summary(lm(data = species_rich %>% left_join(chem), species_richness ~ Ammonia_umolL))
+```
+
+
+Residuals
+```{r}
 ## residuals
 # fit model
 resMod <- (lm(data = species_rich %>% left_join(chem), species_richness ~ meanRugosity))
@@ -690,13 +695,26 @@ turf_cover %>%
   labs(y = "% Cover Filamentous Morphology (Turf)", x = "Distance to seep (m)")
 summary(lm(data = turf_cover, Filamentous ~ poly(dist_to_seep_m, 2))) # * unimodal turf relationship
 
-longMorph %>% 
+########################################################
+########################################################
+########################################################
+
+### ALGAE MORPHOLOGIES POLYNOMIAL REGRESSION
+
+########################################################
+########################################################
+########################################################
+algae_facet_poly_morph <- longMorph %>% 
   ggplot(aes(x = dist_to_seep_m, y = cover, group = Morphology, color = Morphology)) +
   geom_point() +
   geom_smooth(method = "lm", se = T, formula = y ~ poly(x,2)) +
-  theme_bw() + theme(panel.grid = element_blank()) +
+  theme_bw() + 
+  theme(panel.grid = element_blank()) +
   facet_wrap(~Morphology, scales = "free") +
   labs(title = "Morphologies, Algae only (polynomial fit)", x = "Distance to seep (m)", y = "% Cover of Morphological Group", color = "Morphology")
+algae_facet_poly_morph
+ggsave(here("Output", "PaperFigures", "algae_morphology_poly_facet.png"), algae_facet_poly_morph, height = 6, width = 8)
+
 summary(lm(data = algae_morph_cover %>% left_join(structure), Filamentous ~ dist_to_seep_m)) # no signif
 summary(lm(data = algae_morph_cover %>% left_join(structure), Filamentous ~ poly(dist_to_seep_m, 2))) # 0.02 * unimodal turf relationship
 
