@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE, warning = F}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
 ```
 
 # Install necessary libraries
@@ -102,7 +102,7 @@ plotfun <- function(mydata = Full_data, x, y, myfacet, myformula) {
                      color = Season)) +
   geom_point() +
   geom_smooth(method = "lm", formula = myformula) +
-  facet_wrap(enquo(myfacet), scales = "free_y") +
+  facet_wrap(enquo(myfacet), scales = "free") +
   labs(y = paste(as_label(y)),
        x = paste(as_label(x))) +
   theme_bw()+
@@ -247,14 +247,14 @@ pvalplot <- function(mydata, season = "Dry"){
 
 ## TURBINARIA NUTRIENT LOADING
 ```{r}
-plotfun(x = NbSp, y = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(x = NbSp, y = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
+plotfun(y = NbSp, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
+plotfun(y = NbSp, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
 
-plotfun(x = NbFEs, y = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(x = NbFEs, y = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
+plotfun(y = NbFEs, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
+plotfun(y = NbFEs, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
 
-plotfun(x = Vol8D, y = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(x = Vol8D, y = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
+plotfun(y = Vol8D, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
+plotfun(y = Vol8D, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
 
 
 # get pvalues
@@ -269,14 +269,14 @@ pvalplot(mydata = pTO, season = "June2022")
 ## MAXIMUM VALUES
 ```{r}
 
-plotfun(x = NbSp, y = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = Maximum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = Maximum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = Maximum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 
 # get pvalues
@@ -295,14 +295,14 @@ pvalplot(mydata = Max, season = "Wet")
 ## MINIMUM VALUES
 ```{r}
 
-plotfun(x = NbSp, y = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = Minimum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = Minimum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = Minimum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 Min3<-pvalpoly(myparam = "Minimum", myseason = "Dry")
@@ -321,14 +321,14 @@ pvalplot(mydata = Min, season = "Wet")
 ## RANGE VALUES
 ```{r}
 
-plotfun(x = NbSp, y = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = Range, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = Range, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = Range, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 Ran3<-pvalpoly(myparam = "Range", myseason = "Dry")
@@ -344,14 +344,14 @@ pvalplot(mydata = Ran, season = "Wet")
 ## MEAN VALUES BY SEASON
 ```{r}
 
-plotfun(x = NbSp, y = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 MeanS3<-pvalpoly(myparam = "MeanSeasonal", myseason = "Dry")
@@ -368,14 +368,14 @@ pvalplot(mydata = MeanS, season = "Wet")
 ## MEAN VALUES (ALL SEASONS)
 ```{r}
 
-plotfun(x = NbSp, y = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = MeanAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = MeanAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = MeanAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 MeanA3<-pvalpoly(myparam = "MeanAll", myseason = "Dry")
@@ -393,14 +393,14 @@ pvalplot(mydata = MeanA, season = "Wet")
 ## CV VALUES BY SEASON
 ```{r}
 
-plotfun(x = NbSp, y = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 CVS3<-pvalpoly(myparam = "CVSeasonal", myseason = "Dry")
@@ -417,14 +417,14 @@ pvalplot(mydata = CVS, season = "Wet")
 ## CV VALUES (ALL SEASONS)
 ```{r}
 
-plotfun(x = NbSp, y = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = CVAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = CVAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = CVAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 CVA3<-pvalpoly(myparam = "CVAll", myseason = "Dry")
@@ -512,14 +512,14 @@ return(p)
 
 ## TURBINARIA NUTRIENT LOADING
 ```{r}
-plotfun(x = NbSp, y = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(x = NbSp, y = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
+plotfun(y = NbSp, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
+plotfun(y = NbSp, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
 
-plotfun(x = NbFEs, y = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(x = NbFEs, y = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
+plotfun(y = NbFEs, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
+plotfun(y = NbFEs, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
 
-plotfun(x = Vol8D, y = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(x = Vol8D, y = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
+plotfun(y = Vol8D, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
+plotfun(y = Vol8D, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
 
 
 # get pvalues
@@ -534,14 +534,14 @@ pvalplot(mydata = pTO, season = "June2022")
 ## MAXIMUM VALUES
 ```{r}
 
-plotfun(x = NbSp, y = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = Maximum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = Maximum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = Maximum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 
 # get pvalues
@@ -566,14 +566,14 @@ p1b <- paramPlot(mydata = Full_data, ParamType = Maximum, PTname = "Maximum_poly
 ## MINIMUM VALUES
 ```{r}
 
-plotfun(x = NbSp, y = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = Minimum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = Minimum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = Minimum, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 Min3<-pvalpoly(myparam = "Minimum", myseason = "Dry")
@@ -596,14 +596,14 @@ p2b <- paramPlot(mydata = Full_data, ParamType = Minimum, PTname = "Minimum_poly
 ## RANGE VALUES
 ```{r}
 
-plotfun(x = NbSp, y = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = Range, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = Range, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = Range, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 Ran3<-pvalpoly(myparam = "Range", myseason = "Dry")
@@ -625,14 +625,14 @@ p3b <- paramPlot(mydata = Full_data, ParamType = Range, PTname = "Range_poly", m
 ## MEAN VALUES BY SEASON
 ```{r}
 
-plotfun(x = NbSp, y = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 MeanS3<-pvalpoly(myparam = "MeanSeasonal", myseason = "Dry")
@@ -654,14 +654,14 @@ p4b <- paramPlot(mydata = Full_data, ParamType = MeanSeasonal, PTname = "MeanSea
 ## MEAN VALUES (ALL SEASONS)
 ```{r}
 
-plotfun(x = NbSp, y = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = MeanAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = MeanAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = MeanAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 MeanA3<-pvalpoly(myparam = "MeanAll", myseason = "Dry")
@@ -682,14 +682,14 @@ p5b <- paramPlot(mydata = Full_data, ParamType = MeanAll, PTname = "MeanAll_poly
 ## CV VALUES BY SEASON
 ```{r}
 
-plotfun(x = NbSp, y = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 CVS3<-pvalpoly(myparam = "CVSeasonal", myseason = "Dry")
@@ -710,14 +710,14 @@ p6b <- paramPlot(mydata = Full_data, ParamType = CVSeasonal, PTname = "CVSeasona
 ## CV VALUES (ALL SEASONS)
 ```{r}
 
-plotfun(x = NbSp, y = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbSp, y = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbSp, x = CVAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbSp, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = NbFEs, y = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = NbFEs, y = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = NbFEs, x = CVAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = NbFEs, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
-plotfun(x = Vol8D, y = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(x = Vol8D, y = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
+plotfun(y = Vol8D, x = CVAll, myfacet = Parameters, myformula = "y~x")
+plotfun(y = Vol8D, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
 
 # get pvalues
 CVA3<-pvalpoly(myparam = "CVAll", myseason = "Dry")
