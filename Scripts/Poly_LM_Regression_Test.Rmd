@@ -240,219 +240,7 @@ pvalplot <- function(mydata, season = "Dry"){
   return(plot1)
 }
 
-
-```
-
-# INCLUDING VSEEP
-
-## TURBINARIA NUTRIENT LOADING
-```{r}
-plotfun(y = NbSp, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(y = NbSp, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
-
-plotfun(y = NbFEs, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(y = NbFEs, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
-
-plotfun(y = Vol8D, x = Values, myfacet = Parameters, myformula = "y~x", mydata = myturb)
-plotfun(y = Vol8D, x = Values, myfacet = Parameters, myformula = "y~poly(x,2)", mydata = myturb)
-
-
-# get pvalues
-pTO<-pvalpoly(mydata = myturb, myparam = "Values", myseason = "June2022")
-pTO
-
-pvalplot(mydata = pTO, season = "June2022")
-```
-
-
-
-## MAXIMUM VALUES
-```{r}
-
-plotfun(y = NbSp, x = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbSp, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = NbFEs, x = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbFEs, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = Vol8D, x = Maximum, myfacet = Parameters, myformula = "y~x")
-plotfun(y = Vol8D, x = Maximum, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-
-# get pvalues
-Max3<-pvalpoly(myparam = "Maximum", myseason = "Dry")
-Max4<-pvalpoly(myparam = "Maximum", myseason = "Wet")
-
-
-Max <- full_join(Max3, Max4)
-Max
-
-pvalplot(mydata = Max, season = "Dry")
-pvalplot(mydata = Max, season = "Wet")
-
-```
-
-## MINIMUM VALUES
-```{r}
-
-plotfun(y = NbSp, x = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbSp, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = NbFEs, x = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbFEs, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = Vol8D, x = Minimum, myfacet = Parameters, myformula = "y~x")
-plotfun(y = Vol8D, x = Minimum, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-# get pvalues
-Min3<-pvalpoly(myparam = "Minimum", myseason = "Dry")
-Min4<-pvalpoly(myparam = "Minimum", myseason = "Wet")
-
-Min <- full_join(Min3, Min4)
-Min
-
-
-
-pvalplot(mydata = Min, season = "Dry")
-pvalplot(mydata = Min, season = "Wet")
-```
-
-
-## RANGE VALUES
-```{r}
-
-plotfun(y = NbSp, x = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbSp, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = NbFEs, x = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbFEs, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = Vol8D, x = Range, myfacet = Parameters, myformula = "y~x")
-plotfun(y = Vol8D, x = Range, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-# get pvalues
-Ran3<-pvalpoly(myparam = "Range", myseason = "Dry")
-Ran4<-pvalpoly(myparam = "Range", myseason = "Wet")
-
-Ran <- full_join(Ran3, Ran4) 
-Ran
-
-
-pvalplot(mydata = Ran, season = "Dry")
-pvalplot(mydata = Ran, season = "Wet")
-```
-## MEAN VALUES BY SEASON
-```{r}
-
-plotfun(y = NbSp, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbSp, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = NbFEs, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbFEs, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = Vol8D, x = MeanSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(y = Vol8D, x = MeanSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-# get pvalues
-MeanS3<-pvalpoly(myparam = "MeanSeasonal", myseason = "Dry")
-MeanS4<-pvalpoly(myparam = "MeanSeasonal", myseason = "Wet")
-
-MeanS <- full_join(MeanS3, MeanS4) 
-MeanS
-
-
-pvalplot(mydata = MeanS, season = "Dry")
-pvalplot(mydata = MeanS, season = "Wet")
-```
-
-## MEAN VALUES (ALL SEASONS)
-```{r}
-
-plotfun(y = NbSp, x = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbSp, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = NbFEs, x = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbFEs, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = Vol8D, x = MeanAll, myfacet = Parameters, myformula = "y~x")
-plotfun(y = Vol8D, x = MeanAll, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-# get pvalues
-MeanA3<-pvalpoly(myparam = "MeanAll", myseason = "Dry")
-MeanA4<-pvalpoly(myparam = "MeanAll", myseason = "Wet")
-
-MeanA <- full_join(MeanA3, MeanA4) 
-MeanA
-
-pvalplot(mydata = MeanA, season = "Dry")
-pvalplot(mydata = MeanA, season = "Wet")
-```
-
-
-
-## CV VALUES BY SEASON
-```{r}
-
-plotfun(y = NbSp, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbSp, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = NbFEs, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbFEs, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = Vol8D, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
-plotfun(y = Vol8D, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-# get pvalues
-CVS3<-pvalpoly(myparam = "CVSeasonal", myseason = "Dry")
-CVS4<-pvalpoly(myparam = "CVSeasonal", myseason = "Wet")
-
-CVS <- full_join(CVS3, CVS4)
-CVS
-
-pvalplot(mydata = CVS, season = "Dry")
-pvalplot(mydata = CVS, season = "Wet")
-```
-
-
-## CV VALUES (ALL SEASONS)
-```{r}
-
-plotfun(y = NbSp, x = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbSp, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = NbFEs, x = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(y = NbFEs, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-plotfun(y = Vol8D, x = CVAll, myfacet = Parameters, myformula = "y~x")
-plotfun(y = Vol8D, x = CVAll, myfacet = Parameters, myformula = "y~poly(x,2)")
-
-# get pvalues
-CVA3<-pvalpoly(myparam = "CVAll", myseason = "Dry")
-CVA4<-pvalpoly(myparam = "CVAll", myseason = "Wet")
-
-CVA <- full_join(CVA3, CVA4)
-CVA
-
-pvalplot(mydata = CVA, season = "Dry")
-pvalplot(mydata = CVA, season = "Wet")
-```
-
-
-
-# NOT INCLUDING VSEEP
-
-
-## Remove VSEEP from Full_data 
-```{r}
-Full_data <- Full_data %>% 
-  filter(CowTagID!= "VSEEP")
-myturb <- myturb %>% 
-  filter(CowTagID != "VSEEP")
-```
-
-
-## Function: Visualize linear and nonlinear regressions: Site Characteristics
-```{r}
+# site characteristic regression plots
 paramPlot <- function(mydata = Full_data, ParamType, PTname, myformula = "y~x"){
   
   # isolate the desired paramtype (ex. Max, Min, Mean)
@@ -496,7 +284,7 @@ paramPlot <- function(mydata = Full_data, ParamType, PTname, myformula = "y~x"){
   }
 
   # Save all plots in a single pdf
-  pdf(here("Output",paste0("V_site_regressions_", PTname ,".pdf")), onefile = TRUE)
+  pdf(here("Output","Biogeochem_Regression",paste0("V_site_regressions_", PTname ,".pdf")), onefile = TRUE)
   for (i in 1:length(p)) {
     tplot <- p[[i]]
     print(tplot)
@@ -505,6 +293,19 @@ paramPlot <- function(mydata = Full_data, ParamType, PTname, myformula = "y~x"){
 
 return(p)
 }
+
+```
+
+
+# NOT INCLUDING VSEEP
+
+
+## Remove VSEEP from Full_data 
+```{r}
+Full_data <- Full_data %>% 
+  filter(CowTagID!= "VSEEP")
+myturb <- myturb %>% 
+  filter(CowTagID != "VSEEP")
 ```
 
 
