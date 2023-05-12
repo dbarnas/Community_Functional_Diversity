@@ -183,7 +183,18 @@ structure <- chem %>%
   
 # keep relevant attributes
 red_trait <- traits %>% 
-  select(Identified, Taxa, Genus, Taxon_Group, Morphology, Secondary_Morphology, Life_Span, Max_size, MS_cat, Growth_rate, Zooxanthellate, Calcification, Energetic_Resource, Feeding_Mode)
+  select(Identified, 
+         Taxa, 
+         Genus, 
+         Taxon_Group, 
+         Morph2, 
+         Symb, 
+         Calc, 
+         ER, 
+         FM, 
+         Life_Span, 
+         #GR_cat, 
+         MS_cat)
 
 # full join with above removals
 full_comp <- species %>% 

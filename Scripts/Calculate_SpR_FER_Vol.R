@@ -10,6 +10,7 @@
 ### Created November 2022
 ### Modified February 26, 2023
 
+##### LOAD LIBRARIES #####
 
 library(tidyverse)
 library(here)
@@ -21,6 +22,7 @@ library(patchwork)
 library(PNWColors)
 
 
+##### READ IN DATA #####
 
 traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
 myspecies <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
@@ -29,7 +31,7 @@ chem <- read_csv(here("Data", "Biogeochem", "Nutrient_Processed_CV.csv"))
 
 myspecies <- myspecies %>%
   filter(Location == "Varari", # only analyze varari for now
-         CowTagID != "VSEEP",
+         #CowTagID != "VSEEP",
          CowTagID != "V13")
 
 # only cowtag ID's
@@ -37,28 +39,39 @@ quad.label <- myspecies %>%
   select(CowTagID) %>%
   distinct()
 
-# meta %>%
-#   filter(Location == "Varari",
-#          CowTagID != "VSEEP",
-#          CowTagID != "V13") %>%
-#   select(CowTagID, N_percent, dist_to_seep_m)
-
 
 
 # create attribute for Functional Entity of each species
 traits <- traits %>%
   full_join(myspecies) %>% # apply traits to species composition df
   filter(Location == "Varari",
-         CowTagID != "VSEEP", CowTagID != "V13",
+         #CowTagID != "VSEEP",
+         CowTagID != "V13",
          Identified == "yes",
          Taxon_Group != "Hard Substrate" &
            Taxon_Group != "Sand") %>%
-  select(Taxa, Taxon_Group, Morph,
-         #Life_Span,MS_cat,GR_cat, # still have NAs
-         Zoox:FM) %>%
-  unite(col = "fun_entity", Morph:FM, sep = ",", remove = F) %>%
-  relocate(fun_entity, .after = FM) %>%
+  select(Taxa,
+         Taxon_Group,
+         Morph2,
+         #Symb,
+         Calc,
+         #Life_Span,
+         #MS_cat,
+         #GR_cat,
+         ER
+         #FM
+         ) %>%
+  unite(col = "FE", Taxon_Group:ER, sep = ",", remove = F) %>%
+  relocate(FE, .after = ER) %>%
   distinct()
+
+# write csv for all distinct FE combinations
+fes_traits.sgd <- traits %>%
+  select(FE = FE, Taxon_Group:ER) %>%
+  distinct()
+
+write_csv(fes_traits.sgd, here("Data", "Distinct_FE.csv"))
+
 
 
 
@@ -80,19 +93,28 @@ myspecies <- myspecies %>%
   mutate_all(.funs = ~if_else(is.na(.), 0, .)) %>%  # zero percent for any NA values
   ungroup()
 
+# write csv for species abundances
+write_csv(myspecies, here("Data", "Species_Abundances_wide.csv"))
+
 
 
 # select only for species and functional entities
 species_entities <- traits %>%
-  select(Taxa, fun_entity)
+  select(Taxa, FE)
+
+# write csv for species entities tied to FE
+write_csv(species_entities, here("Data", "Species_FE.csv"))
+
+
+
 
 # df with unique functional entities for each row
 entity <- traits %>%
-  select(-c(Taxa, Taxon_Group)) %>%
+  select(-Taxa) %>%
   distinct() %>%
-  relocate(fun_entity, .before = Morph) %>%
+  relocate(FE, .before = Taxon_Group) %>%
   mutate_all(.funs = as_factor) # groups need to be factors to run quality_funct_space()
-entity <- column_to_rownames(entity, var = "fun_entity")
+entity <- column_to_rownames(entity, var = "FE")
 
 #  CowTagIDs as factors, to be used as relative SGD identifiers along gradient
 relative.sgd <- quad.label$CowTagID
@@ -115,11 +137,6 @@ round(qfs$meanSD, 4)
 # keep coordinates on 4 dimensions, where meanSD < 0.004
 # WHY < 0.004??
 fd.coord.sgd <- qfs$details_funct_space$mat_coord[,1:4] #%>% # keeps PC1-4
-#  cbind(entity) %>% # rejoin functional entity values for each PC row
-#  select(PC1:fun_entity)
-#rownames(fd.coord.sgd) <- fd.coord.sgd$fun_entity # provide rownames
-#fd.coord.sgd <- fd.coord.sgd[,1:4]
-#fd.coord.sgd <- data.matrix(fd.coord.sgd) # paste from df to matrix array
 
 write.csv(fd.coord.sgd, here("Data","FE_4D_coord_dmb.csv"))
 
@@ -160,8 +177,10 @@ sgd.sp <- myspecies %>%
   ungroup() %>%
   distinct() %>% # remove duplicate values after summing up percent cover
   group_by(CowTagID) %>%
-  pivot_wider(names_from = Taxa, values_from = cover)  # pivot species wide by relative SGD
-
+  pivot_wider(names_from = Taxa, values_from = cover) %>%   # pivot species wide by relative SGD
+  # remove seep from convex hull calculations
+  filter(CowTagID != "VSEEP")
+relative.sgd <- relative.sgd[1:19]
 
 # CowTagIDs as rownames
 sgd.sp <- column_to_rownames(.data = sgd.sp, var = "CowTagID")
@@ -208,4 +227,17 @@ colnames(Fric) <- c("NbSp", "NbSpP", "NbFEs","NbFEsP", "Vol8D")
 
 Fric <- rownames_to_column(as.data.frame(Fric), var = "CowTagID")
 
+
+## CALCULATE VALUES FOR VSEEP AND RBIND
+Fric
+SeepFric <- tibble(CowTagID = "VSEEP",
+                   NbSp = 1,
+                   NbSpP = 1/51*100,
+                   NbFEs = 1,
+                   NbFEsP = 1/28*100,
+                   Vol8D = 0)
+Fric <- Fric %>%
+  rbind(SeepFric)
+
 write_csv(Fric, here("Data", "Sp_FE_Vol.csv"))
+

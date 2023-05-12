@@ -1,24 +1,24 @@
-FE,Morph,Zoox,Calc,ER,FM
-"Poly,Zoox,NC,Photo-Auto,Passive FF",Poly,Zoox,NC,Photo-Auto,Passive FF
-"Enc,Non-Zoox,AC,Auto,Auto",Enc,Non-Zoox,AC,Auto,Auto
-"Br Fol,Non-Zoox,NC,Auto,Auto",Br Fol,Non-Zoox,NC,Auto,Auto
-"Ves,Non-Zoox,NC,Auto,Auto",Ves,Non-Zoox,NC,Auto,Auto
-"Br Erec,Non-Zoox,NC,Auto,Auto",Br Erec,Non-Zoox,NC,Auto,Auto
-"Br Mat,Non-Zoox,AC,Auto,Auto",Br Mat,Non-Zoox,AC,Auto,Auto
-"Br Glob,Non-Zoox,AC,Auto,Auto",Br Glob,Non-Zoox,AC,Auto,Auto
-"Br Erec,Non-Zoox,AC,Auto,Auto",Br Erec,Non-Zoox,AC,Auto,Auto
-"Mush,Zoox,Herm,Photo-Auto,Passive FF",Mush,Zoox,Herm,Photo-Auto,Passive FF
-"Enc,Zoox,Herm,Photo-Auto,Passive FF",Enc,Zoox,Herm,Photo-Auto,Passive FF
-"Enc,Non-Zoox,NC,Auto,Auto",Enc,Non-Zoox,NC,Auto,Auto
-"Enc Dig,Zoox,Herm,Photo-Auto,Passive FF",Enc Dig,Zoox,Herm,Photo-Auto,Passive FF
-"Mas Dig,Zoox,Herm,Photo-Auto,Passive FF",Mas Dig,Zoox,Herm,Photo-Auto,Passive FF
-"Br Fol,Zoox,Herm,Photo-Auto,Passive FF",Br Fol,Zoox,Herm,Photo-Auto,Passive FF
-"Br Glob,Zoox,Herm,Photo-Auto,Passive FF",Br Glob,Zoox,Herm,Photo-Auto,Passive FF
-"Mas,Zoox,Herm,Photo-Auto,Passive FF",Mas,Zoox,Herm,Photo-Auto,Passive FF
-"Br Mat,Non-Zoox,NC,Auto,Auto",Br Mat,Non-Zoox,NC,Auto,Auto
-"Br Fol,Non-Zoox,Non-AC,Auto,Auto",Br Fol,Non-Zoox,Non-AC,Auto,Auto
-"Br Glob,Non-Zoox,NC,Auto,Auto",Br Glob,Non-Zoox,NC,Auto,Auto
-"Br Glob,Non-Zoox,Non-AC,Auto,Auto",Br Glob,Non-Zoox,Non-AC,Auto,Auto
-"Enc,unk,NC,unk,Active FF",Enc,unk,NC,unk,Active FF
-"Enc Dig,Zoox,NC,Photo-Auto,Active FF",Enc Dig,Zoox,NC,Photo-Auto,Active FF
-"Fil,Non-Zoox,NC,Auto,Auto",Fil,Non-Zoox,NC,Auto,Auto
+FE,Taxon_Group,Morph2,Calc,ER
+"Rhodophyta,Br,NC,Auto",Rhodophyta,Br,NC,Auto
+"Rhodophyta,Br,AC,Auto",Rhodophyta,Br,AC,Auto
+"Chlorophyta,Fol,NC,Auto",Chlorophyta,Fol,NC,Auto
+"Chlorophyta,Stol,NC,Auto",Chlorophyta,Stol,NC,Auto
+"Rhodophyta,Enc,Non-AC,Auto",Rhodophyta,Enc,Non-AC,Auto
+"Cyanobacteria,Enc,NC,Auto",Cyanobacteria,Enc,NC,Auto
+"Scleractinia,Enc,Herm,Mix",Scleractinia,Enc,Herm,Mix
+"Scleractinia,Mush,Herm,Mix",Scleractinia,Mush,Herm,Mix
+"Chlorophyta,Cushion,NC,Auto",Chlorophyta,Cushion,NC,Auto
+"Phaeophyta,Br,NC,Auto",Phaeophyta,Br,NC,Auto
+"Corallimorpharia,Poly,NC,Mix",Corallimorpharia,Poly,NC,Mix
+"Rhodophyta,Br,Non-AC,Auto",Rhodophyta,Br,Non-AC,Auto
+"Scleractinia,Mas,Herm,Mix",Scleractinia,Mas,Herm,Mix
+"Porifera,Enc,NC,Het",Porifera,Enc,NC,Het
+"Chlorophyta,Br,AC,Auto",Chlorophyta,Br,AC,Auto
+"Actiniaria,Poly,NC,Mix",Actiniaria,Poly,NC,Mix
+"Phaeophyta,Enc,NC,Auto",Phaeophyta,Enc,NC,Auto
+"Scleractinia,Dig,Herm,Mix",Scleractinia,Dig,Herm,Mix
+"Phaeophyta,Fol,Non-AC,Auto",Phaeophyta,Fol,Non-AC,Auto
+"Scleractinia,Fol,Herm,Mix",Scleractinia,Fol,Herm,Mix
+"Scleractinia,Br,Herm,Mix",Scleractinia,Br,Herm,Mix
+"Chlorophyta,Fil,NC,Auto",Chlorophyta,Fil,NC,Auto
+"Chlorophyta,Sph,NC,Auto",Chlorophyta,Sph,NC,Auto
