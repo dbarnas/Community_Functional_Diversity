@@ -25,8 +25,17 @@ alphatag <- read_csv(here("Data","CowTag_to_AlphaTag.csv"))
 traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
 comp <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
 meta <- read_csv(here("Data", "Full_Metadata.csv"))
-chem <- read_csv(here("Data", "Biogeochem","Nutrient_Processed_CV.csv"))
+shore <- read_csv(here("Data", "Shore_distance.csv")) %>% select(-Location)
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari",
+         #CowTagID != "VSEEP" &
+         CowTagID != "V13") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+redchem <- chem %>% select(CowTagID, Phosphate_umolL, NN_umolL)
 # have one df with the CV, mean, mediam, august, march, both data, look back at min and max values for pH and Silicate
+
 
 # richness, % richness of community pool, and % volume of community pool
 Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
@@ -53,9 +62,9 @@ comp <- comp %>%
 
 # only cowtag ID's
 quad.label <- chem %>%
-  filter(Location == "Varari",
-         #CowTagID != "VSEEP",
-         CowTagID != "V13") %>%
+  #filter(Location == "Varari",
+  #CowTagID != "VSEEP",
+  #CowTagID != "V13") %>%
   distinct(CowTagID)
 
 
@@ -63,30 +72,6 @@ mylongspecies <- myspecies %>%
   pivot_longer(cols = 2:52, names_to = "Taxa", values_to = "pCover") %>%
   left_join(meta) %>%
   select(Location, CowTagID, Taxa, pCover)
-
-# create attribute for Functional Entity of each species
-# traits <- traits %>%
-#   full_join(mylongspecies) %>% # apply traits to species composition df
-#   filter(Location == "Varari",
-#          #CowTagID != "VSEEP",
-#          CowTagID != "V13",
-#          Identified == "yes",
-#          Taxon_Group != "Hard Substrate" &
-#            Taxon_Group != "Sand") %>%
-#   select(Taxa,
-#          Taxon_Group,
-#          Morph2,
-#          Symb,
-#          Calc,
-#          #Life_Span,
-#          #MS_cat,
-#          #GR_cat,
-#          ER
-#          #FM
-#          ) %>%
-#   unite(col = "FE", Taxon_Group:ER, sep = ",", remove = F) %>%
-#   relocate(FE, .after = ER) %>%
-#   distinct()
 
 
 # df with unique functional entities for each row
@@ -106,6 +91,7 @@ sgd.sp <- as.data.frame(sgd.sp)
 
 
 
+
 ## Plot convex hull (modified Teixido script)
 ### Bar plot
 
@@ -117,6 +103,7 @@ tagOrder <- meta %>%
   arrange(dist_to_seep_m) %>% # set arrange factor
   select(CowTagID) %>%
   left_join(alphatag)
+
 # set cowtag order as arrange factor order
 tagOrder <- tagOrder$AlphaTag[1:20] # exclude maya's sites
 
@@ -128,7 +115,6 @@ tagOrder <- tagOrder$AlphaTag[1:20] # exclude maya's sites
 cols <- pnw_palette("Bay",20,type="continuous")
 cols <- rev(cols) # reverse color pattern so high sgd gets red
 names(cols) <- tagOrder
-
 
 # add raw richness values to Fric to put value above plot bars
 Fric_rich <- Fric %>%
@@ -143,11 +129,11 @@ Fric_rich <- Fric %>%
 p <- Fric %>%
   left_join(alphatag) %>%
   left_join(meta) %>%
-  select(Sp = NbSpP, FE = NbFEsP, Vol4D = Vol8D, AlphaTag, dist_to_seep_m) %>%
+  select(Sp = NbSpP, FE = NbFEsP, Vol4D = Vol8D, AlphaTag) %>%
   pivot_longer(cols = 1:3, names_to = "Parameters", values_to = "Values") %>%
   mutate(AlphaTag = factor(AlphaTag)) %>%
   mutate(Parameters = factor(Parameters, levels = c("Sp", "FE", "Vol4D"))) %>%
-    # plot facet_wrapped
+  # plot facet_wrapped
   ggplot(aes(x = Parameters, y = Values, fill = AlphaTag)) +
   geom_col(color = "black") +
   facet_wrap(~AlphaTag) +
@@ -162,7 +148,7 @@ p <- Fric %>%
             size = 3, vjust = -0.4)
 p
 
-ggsave(here("Output", "PaperFigures", "Teixido_Figure1barplot_dmb_CowTags.png"), p, width = 6, height = 5)
+ggsave(here("Output", "PaperFigures", "Figure1barplot_distance.png"), p, width = 6, height = 5)
 
 
 ### Raw data figure for species and functional richness at each plot - before relative plot above (1a, 1b)
@@ -187,7 +173,7 @@ richness_plot <- Richness %>%
   labs(fill = "Survey Location", x = "", y = "Richness")
 richness_plot
 
-ggsave(here("Output", "PaperFigures", "Raw_richness_CowTags.png"), richness_plot, width = 6, height = 5)
+#ggsave(here("Output", "PaperFigures", "Raw_richness_CowTags.png"), richness_plot, width = 6, height = 5)
 
 
 ### Functional space using PCoA (modified Teixido script)
@@ -210,6 +196,15 @@ cowtagOrder <- alphatag %>%
   arrange(AlphaTag) %>%
   select(CowTagID)
 cowtagOrder <- cowtagOrder$CowTagID[2:20] # removes seep
+
+# residuals (~ meanRugositY)
+# r.meta <- meta %>%
+#   filter(Location == "Varari", CowTagID != "VSEEP" & CowTagID != "V13") %>%
+#   select(CowTagID, meanRugosity)
+# r.sgd.sp <- rownames_to_column(sgd.sp, var = "CowTagID") %>%
+#   left_join(r.meta) %>%
+#   pivot_longer(cols = 2:52, names_to = "species", values_to = "pcover") %>%
+#   mutate(rcover = pcover / meanRugosity)
 
 for(i in cowtagOrder) {
 
@@ -261,14 +256,15 @@ All.m.sgd <- All.m.sgd %>%
   mutate(AlphaTag = factor(AlphaTag))
 
 # graph faceted polygons showing functional volume
+
 qAll <- ggplot(data = All.ch.tib, aes(x = x, y = y)) +
   geom_polygon(aes(fill = AlphaTag, color = AlphaTag), alpha = 0.5) + # create polygon using product of convex.hull(tri.mesh)
   labs(x = "PCoA 1", y = "PCoA 2") +
   geom_point(data = as_tibble(All.m.sgd), aes(x = PC1, y = PC2, color = AlphaTag)) +
   theme_bw() +
-  theme(legend.position = "none",
-        panel.grid = element_blank(),
-        panel.spacing = unit(1, "lines")) + # increase facet wrap panel spacing
+  theme(#legend.position = "none",
+    panel.grid = element_blank(),
+    panel.spacing = unit(1, "lines")) + # increase facet wrap panel spacing
   scale_fill_manual(values = cols) +
   scale_color_manual(values = cols) +
   facet_wrap(~AlphaTag) +
@@ -319,6 +315,8 @@ ab.conditions.sgd <- ab.conditions.sgd2 %>%
   pivot_wider(names_from = FE, values_from = pCover)
 
 
+
+
 ######################
 
 
@@ -355,24 +353,11 @@ fig2b <- fig2.fd.sgd %>%
 
 fig2b
 
-temp <- Fric %>%
-  left_join(meta)
 
-mod1 <- lm(data = temp, Vol8D ~ poly(meanRugosity, 2))
-anova(mod1)
+ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_distance.png"), fig2b, height = 5, width = 7)
 
-mod2 <- lm(data = temp, Vol8D ~ poly(dist_to_seep_m, 2))
-anova(mod1)
+## checking things with nyssa
 
-mod3 <- lm(data = temp, Vol8D ~ poly(dist_to_seep_m, 2))
-anova(mod1)
-
-ggplot(data = temp %>% filter(CowTagID!= "VSEEP"),
-       aes(x = meanRugosity, y = Vol8D)) +
-  geom_point()
-  #geom_text(aes(label = CowTagID)) +
- #geom_smooth(method = "lm", formula = "y~poly(x,2)")
-summary(mod1) # shows signbificant polynomial effect at poly2
 # bring taxonomic group up to Phyla and rename group to Phyla
 # normalize to rugosity and use residuals and check patterns above again
 # model everything with and witout normalizing to rugosity and send nyssa a Rmd of paired relationships with response variables
@@ -381,236 +366,237 @@ summary(mod1) # shows signbificant polynomial effect at poly2
 # create a mega plot iwth all the variables for means and CV and min and max, etc. for reference
 
 
-ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA.png"), fig2b, height = 5, width = 7)
-
-
-
-### View location of each functional entity:
-fd.coord.sgd.tibble <- as_tibble(rownames_to_column(as.data.frame(fd.coord.sgd))) %>%
-  rename(FE = "rowname")
-
-FE_pca_plot <- fd.coord.sgd.tibble %>%
-  ggplot(aes(x = PC1, y = PC2)) +
-  geom_point() +
-  geom_text_repel(aes(label = FE),
-                  size = 3) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
-FE_pca_plot
-ggsave(here("Output", "PaperFigures", "FE_pca_labeled.png"), FE_pca_plot, width = 10, height = 10)
-
-
-## View functional trait faceted figures
-plot_fe_group_pcoa <- fd.coord.sgd.tibble %>%
-  separate(FE, into = c('Taxonomic Group','Morphology','Calcification','Energetic Resource'),
-           sep = ",", remove = F) %>%
-  pivot_longer(cols = 'Taxonomic Group':'Energetic Resource', names_to = "Group", values_to = "Trait") %>%
-  ggplot(aes(x = PC1, y = PC2)) +
-  geom_point() +
-  geom_text_repel(aes(label = Trait),
-                  size = 2,
-                  max.overlaps = 18) +
-  theme_bw() +
-  theme(panel.grid = element_blank()) +
-  facet_wrap(~Group)
-plot_fe_group_pcoa
-ggsave(here("Output", "PaperFigures", "FE_group_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
-
-## pc1 is driven by energetic resource (autotrophs on the left, mixotrophs on the right, heterotrophs in the middle)
-## let's also view some combinations to see what's driving pc2
-plot_fe_group_pcoa2 <- fd.coord.sgd.tibble %>%
-  separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
-           sep = ",", remove = F) %>%
-  unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
-  unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
-  unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
-  pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait") %>%
-  rename('Taxonomic Group' = Taxon_Group,
-         'Morphology' = Morph,
-         'Calcification' = Calc,
-         'Energetic Resource' = ER) %>%
-  ggplot(aes(x = PC1, y = PC2)) +
-  geom_point() +
-  geom_text_repel(aes(label = Trait),
-                  size = 3,
-                  max.overlaps = 18) +
-  theme_bw() +
-  theme(panel.grid = element_blank()) +
-  facet_wrap(~Group)
-plot_fe_group_pcoa2
-
-
-### View representative species for each functional entity
-FE_representatives <- as_tibble(rownames_to_column(species_entities)) %>%
-  rename(Species = "rowname") %>%
-  left_join(fd.coord.sgd.tibble) %>%
-  group_by(FE) %>%
-  filter(row_number()==1)
-
-FE_reps_pca_plot <- FE_representatives %>%
-  ggplot(aes(x = PC1, y = PC2)) +
-  geom_point() +
-  geom_text_repel(aes(label = Species),
-                  size = 3) +
-  theme_bw() +
-  theme(panel.grid = element_blank())
-FE_reps_pca_plot
-ggsave(here("Output", "PaperFigures", "FE_pca_labeled_representatives.png"), FE_reps_pca_plot, width = 10, height = 10)
-
-
-### Show all trait points possible as a blank diagram for visualization of full volume
-
-FE_pca_plot_allPoints <- fig2.fd.sgd %>%
-  filter(pCover > 0) %>%
-  filter(CowTagID == "V2") %>%  # to show outline diagram of polygon and V2 hits every outer point
-  ggplot(aes(x = PC1, y = PC2)) +
-  geom_point() + # shape of a fillable circle. lets us fill with alpha values
-  geom_polygon(data = All.ch.tib %>% filter(AlphaTag == "S"),
-               aes(x = x, y = y),
-               alpha = 0.5,
-               fill = NA,
-               color = "black") + # no fill on the polygon
-  labs(x = "PCoA1", y = "PCoA2") +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        legend.position = "none",
-        strip.background = element_rect(fill = "white"))
-
-FE_pca_plot_allPoints
-ggsave(here("Output", "PaperFigures","Example_Polygon.png"), FE_pca_plot_allPoints, width = 6, height = 6)
-
-mylm <- fd.coord.sgd.tibble %>%
-  separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
-           sep = ",", remove = F)
-  # unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
-  # unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
-  # unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
-  #pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait")
-summary(lm(data = mylm,PC2 ~ Taxon_Group))
-summary(lm(data = mylm,PC2 ~ Morph))
-
-
-## Can use the three values above (SpR, FER, Vol4D), and also community composition: either relative abundance or presence-absence
-## then can do a permanova / nMDS of community comp with the volume / FErichness
-
-
-
-### relative abundance
-FE_nmds_data <- myspecies %>%
-  filter(CowTagID != "VSEEP") %>%  # remove seep for nMDS for now
-  pivot_longer(cols = Turf:'Caulerpa racemosa', names_to = "Taxa", values_to = "pCover") %>%
-  filter(pCover > 0) %>%
-  left_join(as_tibble(rownames_to_column(species_entities, var = "Taxa"))) %>%
-  group_by(CowTagID, FE) %>% # get relative abundance of FE (pCvoer is already percent, so just add percentages of FE)
-  mutate(pCoverFE = sum(pCover)) %>%
-  distinct(CowTagID, FE, pCoverFE) %>%
-  drop_na(FE) %>%
-  pivot_wider(names_from = FE, values_from = pCoverFE) %>% # longform for the nmds and will establish absence through NAs
-  mutate_at(vars(2:ncol(.)), .funs = ~if_else(is.na(.), 0, .)) # zero for NA's 1's for presence
-# will cbind cowtags later
-# set levels as numerical order of plates
-CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
-FE_nmds_data$CowTagID <- factor(FE_nmds_data$CowTagID, levels = CTlevels)
-# arrange by cowtag and then remove for nmds
-FE_nmds_data <- FE_nmds_data %>%
-  arrange(CowTagID) %>%
-  ungroup() %>%
-  select(-CowTagID)
-
-
-ord1 <- metaMDS(FE_nmds_data, k=2, distance='bray')
-
-# stress with k=2 dimensions. Is it < 0.3?
-ord1$stress
-
-# stress plot - want to minimize scatter
-stressplot(ord1)
-
-#param_mds <- nMDS_species(ord1) # MDS1 and MDS2 for FEs
-# get points for species
-Group <- rownames(ord1$species) # get characteristic names
-MDS1 <- c(ord1$species[,1]) # MDS1 for characteristics
-MDS2 <- c(ord1$species[,2]) # MDS2 for characteristics
-Data <- as_tibble(cbind(Group, MDS1, MDS2)) %>%  # bind all cols into tibble
-  mutate(MDS1 = as.numeric(MDS1), # as numeric
-         MDS2 = as.numeric(MDS2)) %>%
-  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>%
-  select(MDS1, MDS2, Group)
-
-
-#param_mds_cat <- nMDS_points(ord1, meta, c('CowTagID', 'dist_to_seep_m')) # MDS1 and MDS2 for CowTagID
-Groupb <- as.character(CTlevels) # assign CowTagID
-MDS1b <- ord1$points[,1] # MDS1 for CowTagID
-MDS2b <- ord1$points[,2] # MDS2 for CowTagID
-Datab <- as_tibble(cbind(Groupb, MDS1b, MDS2b)) %>%  # bind all cols into tibble
-  mutate(MDS1b = as.numeric(MDS1b), # as numeric
-         MDS2b = as.numeric(MDS2b)) %>%
-  rename(CowTagID = Groupb)
-
-joinDF <- meta %>%
-  select(CowTagID, dist_to_seep_m)
-
-Datab <- Datab %>%
-  left_join(joinDF)
-
-
-## plot
-nMDSplot <- ggplot(data = Data,
-                   aes(x = MDS1,
-                       y = MDS2)) +
-  geom_point(color = "black") +
-  geom_point(data = Datab,
-             aes(x = MDS1b,
-                 y = MDS2b,
-                 color = (dist_to_seep_m)),
-             size = 3) +
-  geom_text_repel(data = Data, # site characteristics
-                  aes(x = MDS1,
-                      y = MDS2,
-                      label = Group),
-                  size = 2) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        legend.position = "right") +
-  geom_label_repel(data = Datab, # site characteristics
-                   aes(x = MDS1b,
-                       y = MDS2b,
-                       label = CowTagID),
-                   size = 5,
-                   max.overlaps = 16) + # increase from 10 because too many FEs overlapping
-  scale_color_gradient(low = "red", high = "yellow")
-nMDSplot
-
-ggsave(here("Output", "PaperFigures", "FE_nmds_plot.png"), nMDSplot, width = 10, height = 10)
-
-### PERMANOVA
-richPermFull <- cbind(Groupb, FE_nmds_data) %>%  # bind cowTagIDs
-  rename(CowTagID = Groupb) %>%
-  left_join(joinDF) %>%
-  mutate(relDist = if_else(dist_to_seep_m <= 26, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid")))
-
-# dist < 26 > 100 ***0.001 V20, V17, V14 near vs mid 0.012, near vs far 0.045
-# dist < 47 > 100 **0.003 V20, V17, V14, V9 near vs mid 0.006
-# dist < 50 > 100 insignif. V20, V17, V14, V9, V10
-
-# dist < 26 > 120 **0.002 near vs mid 0.009
-# dist < 47 > 120 **0.001 near vs mid 0.021
-
-permanovamodel<-adonis2(richPermFull[,2:25]~relDist, richPermFull, permutations = 999,
-                        method="bray") # should change out cowtagid with some grouping name
-permanovamodel
-
-#If we are to trust the results of the permanova, then we have to assume that the dispersion among
-#data is the same in each group. We can test with assumption with a PermDisp test:
-disper<-vegdist(richPermFull[,2:25])
-betadisper(disper, richPermFull$relDist)
-#Look at the Average distance to median...these numbers should be reasonably similar
-#A rule of thumb is that one number should not be twice as high as any other
-
-pairwise.adonis(richPermFull[2:25], richPermFull$relDist, perm=999)
-
-#Get coefficients to see which species are most important in explaining site differences:
-#permanovamodel$coefficients
+#
+#
+#
+# ### View location of each functional entity:
+# fd.coord.sgd.tibble <- as_tibble(rownames_to_column(as.data.frame(fd.coord.sgd))) %>%
+#   rename(FE = "rowname")
+#
+# FE_pca_plot <- fd.coord.sgd.tibble %>%
+#   ggplot(aes(x = PC1, y = PC2)) +
+#   geom_point() +
+#   geom_text_repel(aes(label = FE),
+#                   size = 3) +
+#   theme_bw() +
+#   theme(panel.grid = element_blank())
+# FE_pca_plot
+# #ggsave(here("Output", "PaperFigures", "FE_pca_labeled.png"), FE_pca_plot, width = 10, height = 10)
+#
+#
+# ## View functional trait faceted figures
+# plot_fe_group_pcoa <- fd.coord.sgd.tibble %>%
+#   separate(FE, into = c('Taxonomic Group','Morphology','Calcification','Energetic Resource'),
+#            sep = ",", remove = F) %>%
+#   pivot_longer(cols = 'Taxonomic Group':'Energetic Resource', names_to = "Group", values_to = "Trait") %>%
+#   ggplot(aes(x = PC1, y = PC2)) +
+#   geom_point() +
+#   geom_text_repel(aes(label = Trait),
+#                   size = 2,
+#                   max.overlaps = 18) +
+#   theme_bw() +
+#   theme(panel.grid = element_blank()) +
+#   facet_wrap(~Group)
+# plot_fe_group_pcoa
+# #ggsave(here("Output", "PaperFigures", "FE_group_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
+#
+# ## pc1 is driven by energetic resource (autotrophs on the left, mixotrophs on the right, heterotrophs in the middle)
+# ## let's also view some combinations to see what's driving pc2
+# plot_fe_group_pcoa2 <- fd.coord.sgd.tibble %>%
+#   separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
+#            sep = ",", remove = F) %>%
+#   unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
+#   unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
+#   unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
+#   pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait") %>%
+#   rename('Taxonomic Group' = Taxon_Group,
+#          'Morphology' = Morph,
+#          'Calcification' = Calc,
+#          'Energetic Resource' = ER) %>%
+#   ggplot(aes(x = PC1, y = PC2)) +
+#   geom_point() +
+#   geom_text_repel(aes(label = Trait),
+#                   size = 3,
+#                   max.overlaps = 18) +
+#   theme_bw() +
+#   theme(panel.grid = element_blank()) +
+#   facet_wrap(~Group)
+# #plot_fe_group_pcoa2
+#
+#
+# ### View representative species for each functional entity
+# FE_representatives <- as_tibble(rownames_to_column(species_entities)) %>%
+#   rename(Species = "rowname") %>%
+#   left_join(fd.coord.sgd.tibble) %>%
+#   group_by(FE) %>%
+#   filter(row_number()==1)
+#
+# FE_reps_pca_plot <- FE_representatives %>%
+#   ggplot(aes(x = PC1, y = PC2)) +
+#   geom_point() +
+#   geom_text_repel(aes(label = Species),
+#                   size = 3) +
+#   theme_bw() +
+#   theme(panel.grid = element_blank())
+# FE_reps_pca_plot
+# #ggsave(here("Output", "PaperFigures", "FE_pca_labeled_representatives.png"), FE_reps_pca_plot, width = 10, height = 10)
+#
+#
+# ### Show all trait points possible as a blank diagram for visualization of full volume
+#
+# FE_pca_plot_allPoints <- fig2.fd.sgd %>%
+#   filter(pCover > 0) %>%
+#   filter(CowTagID == "V2") %>%  # to show outline diagram of polygon and V2 hits every outer point
+#   ggplot(aes(x = PC1, y = PC2)) +
+#   geom_point() + # shape of a fillable circle. lets us fill with alpha values
+#   geom_polygon(data = All.ch.tib %>% filter(AlphaTag == "S"),
+#                aes(x = x, y = y),
+#                alpha = 0.5,
+#                fill = NA,
+#                color = "black") + # no fill on the polygon
+#   labs(x = "PCoA1", y = "PCoA2") +
+#   theme_bw() +
+#   theme(panel.grid = element_blank(),
+#         legend.position = "none",
+#         strip.background = element_rect(fill = "white"))
+#
+# FE_pca_plot_allPoints
+# #ggsave(here("Output", "PaperFigures","Example_Polygon.png"), FE_pca_plot_allPoints, width = 6, height = 6)
+#
+# mylm <- fd.coord.sgd.tibble %>%
+#   separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
+#            sep = ",", remove = F)
+# # unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
+# # unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
+# # unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
+# #pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait")
+# summary(lm(data = mylm,PC2 ~ Taxon_Group))
+# summary(lm(data = mylm,PC2 ~ Morph))
+#
+#
+# ## Can use the three values above (SpR, FER, Vol4D), and also community composition: either relative abundance or presence-absence
+# ## then can do a permanova / nMDS of community comp with the volume / FErichness
+#
+#
+#
+# ### relative abundance
+# FE_nmds_data <- myspecies %>%
+#   filter(CowTagID != "VSEEP") %>%  # remove seep for nMDS for now
+#   pivot_longer(cols = Turf:'Caulerpa racemosa', names_to = "Taxa", values_to = "pCover") %>%
+#   filter(pCover > 0) %>%
+#   left_join(as_tibble(rownames_to_column(species_entities, var = "Taxa"))) %>%
+#   group_by(CowTagID, FE) %>% # get relative abundance of FE (pCvoer is already percent, so just add percentages of FE)
+#   mutate(pCoverFE = sum(pCover)) %>%
+#   distinct(CowTagID, FE, pCoverFE) %>%
+#   drop_na(FE) %>%
+#   pivot_wider(names_from = FE, values_from = pCoverFE) %>% # longform for the nmds and will establish absence through NAs
+#   mutate_at(vars(2:ncol(.)), .funs = ~if_else(is.na(.), 0, .)) # zero for NA's 1's for presence
+# # will cbind cowtags later
+# # set levels as numerical order of plates
+# CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
+# FE_nmds_data$CowTagID <- factor(FE_nmds_data$CowTagID, levels = CTlevels)
+# # arrange by cowtag and then remove for nmds
+# FE_nmds_data <- FE_nmds_data %>%
+#   arrange(CowTagID) %>%
+#   ungroup() %>%
+#   select(-CowTagID)
+#
+#
+# ord1 <- metaMDS(FE_nmds_data, k=2, distance='bray')
+#
+# # stress with k=2 dimensions. Is it < 0.3?
+# ord1$stress
+#
+# # stress plot - want to minimize scatter
+# stressplot(ord1)
+#
+# #param_mds <- nMDS_species(ord1) # MDS1 and MDS2 for FEs
+# # get points for species
+# Group <- rownames(ord1$species) # get characteristic names
+# MDS1 <- c(ord1$species[,1]) # MDS1 for characteristics
+# MDS2 <- c(ord1$species[,2]) # MDS2 for characteristics
+# Data <- as_tibble(cbind(Group, MDS1, MDS2)) %>%  # bind all cols into tibble
+#   mutate(MDS1 = as.numeric(MDS1), # as numeric
+#          MDS2 = as.numeric(MDS2)) %>%
+#   #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>%
+#   select(MDS1, MDS2, Group)
+#
+#
+# #param_mds_cat <- nMDS_points(ord1, meta, c('CowTagID', 'dist_to_seep_m')) # MDS1 and MDS2 for CowTagID
+# Groupb <- as.character(CTlevels) # assign CowTagID
+# MDS1b <- ord1$points[,1] # MDS1 for CowTagID
+# MDS2b <- ord1$points[,2] # MDS2 for CowTagID
+# Datab <- as_tibble(cbind(Groupb, MDS1b, MDS2b)) %>%  # bind all cols into tibble
+#   mutate(MDS1b = as.numeric(MDS1b), # as numeric
+#          MDS2b = as.numeric(MDS2b)) %>%
+#   rename(CowTagID = Groupb)
+#
+# joinDF <- meta %>%
+#   select(CowTagID, dist_to_seep_m)
+#
+# Datab <- Datab %>%
+#   left_join(joinDF)
+#
+#
+# ## plot
+# nMDSplot <- ggplot(data = Data,
+#                    aes(x = MDS1,
+#                        y = MDS2)) +
+#   geom_point(color = "black") +
+#   geom_point(data = Datab,
+#              aes(x = MDS1b,
+#                  y = MDS2b,
+#                  color = (dist_to_seep_m)),
+#              size = 3) +
+#   geom_text_repel(data = Data, # site characteristics
+#                   aes(x = MDS1,
+#                       y = MDS2,
+#                       label = Group),
+#                   size = 2) +
+#   theme_bw() +
+#   theme(panel.grid = element_blank(),
+#         legend.position = "right") +
+#   geom_label_repel(data = Datab, # site characteristics
+#                    aes(x = MDS1b,
+#                        y = MDS2b,
+#                        label = CowTagID),
+#                    size = 5,
+#                    max.overlaps = 16) + # increase from 10 because too many FEs overlapping
+#   scale_color_gradient(low = "red", high = "yellow")
+# nMDSplot
+#
+# ggsave(here("Output", "PaperFigures", "FE_nmds_plot.png"), nMDSplot, width = 10, height = 10)
+#
+# ### PERMANOVA
+# richPermFull <- cbind(Groupb, FE_nmds_data) %>%  # bind cowTagIDs
+#   rename(CowTagID = Groupb) %>%
+#   left_join(joinDF) %>%
+#   mutate(relDist = if_else(dist_to_seep_m <= 26, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid")))
+#
+# # dist < 26 > 100 ***0.001 V20, V17, V14 near vs mid 0.012, near vs far 0.045
+# # dist < 47 > 100 **0.003 V20, V17, V14, V9 near vs mid 0.006
+# # dist < 50 > 100 insignif. V20, V17, V14, V9, V10
+#
+# # dist < 26 > 120 **0.002 near vs mid 0.009
+# # dist < 47 > 120 **0.001 near vs mid 0.021
+#
+# permanovamodel<-adonis2(richPermFull[,2:25]~relDist, richPermFull, permutations = 999,
+#                         method="bray") # should change out cowtagid with some grouping name
+# permanovamodel
+#
+# #If we are to trust the results of the permanova, then we have to assume that the dispersion among
+# #data is the same in each group. We can test with assumption with a PermDisp test:
+# disper<-vegdist(richPermFull[,2:25])
+# betadisper(disper, richPermFull$relDist)
+# #Look at the Average distance to median...these numbers should be reasonably similar
+# #A rule of thumb is that one number should not be twice as high as any other
+#
+# pairwise.adonis(richPermFull[2:25], richPermFull$relDist, perm=999)
+#
+# #Get coefficients to see which species are most important in explaining site differences:
+# #permanovamodel$coefficients
+#
+#
 
 
 

@@ -27,7 +27,13 @@ library(PNWColors)
 traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
 myspecies <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
 meta <- read_csv(here("Data", "Full_Metadata.csv"))
-chem <- read_csv(here("Data", "Biogeochem", "Nutrient_Processed_CV.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari",
+         #CowTagID != "VSEEP" &
+           CowTagID != "V13") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
 
 myspecies <- myspecies %>%
   filter(Location == "Varari", # only analyze varari for now
@@ -240,4 +246,32 @@ Fric <- Fric %>%
   rbind(SeepFric)
 
 write_csv(Fric, here("Data", "Sp_FE_Vol.csv"))
+
+
+## CALCULATE RESIDUALS AND SAVE CSV
+
+resFric <- Fric %>%
+  left_join(meta) %>%
+  mutate(meanRugosity = if_else(CowTagID == "VSEEP", 0.97, meanRugosity)) %>%
+  arrange(CowTagID)
+
+# calculate residuals and join together
+resSp <- residuals(lm(data = resFric, NbSp ~ meanRugosity))
+resSpp <- residuals(lm(data = resFric, NbSpP ~ meanRugosity))
+resFE <- residuals(lm(data = resFric, NbFEs ~ meanRugosity))
+resFEp <- residuals(lm(data = resFric, NbFEsP ~ meanRugosity))
+resVol <- residuals(lm(data = resFric, Vol8D ~ meanRugosity))
+resFric <- resFric %>%
+  cbind(resSp) %>%
+  cbind(resSpp) %>%
+  cbind(resFE) %>%
+  cbind(resFEp) %>%
+  cbind(resVol) %>%
+  select(CowTagID, NbSp, NbSpP, NbFEs, NbFEsP, Vol8D,
+         resSp, resSpp, resFE, resFEp, resVol)
+
+
+
+write_csv(resFric, here("Data", "Sp_FE_Vol_res.csv"))
+
 

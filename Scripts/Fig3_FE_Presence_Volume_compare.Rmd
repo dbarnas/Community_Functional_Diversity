@@ -1,0 +1,1311 @@
+---
+title: "Fig3 FE Plot Presence Volume (raw vs residuals)"
+author: "Danielle Barnas"
+date: "2022-10-14"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE, warning = F}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+## Comparing functional presence and volume across each quadrat
+
+# RAW VALUES
+```{r}
+##### LOAD LIBRARIES #####
+
+library(tidyverse)
+library(here)
+library(FD)
+library(tripack) # Triangulation of Irregularly Spaced Data
+library(geometry) # Mesh Generation and Surface Tessellation
+library(matrixStats) # Functions that Apply to Rows and Columns of Matrices (and to Vectors)
+library(patchwork)
+library(PNWColors)
+library(ggrepel)
+library(pairwiseAdonis)
+
+##### READ IN DATA #####
+
+# rename CowTags with alphabetical lettering
+alphatag <- read_csv(here("Data","CowTag_to_AlphaTag.csv"))
+
+traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
+comp <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
+shore <- read_csv(here("Data", "Shore_distance.csv")) %>% select(-Location)
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari",
+         #CowTagID != "VSEEP" &
+         CowTagID != "V13") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+redchem <- chem %>% select(CowTagID, Phosphate_umolL, NN_umolL)
+
+# prepare chem data for joining other df for graphing
+redchem <- redchem %>%
+  left_join(alphatag) %>%
+  arrange(Phosphate_umolL) %>%
+  mutate(PAlphaTag = c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")) %>%
+  unite(PAlphaTag, CowTagID, col = "PAlphaTag", sep = "-", remove=F) %>%
+  arrange(NN_umolL) %>%
+  mutate(NNAlphaTag = c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")) %>%
+  unite(NNAlphaTag, CowTagID, col = "NNAlphaTag", sep = "-", remove=F)
+
+# have one df with the CV, mean, mediam, august, march, both data, look back at min and max values for pH and Silicate
+```
+
+
+
+```{r}
+# richness, % richness of community pool, and % volume of community pool
+Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
+
+# PCoA axes of traits
+fd.coord.sgd <- read.csv(here("Data","FE_4D_coord_dmb.csv"), row.names = 1) # class data.frame
+# FE with trait groups
+fes_traits.sgd <- read_csv(here("Data", "Distinct_FE.csv"))
+# species abundances (%) wide format
+myspecies <- read_csv(here("Data", "Species_Abundances_wide.csv"))
+# species and functional entities
+species_entities <- read_csv(here("Data", "Species_FE.csv"))
+
+
+```
+
+
+
+```{r}
+##### CLEAN AND ANALYSIS #####
+
+comp <- comp %>%
+  filter(Location == "Varari") %>%  # only analyze varari for now
+  filter(CowTagID != "V13")
+
+
+# only cowtag ID's
+quad.label <- chem %>%
+  #filter(Location == "Varari",
+  #CowTagID != "VSEEP",
+  #CowTagID != "V13") %>%
+  distinct(CowTagID)
+
+
+mylongspecies <- myspecies %>%
+  pivot_longer(cols = 2:52, names_to = "Taxa", values_to = "pCover") %>%
+  left_join(meta) %>%
+  select(Location, CowTagID, Taxa, pCover)
+
+
+# df with unique functional entities for each row
+entity <- fes_traits.sgd
+
+#  CowTagIDs as factors, to be used as relative SGD identifiers along gradient
+relative.sgd <- quad.label$CowTagID
+
+
+```
+
+
+
+```{r}
+## Percent Cover
+
+# CowTagIDs as rownames
+sgd.sp <- column_to_rownames(.data = myspecies, var = "CowTagID")
+sgd.sp <- as.data.frame(sgd.sp)
+
+
+
+
+
+## Plot convex hull (modified Teixido script)
+### Bar plot
+
+# order CowTagID's by distance from the seepage point
+tagOrder <- meta %>%
+  filter(Location == "Varari",
+         #CowTagID != "VSEEP",
+         CowTagID != "V13") %>%
+  arrange(dist_to_seep_m) %>% # set arrange factor
+  select(CowTagID) %>%
+  left_join(alphatag)
+
+# set cowtag order as arrange factor order
+tagOrder <- tagOrder$AlphaTag[1:20] # exclude maya's sites
+
+
+```
+
+
+
+```{r}
+############################################# plot convex hull
+
+# color palette assignment
+cols <- pnw_palette("Bay",20,type="continuous")
+cols <- rev(cols) # reverse color pattern so high sgd gets red
+names(cols) <- tagOrder
+
+# add raw richness values to Fric to put value above plot bars
+Fric_rich <- Fric %>%
+  select(CowTagID, NbSp, NbFEs) %>%
+  rename(Sp = NbSp, FE = NbFEs) %>%
+  pivot_longer(cols = Sp:FE, names_to = 'Parameters', values_to = 'richness')
+# change legend to show distances from seep values rather than survey location (or just remove?)
+
+
+# Figure 1. Species and functional diversity changes along SGD gradient
+# All volumes in distinct plots
+p <- Fric %>%
+  left_join(alphatag) %>%
+  left_join(meta) %>%
+  select(Sp = NbSpP, FE = NbFEsP, Vol4D = Vol8D, AlphaTag) %>%
+  pivot_longer(cols = 1:3, names_to = "Parameters", values_to = "Values") %>%
+  mutate(AlphaTag = factor(AlphaTag)) %>%
+  mutate(Parameters = factor(Parameters, levels = c("Sp", "FE", "Vol4D"))) %>%
+  # plot facet_wrapped
+  ggplot(aes(x = Parameters, y = Values, fill = AlphaTag)) +
+  geom_col(color = "black") +
+  facet_wrap(~AlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90),
+        legend.position = "none") +
+  ylim(0,100) +
+  scale_fill_manual(values = cols) +
+  labs(fill = "Survey Location", x = "", y = "Relative % of Community") +
+  geom_text(aes(x = Parameters, label = round(Values,0)),
+            size = 3, vjust = -0.4)
+p
+
+ggsave(here("Output", "PaperFigures", "Figure1barplot_distance.png"), p, width = 6, height = 5)
+
+```
+
+
+
+```{r}
+### Raw data figure for species and functional richness at each plot - before relative plot above (1a, 1b)
+Richness <- Fric_rich %>%
+  pivot_wider(names_from = 'Parameters', values_from = 'richness')
+
+# plot same format as above but raw richness values
+richness_plot <- Richness %>%
+  left_join(alphatag) %>%
+  mutate(CowTagID = factor(AlphaTag)) %>%
+  pivot_longer(cols = 2:3, names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = Parameters, y = Values, fill = AlphaTag)) +
+  geom_col(color = "black") +
+  facet_wrap(~AlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90),
+        legend.position = "none") +
+  geom_text(aes(x = Parameters, label = Values),
+            size = 3, vjust = -0.4) +
+  scale_fill_manual(values = cols) +
+  labs(fill = "Survey Location", x = "", y = "Richness")
+richness_plot
+
+#ggsave(here("Output", "PaperFigures", "Raw_richness_CowTags.png"), richness_plot, width = 6, height = 5)
+
+```
+
+
+
+```{r}
+### Functional space using PCoA (modified Teixido script)
+
+q <- list()
+All.ch.tib <- tibble(x = as.numeric(),
+                     y = as.numeric(),
+                     CowTagID = as.character())
+All.m.sgd <- tibble(PC1 = as.numeric(),
+                    PC2 = as.numeric(),
+                    PC3 = as.numeric(),
+                    PC4 = as.numeric(),
+                    CowTagID = as.character(),
+                    FE = as.character())
+
+# needs to be df before running for loop
+species_entities <- as.data.frame(column_to_rownames(species_entities, var = 'Taxa'))
+
+cowtagOrder <- alphatag %>%
+  arrange(AlphaTag) %>%
+  select(CowTagID)
+cowtagOrder <- cowtagOrder$CowTagID[2:20] # removes seep
+
+# residuals (~ meanRugositY)
+# r.meta <- meta %>%
+#   filter(Location == "Varari", CowTagID != "VSEEP" & CowTagID != "V13") %>%
+#   select(CowTagID, meanRugosity)
+# r.sgd.sp <- rownames_to_column(sgd.sp, var = "CowTagID") %>%
+#   left_join(r.meta) %>%
+#   pivot_longer(cols = 2:52, names_to = "species", values_to = "pcover") %>%
+#   mutate(rcover = pcover / meanRugosity)
+
+for(i in cowtagOrder) {
+
+  tag = i # use for rbinding data below
+
+  species.sgd <- colnames(sgd.sp)[which(sgd.sp[i,] > 0)]
+  # only species present in each treatment
+
+  fes_cond.sgd <- species_entities[rownames(species_entities) %in% species.sgd, ]
+
+  m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% fes_cond.sgd, ]
+  m.sgd <- data.matrix(m.sgd) # parse from data frame to matrix array
+
+  mid.m.sgd <- as_tibble(m.sgd) %>%
+    mutate(CowTagID = tag, FE = rownames(m.sgd))
+  All.m.sgd <- All.m.sgd %>% rbind(mid.m.sgd)
+
+  tr.sgd <- tri.mesh(m.sgd[,1],m.sgd[,2], duplicate = "remove") # duplicate: default = "error", "strip" = removes all duplicate points, "remove" = leaves one point of duplicate points
+
+  ch.sgd <- convex.hull(tr.sgd)
+
+  ch.tib <- cbind(ch.sgd$x, ch.sgd$y, ch.sgd$i) # parse as tibble df
+  colnames(ch.tib) <- c("x", "y", "i")
+  ch.tib <- as_tibble(ch.tib) %>%
+    select(x,y) %>%
+    mutate(CowTagID = tag)
+
+  All.ch.tib <- All.ch.tib %>% rbind(ch.tib)
+}
+
+# add VSEEP coordinates
+seep.species.sgd <- colnames(sgd.sp)[which(sgd.sp['VSEEP',] > 0)] # select present species from seep
+seep.fes_cond.sgd <- species_entities[rownames(species_entities) %in% seep.species.sgd, ]
+seep.m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% seep.fes_cond.sgd, ]
+seep.mid.m.sgd <- as_tibble(seep.m.sgd) %>%
+  mutate(CowTagID = "VSEEP", FE = rownames(seep.m.sgd))
+sub.ch.tib <- seep.mid.m.sgd %>%
+  select(CowTagID, x = PC1, y = PC2)
+
+All.ch.tib <- All.ch.tib %>%
+  rbind(sub.ch.tib) %>%
+  left_join(alphatag) %>%
+  select(-CowTagID) %>%
+  mutate(AlphaTag = factor(AlphaTag))
+All.m.sgd <- All.m.sgd %>%
+  rbind(seep.mid.m.sgd) %>%
+  left_join(alphatag) %>%
+  select(-CowTagID) %>%
+  mutate(AlphaTag = factor(AlphaTag))
+
+# graph faceted polygons showing functional volume
+
+qAll <- ggplot(data = All.ch.tib, aes(x = x, y = y)) +
+  geom_polygon(aes(fill = AlphaTag, color = AlphaTag), alpha = 0.5) + # create polygon using product of convex.hull(tri.mesh)
+  labs(x = "PCoA 1", y = "PCoA 2") +
+  geom_point(data = as_tibble(All.m.sgd), aes(x = PC1, y = PC2, color = AlphaTag)) +
+  theme_bw() +
+  theme(#legend.position = "none",
+    panel.grid = element_blank(),
+    panel.spacing = unit(1, "lines")) + # increase facet wrap panel spacing
+  scale_fill_manual(values = cols) +
+  scale_color_manual(values = cols) +
+  facet_wrap(~AlphaTag) +
+  xlim(min(fd.coord.sgd[,1]), max(fd.coord.sgd[,1])) + ylim(min(fd.coord.sgd[,2]), max(fd.coord.sgd[,2]))
+qAll
+# I want to view this on a map. Can I put polygons as map points?
+
+#ggsave(here("Output", "PaperFigures", "Teixido_Figure1volume_dmb_CowTags.png"), qAll, width = 8, height = 5)
+
+```
+
+
+
+```{r}
+
+### COMBINE VOLUME FIGURE FROM Presence SCRIPT WITH ABOVE TO INCLUDE POLYGON
+
+mypalette <- rev(pnw_palette(name = "Bay", n = 20))
+alphapalette <- c(paste0(mypalette[1],"70"), paste0(mypalette[2],"70"), paste0(mypalette[3],"70"),
+                  paste0(mypalette[4],"70"), paste0(mypalette[4],"70"), paste0(mypalette[6],"70"),
+                  paste0(mypalette[7],"70"), paste0(mypalette[8],"70"), paste0(mypalette[9],"70"),
+                  paste0(mypalette[10],"70"), paste0(mypalette[11],"70"), paste0(mypalette[12],"70"),
+                  paste0(mypalette[13],"70"), paste0(mypalette[14],"70"), paste0(mypalette[15],"70"),
+                  paste0(mypalette[16],"70"), paste0(mypalette[17],"70"), paste0(mypalette[18],"70"),
+                  paste0(mypalette[19],"70"), paste0(mypalette[20], "70"))
+
+#load data
+ab.sgd <- read_csv(here("Data", "Species_Abundances_wide.csv"))
+ab.sgd <- as.data.frame(column_to_rownames(ab.sgd, var = 'CowTagID')) # move tag names to rownames and make data.frame class
+
+
+spe_fes.sgd <- as.data.frame(read_csv(here("Data", "Species_FE.csv")))
+
+alphatag <- read_csv(here("Data","CowTag_to_AlphaTag.csv"))
+
+################################## Data manipulation and arrangements
+
+ab.conditions.sgd <- ab.sgd
+
+################################# compute abundance of FEs for the three conditions
+
+fes.sgd <- levels(as_factor(spe_fes.sgd$FE))
+
+ab.conditions.sgd <- rownames_to_column(ab.conditions.sgd, var = "CowTagID")
+ab.conditions.sgd2 <- ab.conditions.sgd %>%
+  pivot_longer(names_to = "Taxa", values_to = "pCover", cols = 2:ncol(ab.conditions.sgd)) %>%
+  left_join(spe_fes.sgd) %>%
+  group_by(CowTagID, FE) %>%
+  summarise(pCover = sum(pCover)) %>%
+  ungroup()
+ab.conditions.sgd <- ab.conditions.sgd2 %>%
+  pivot_wider(names_from = FE, values_from = pCover)
+
+
+```
+
+
+
+```{r}
+
+######################
+
+
+# Figure 2. Overall distribution of FE abundance across the functional space
+
+names(alphapalette) <- alphatag$AlphaTag[1:20]
+
+## relative abundance in ggplot
+fig2.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
+  full_join(ab.conditions.sgd2) %>%
+  left_join(alphatag) %>%
+  arrange(AlphaTag)
+
+fig2b <- fig2.fd.sgd %>%
+  filter(pCover > 0) %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(aes(size = pCover,
+                 color = AlphaTag,
+                 fill = AlphaTag),
+             shape = 21) + # shape of a fillable circle. lets us fill with alpha values
+  geom_polygon(data = All.ch.tib,
+               aes(x = x, y = y,
+                   color = AlphaTag),
+               alpha = 0.5,
+               fill = NA) + # no fill on the polygon
+  labs(x = "PCoA1", y = "PCoA2") +
+  facet_wrap(~AlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        strip.background = element_rect(fill = "white")) +
+  scale_fill_manual(values = alphapalette) +
+  scale_color_manual(values = mypalette)
+
+fig2b
+
+
+ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_distance.png"), fig2b, height = 5, width = 7)
+```
+
+
+
+# RESIDUALS
+```{r, message=F}
+
+
+##### READ IN DATA #####
+
+# rename CowTags with alphabetical lettering
+alphatag <- read_csv(here("Data","CowTag_to_AlphaTag.csv"))
+
+traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
+comp <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
+meta <- read_csv(here("Data", "Full_Metadata.csv")) %>%
+  mutate(meanRugosity = if_else(CowTagID == "VSEEP", 0.97, meanRugosity))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari",
+         #CowTagID != "VSEEP" &
+           CowTagID != "V13") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+redchem <- chem %>% select(CowTagID, Phosphate_umolL, NN_umolL)
+
+# prepare chem data for joining other df for graphing
+redchem <- redchem %>%
+  left_join(alphatag) %>%
+  arrange(Phosphate_umolL) %>%
+  mutate(PAlphaTag = c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")) %>%
+  unite(PAlphaTag, CowTagID, col = "PAlphaTag", sep = "-", remove=F) %>%
+  arrange(NN_umolL) %>%
+  mutate(NNAlphaTag = c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")) %>%
+  unite(NNAlphaTag, CowTagID, col = "NNAlphaTag", sep = "-", remove=F)
+
+# have one df with the CV, mean, mediam, august, march, both data, look back at min and max values for pH and Silicate
+
+# richness, % richness of community pool, and % volume of community pool
+resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv")) %>%
+  left_join(meta) %>% 
+  arrange(CowTagID)
+
+# PCoA axes of traits
+fd.coord.sgd <- read.csv(here("Data","FE_4D_coord_dmb.csv"), row.names = 1) # class data.frame
+# FE with trait groups
+fes_traits.sgd <- read_csv(here("Data", "Distinct_FE.csv"))
+# species abundances (%) wide format
+myspecies <- read_csv(here("Data", "Species_Abundances_wide.csv"))
+# species and functional entities
+species_entities <- read_csv(here("Data", "Species_FE.csv"))
+
+
+```
+
+
+
+```{r}
+
+
+##### CLEAN AND ANALYSIS #####
+
+
+comp <- comp %>%
+  filter(Location == "Varari") %>%  # only analyze varari for now
+  filter(CowTagID != "V13")
+
+
+# only cowtag ID's
+quad.label <- chem %>%
+  #filter(Location == "Varari",
+         #CowTagID != "VSEEP",
+         #CowTagID != "V13") %>%
+  distinct(CowTagID)
+
+
+mylongspecies <- myspecies %>%
+  pivot_longer(cols = 2:52, names_to = "Taxa", values_to = "pCover") %>%
+  left_join(meta) %>%
+  select(Location, CowTagID, Taxa, pCover)
+
+
+
+# df with unique functional entities for each row
+entity <- fes_traits.sgd
+
+#  CowTagIDs as factors, to be used as relative SGD identifiers along gradient
+relative.sgd <- quad.label$CowTagID
+
+```
+
+```{r}
+resFriclong <- resFric %>% 
+  filter(CowTagID != "VSEEP") %>% 
+  left_join(redchem) %>% 
+  rename(Sp = resSpp, FE = resFEp, Vol4D = resVol) %>% 
+  pivot_longer(cols = c(Sp, FE, Vol4D), names_to = "Dependent", values_to = "Values")
+summary(lm(resSpp ~ dist_to_seep_m, data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem)))
+summary(lm(resFEp ~ dist_to_seep_m, data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem))) # NS
+summary(lm(resVol ~ dist_to_seep_m, data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem))) # NS
+#p1 <- summary(lm(Dependent ~ dist_to_seep_m, data = resFriclong))$coefficients[8]
+#r1 <- summary(lm(resSpp ~ dist_to_seep_m, data = resFriclong))$r.squared[1]
+resFriclong %>% 
+  ggplot(aes(x = dist_to_seep_m, y = Values)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  theme_bw() +
+  facet_wrap(~Dependent, scales = "free") +
+  labs(x = "Distance from seep (m)",
+       y = "Relative % (rugosity-normalized)") 
+  #labs(caption = paste("p = ", as.character(round(p1,2)),"\n", "r2 = ", as.character(round(r1,2))))
+
+```
+
+```{r}
+#p2 <- summary(lm(resSpp ~ poly(Phosphate_umolL,2), data = resFriclong))$coefficients[8]
+#r2 <- summary(lm(resSpp ~ poly(Phosphate_umolL,2), data = resFriclong))$r.squared[1]
+summary(lm(resSpp ~ poly(Phosphate_umolL,2), data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem)))
+summary(lm(resFEp ~ poly(Phosphate_umolL,2), data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem)))
+summary(lm(resVol ~ poly(Phosphate_umolL,2), data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem)))
+resFriclong %>% 
+  ggplot(aes(x = Phosphate_umolL, y = Values)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme_bw() +
+  facet_wrap(~Dependent, scales = "free") +
+  labs(x = "Phosphate (umol L-1)",
+       y = "Relative % of community (rugosity-normalized)") 
+  #labs(caption = paste("p = ", as.character(round(p2,2)),"\n", "r2 = ", as.character(round(r2,2))))
+
+```
+
+```{r}
+#p3 <- summary(lm(resSpp ~ poly(NN_umolL,2), data = resFriclong))$coefficients[8]
+#r3 <- summary(lm(resSpp ~ poly(NN_umolL,2), data = resFriclong))$r.squared[1]
+summary(lm(resSpp ~ poly(NN_umolL,2), data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem)))
+summary(lm(resFEp ~ poly(NN_umolL,2), data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem)))
+summary(lm(resVol ~ poly(NN_umolL,2), data = resFric %>% filter(CowTagID != "VSEEP") %>% left_join(redchem)))
+resFriclong %>% 
+  ggplot(aes(x = NN_umolL, y = Values)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme_bw() +
+  facet_wrap(~Dependent, scales = "free") +
+  labs(x = "Nitrate + Nitrite (umol L-1)",
+       y = "Relative % of community (rugosity-normalized)") 
+  #labs(caption = paste("p = ", as.character(round(p3,2)),"\n", "r2 = ", as.character(round(r3,2))))
+```
+
+
+
+
+```{r}
+
+## Percent Cover
+
+# CowTagIDs as rownames
+sgd.sp <- column_to_rownames(.data = myspecies, var = "CowTagID")
+sgd.sp <- as.data.frame(sgd.sp)
+
+```
+
+```{r}
+
+#### RESIDUALS AND DISTANCE FROM SEEP
+summary(lm(data = resFric %>% left_join(meta), # %>% filter(CowTagID != "VSEEP"),
+           resSpp ~ dist_to_seep_m))
+summary(lm(data = resFric %>% left_join(meta), # %>% filter(CowTagID != "VSEEP"),
+           resFEp ~ dist_to_seep_m))
+# summary(lm(data = resFric %>% left_join(meta), # %>% filter(CowTagID != "VSEEP"),
+#            resVol ~ dist_to_seep_m))
+
+## Plot convex hull (modified Teixido script)
+### Bar plot
+
+# order CowTagID's by distance from the seepage point
+tagOrder <- meta %>%
+  filter(Location == "Varari",
+         #CowTagID != "VSEEP",
+         CowTagID != "V13") %>%
+  arrange(dist_to_seep_m) %>% # set arrange factor
+  select(CowTagID) %>%
+  left_join(alphatag)
+# set cowtag order as arrange factor order
+tagOrder <- tagOrder$AlphaTag[1:20] # exclude maya's sites
+
+```
+
+
+
+```{r}
+
+############################################# plot convex hull
+
+# color palette assignment
+cols <- pnw_palette("Bay",20,type="continuous")
+cols <- rev(cols) # reverse color pattern so high sgd gets red
+names(cols) <- tagOrder
+
+# add raw richness values to Fric to put value above plot bars
+Fric_rich <- resFric %>%
+  select(CowTagID, resSp, resFE) %>%
+  rename(Sp = resSp, FE = resFE) %>%
+  pivot_longer(cols = Sp:FE, names_to = 'Parameters', values_to = 'richness')
+# change legend to show distances from seep values rather than survey location (or just remove?)
+
+# Figure 1. Species and functional diversity changes along SGD gradient
+# All volumes in distinct plots
+pdist <- resFric %>%
+  left_join(alphatag) %>%
+  left_join(meta) %>%
+  select(Sp = resSpp, FE = resFEp, Vol4D = Vol8D, AlphaTag) %>%
+  pivot_longer(cols = 1:2, names_to = "Parameters", values_to = "Values") %>%
+  mutate(AlphaTag = factor(AlphaTag)) %>%
+  mutate(Parameters = factor(Parameters, levels = c("Sp", "FE", "Vol4D"))) %>%
+  # plot facet_wrapped
+  ggplot(aes(x = Parameters, y = Values, fill = AlphaTag)) +
+  geom_col(color = "black") +
+  facet_wrap(~AlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90),
+        legend.position = "none") +
+  geom_hline(yintercept = 0) +
+  #ylim(0,100) +
+  scale_fill_manual(values = cols) +
+  labs(fill = "Survey Location", x = "", y = "Relative % of Community (residuals)")
+# geom_text(aes(x = Parameters, label = round(Values,0)),
+#           size = 3, vjust = -0.4)
+pdist
+
+
+ggsave(here("Output", "PaperFigures", "Figure1barplot_res_distance.png"), pdist, width = 6, height = 5)
+
+```
+
+
+
+```{r}
+### Functional space using PCoA (modified Teixido script)
+
+q <- list()
+All.ch.tib <- tibble(x = as.numeric(),
+                     y = as.numeric(),
+                     CowTagID = as.character())
+All.m.sgd <- tibble(PC1 = as.numeric(),
+                    PC2 = as.numeric(),
+                    PC3 = as.numeric(),
+                    PC4 = as.numeric(),
+                    CowTagID = as.character(),
+                    FE = as.character())
+
+# needs to be df before running for loop
+species_entities <- as.data.frame(column_to_rownames(species_entities, var = 'Taxa'))
+
+cowtagOrder <- alphatag %>%
+  arrange(AlphaTag) %>%
+  select(CowTagID)
+cowtagOrder <- cowtagOrder$CowTagID[2:20] # removes seep
+
+
+
+for(i in cowtagOrder) {
+
+  tag = i # use for rbinding data below
+
+  species.sgd <- colnames(sgd.sp)[which(sgd.sp[i,] > 0)]
+  # only species present in each treatment
+
+  fes_cond.sgd <- species_entities[rownames(species_entities) %in% species.sgd, ]
+
+  m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% fes_cond.sgd, ]
+  m.sgd <- data.matrix(m.sgd) # parse from data frame to matrix array
+
+  mid.m.sgd <- as_tibble(m.sgd) %>%
+    mutate(CowTagID = tag, FE = rownames(m.sgd))
+  All.m.sgd <- All.m.sgd %>% rbind(mid.m.sgd)
+
+  tr.sgd <- tri.mesh(m.sgd[,1],m.sgd[,2], duplicate = "remove") # duplicate: default = "error", "strip" = removes all duplicate points, "remove" = leaves one point of duplicate points
+
+  ch.sgd <- convex.hull(tr.sgd)
+
+  ch.tib <- cbind(ch.sgd$x, ch.sgd$y, ch.sgd$i) # parse as tibble df
+  colnames(ch.tib) <- c("x", "y", "i")
+  ch.tib <- as_tibble(ch.tib) %>%
+    select(x,y) %>%
+    mutate(CowTagID = tag)
+
+  All.ch.tib <- All.ch.tib %>% rbind(ch.tib)
+}
+
+# add VSEEP coordinates
+seep.species.sgd <- colnames(sgd.sp)[which(sgd.sp['VSEEP',] > 0)] # select present species from seep
+seep.fes_cond.sgd <- species_entities[rownames(species_entities) %in% seep.species.sgd, ]
+seep.m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% seep.fes_cond.sgd, ]
+seep.mid.m.sgd <- as_tibble(seep.m.sgd) %>%
+  mutate(CowTagID = "VSEEP", FE = rownames(seep.m.sgd))
+sub.ch.tib <- seep.mid.m.sgd %>%
+  select(CowTagID, x = PC1, y = PC2)
+
+All.ch.tib <- All.ch.tib %>%
+  rbind(sub.ch.tib) %>%
+  left_join(alphatag) %>%
+  select(-CowTagID) %>%
+  mutate(AlphaTag = factor(AlphaTag))
+All.m.sgd <- All.m.sgd %>%
+  rbind(seep.mid.m.sgd) %>%
+  left_join(alphatag) %>%
+  select(-CowTagID) %>%
+  mutate(AlphaTag = factor(AlphaTag))
+
+# graph faceted polygons showing functional volume
+
+qAll <- All.ch.tib %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_polygon(aes(fill = AlphaTag, color = AlphaTag), alpha = 0.5) + # create polygon using product of convex.hull(tri.mesh)
+  labs(x = "PCoA 1", y = "PCoA 2") +
+  geom_point(data = as_tibble(All.m.sgd), aes(x = PC1, y = PC2, color = AlphaTag)) +
+  theme_bw() +
+  theme(#legend.position = "none",
+    panel.grid = element_blank(),
+    panel.spacing = unit(1, "lines")) + # increase facet wrap panel spacing
+  scale_fill_manual(values = cols) +
+  scale_color_manual(values = cols) +
+  facet_wrap(~AlphaTag) +
+  xlim(min(fd.coord.sgd[,1]), max(fd.coord.sgd[,1])) + ylim(min(fd.coord.sgd[,2]), max(fd.coord.sgd[,2]))
+qAll
+
+```
+
+
+
+```{r}
+### COMBINE VOLUME FIGURE FROM Presence SCRIPT WITH ABOVE TO INCLUDE POLYGON
+
+mypalette <- rev(pnw_palette(name = "Bay", n = 20))
+alphapalette <- c(paste0(mypalette[1],"70"), paste0(mypalette[2],"70"), paste0(mypalette[3],"70"),
+                  paste0(mypalette[4],"70"), paste0(mypalette[4],"70"), paste0(mypalette[6],"70"),
+                  paste0(mypalette[7],"70"), paste0(mypalette[8],"70"), paste0(mypalette[9],"70"),
+                  paste0(mypalette[10],"70"), paste0(mypalette[11],"70"), paste0(mypalette[12],"70"),
+                  paste0(mypalette[13],"70"), paste0(mypalette[14],"70"), paste0(mypalette[15],"70"),
+                  paste0(mypalette[16],"70"), paste0(mypalette[17],"70"), paste0(mypalette[18],"70"),
+                  paste0(mypalette[19],"70"), paste0(mypalette[20], "70"))
+
+#load data
+ab.sgd <- read_csv(here("Data", "Species_Abundances_wide.csv"))
+ab.sgd <- as.data.frame(column_to_rownames(ab.sgd, var = 'CowTagID')) # move tag names to rownames and make data.frame class
+
+
+spe_fes.sgd <- as.data.frame(read_csv(here("Data", "Species_FE.csv")))
+
+alphatag <- read_csv(here("Data","CowTag_to_AlphaTag.csv"))
+
+################################## Data manipulation and arrangements
+
+ab.conditions.sgd <- ab.sgd
+
+################################# compute abundance of FEs for the three conditions
+
+fes.sgd <- levels(as_factor(spe_fes.sgd$FE))
+
+ab.conditions.sgd <- rownames_to_column(ab.conditions.sgd, var = "CowTagID")
+ab.conditions.sgd2 <- ab.conditions.sgd %>%
+  pivot_longer(names_to = "Taxa", values_to = "pCover", cols = 2:ncol(ab.conditions.sgd)) %>%
+  left_join(spe_fes.sgd) %>%
+  group_by(CowTagID, FE) %>%
+  summarise(pCover = sum(pCover)) %>%
+  ungroup()
+ab.conditions.sgd <- ab.conditions.sgd2 %>%
+  pivot_wider(names_from = FE, values_from = pCover)
+
+# ab.conditions.sgd2 <- ab.conditions.sgd2 %>%
+#   left_join(shore) %>%
+#   mutate(rcover = pCover / shore_dist_m)
+
+```
+
+
+
+```{r}
+
+######################
+
+
+# Figure 2. Overall distribution of FE abundance across the functional space
+
+names(alphapalette) <- alphatag$AlphaTag[1:20]
+
+## relative abundance in ggplot
+fig2.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
+  full_join(ab.conditions.sgd2) %>%
+  left_join(alphatag) %>%
+  arrange(AlphaTag)
+
+fig2bdist <- fig2.fd.sgd %>%
+  filter(pCover > 0) %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(aes(size = pCover,
+                 color = AlphaTag,
+                 fill = AlphaTag),
+             shape = 21) + # shape of a fillable circle. lets us fill with alpha values
+  geom_polygon(data = All.ch.tib,
+               aes(x = x, y = y,
+                   color = AlphaTag),
+               alpha = 0.5,
+               fill = NA) + # no fill on the polygon
+  labs(x = "PCoA1", y = "PCoA2") +
+  facet_wrap(~AlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        strip.background = element_rect(fill = "white")) +
+  scale_fill_manual(values = alphapalette) +
+  scale_color_manual(values = mypalette)
+
+fig2bdist
+
+
+ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_distance.png"), fig2bdist, height = 5, width = 7)
+
+
+```
+
+
+
+```{r}
+
+###########################################################################
+## RESIDUALS AND PHOSPHATE
+###########################################################################
+
+
+# color palette assignment
+cols <- pnw_palette("Bay",20,type="continuous")
+cols <- rev(cols) # reverse color pattern so high sgd gets red
+tagorder <- redchem %>% arrange(PAlphaTag)
+names(cols) <- tagorder$PAlphaTag
+
+# Figure 1. Species and functional diversity changes along SGD gradient
+# All volumes in distinct plots
+pphos <- resFric %>%
+  left_join(redchem) %>%
+  select(Sp = resSpp, FE = resFEp, Vol4D = Vol8D, PAlphaTag) %>%
+  pivot_longer(cols = 1:3, names_to = "Parameters", values_to = "Values") %>%
+  mutate(PAlphaTag = factor(PAlphaTag)) %>%
+  mutate(Parameters = factor(Parameters, levels = c("Sp", "FE", "Vol4D"))) %>%
+    # plot facet_wrapped
+  ggplot(aes(x = Parameters, y = Values, fill = PAlphaTag)) +
+  geom_col(color = "black") +
+  facet_wrap(~PAlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90),
+        legend.position = "none") +
+  #ylim(0,100) +
+  scale_fill_manual(values = cols) +
+  labs(fill = "Survey Location", x = "", y = "Relative % of Community (residuals)")
+  # geom_text(aes(x = Parameters, label = round(Values,0)),
+  #           size = 3, vjust = -0.4)
+pphos
+
+ggsave(here("Output", "PaperFigures", "Figure1barplot_res_phosphate.png"), pphos, width = 6, height = 5)
+
+```
+
+
+
+```{r}
+
+### Functional space using PCoA (modified Teixido script)
+
+q <- list()
+All.ch.tib <- tibble(x = as.numeric(),
+                     y = as.numeric(),
+                     CowTagID = as.character())
+All.m.sgd <- tibble(PC1 = as.numeric(),
+                    PC2 = as.numeric(),
+                    PC3 = as.numeric(),
+                    PC4 = as.numeric(),
+                    CowTagID = as.character(),
+                    FE = as.character())
+
+# needs to be df before running for loop
+#species_entities <- as.data.frame(column_to_rownames(species_entities, var = 'Taxa'))
+
+cowtagOrder <- alphatag %>%
+  arrange(AlphaTag) %>%
+  select(CowTagID)
+cowtagOrder <- cowtagOrder$CowTagID[2:20] # removes seep
+
+
+
+for(i in cowtagOrder) {
+
+  tag = i # use for rbinding data below
+
+  species.sgd <- colnames(sgd.sp)[which(sgd.sp[i,] > 0)]
+  # only species present in each treatment
+
+  fes_cond.sgd <- species_entities[rownames(species_entities) %in% species.sgd, ]
+
+  m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% fes_cond.sgd, ]
+  m.sgd <- data.matrix(m.sgd) # parse from data frame to matrix array
+
+  mid.m.sgd <- as_tibble(m.sgd) %>%
+    mutate(CowTagID = tag, FE = rownames(m.sgd))
+  All.m.sgd <- All.m.sgd %>% rbind(mid.m.sgd)
+
+  tr.sgd <- tri.mesh(m.sgd[,1],m.sgd[,2], duplicate = "remove") # duplicate: default = "error", "strip" = removes all duplicate points, "remove" = leaves one point of duplicate points
+
+  ch.sgd <- convex.hull(tr.sgd)
+
+  ch.tib <- cbind(ch.sgd$x, ch.sgd$y, ch.sgd$i) # parse as tibble df
+  colnames(ch.tib) <- c("x", "y", "i")
+  ch.tib <- as_tibble(ch.tib) %>%
+    select(x,y) %>%
+    mutate(CowTagID = tag)
+
+  All.ch.tib <- All.ch.tib %>% rbind(ch.tib)
+}
+
+# add VSEEP coordinates
+seep.species.sgd <- colnames(sgd.sp)[which(sgd.sp['VSEEP',] > 0)] # select present species from seep
+seep.fes_cond.sgd <- species_entities[rownames(species_entities) %in% seep.species.sgd, ]
+seep.m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% seep.fes_cond.sgd, ]
+seep.mid.m.sgd <- as_tibble(seep.m.sgd) %>%
+  mutate(CowTagID = "VSEEP", FE = rownames(seep.m.sgd))
+sub.ch.tib <- seep.mid.m.sgd %>%
+  select(CowTagID, x = PC1, y = PC2)
+
+All.ch.tib <- All.ch.tib %>%
+  rbind(sub.ch.tib) %>%
+  left_join(alphatag) %>%
+  select(-CowTagID) %>%
+  left_join(redchem) %>%
+  mutate(PAlphaTag = factor(PAlphaTag))
+All.m.sgd <- All.m.sgd %>%
+  rbind(seep.mid.m.sgd) %>%
+  left_join(alphatag) %>%
+  select(-CowTagID) %>%
+  left_join(redchem) %>%
+  mutate(PAlphaTag = factor(PAlphaTag))
+
+# graph faceted polygons showing functional volume
+
+qAll <- All.ch.tib %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_polygon(aes(fill = PAlphaTag, color = PAlphaTag), alpha = 0.5) + # create polygon using product of convex.hull(tri.mesh)
+  labs(x = "PCoA 1", y = "PCoA 2") +
+  geom_point(data = as_tibble(All.m.sgd), aes(x = PC1, y = PC2, color = PAlphaTag)) +
+  theme_bw() +
+  theme(#legend.position = "none",
+        panel.grid = element_blank(),
+        panel.spacing = unit(1, "lines")) + # increase facet wrap panel spacing
+  scale_fill_manual(values = cols) +
+  scale_color_manual(values = cols) +
+  facet_wrap(~PAlphaTag) +
+  xlim(min(fd.coord.sgd[,1]), max(fd.coord.sgd[,1])) + ylim(min(fd.coord.sgd[,2]), max(fd.coord.sgd[,2]))
+qAll
+# I want to view this on a map. Can I put polygons as map points?
+
+#ggsave(here("Output", "PaperFigures", "Teixido_Figure1volume_dmb_CowTags.png"), qAll, width = 8, height = 5)
+
+```
+
+
+
+```{r}
+
+### COMBINE VOLUME FIGURE FROM Presence SCRIPT WITH ABOVE TO INCLUDE POLYGON
+
+mypalette <- rev(pnw_palette(name = "Bay", n = 20))
+alphapalette <- c(paste0(mypalette[1],"70"), paste0(mypalette[2],"70"), paste0(mypalette[3],"70"),
+                  paste0(mypalette[4],"70"), paste0(mypalette[4],"70"), paste0(mypalette[6],"70"),
+                  paste0(mypalette[7],"70"), paste0(mypalette[8],"70"), paste0(mypalette[9],"70"),
+                  paste0(mypalette[10],"70"), paste0(mypalette[11],"70"), paste0(mypalette[12],"70"),
+                  paste0(mypalette[13],"70"), paste0(mypalette[14],"70"), paste0(mypalette[15],"70"),
+                  paste0(mypalette[16],"70"), paste0(mypalette[17],"70"), paste0(mypalette[18],"70"),
+                  paste0(mypalette[19],"70"), paste0(mypalette[20], "70"))
+
+#load data
+ab.sgd <- read_csv(here("Data", "Species_Abundances_wide.csv"))
+ab.sgd <- as.data.frame(column_to_rownames(ab.sgd, var = 'CowTagID')) # move tag names to rownames and make data.frame class
+
+
+spe_fes.sgd <- as.data.frame(read_csv(here("Data", "Species_FE.csv")))
+
+alphatag <- read_csv(here("Data","CowTag_to_AlphaTag.csv"))
+
+################################## Data manipulation and arrangements
+
+ab.conditions.sgd <- ab.sgd
+
+################################# compute abundance of FEs for the three conditions
+
+fes.sgd <- levels(as_factor(spe_fes.sgd$FE))
+
+ab.conditions.sgd <- rownames_to_column(ab.conditions.sgd, var = "CowTagID")
+ab.conditions.sgd2 <- ab.conditions.sgd %>%
+  pivot_longer(names_to = "Taxa", values_to = "pCover", cols = 2:ncol(ab.conditions.sgd)) %>%
+  left_join(spe_fes.sgd) %>%
+  group_by(CowTagID, FE) %>%
+  summarise(pCover = sum(pCover)) %>%
+  ungroup()
+ab.conditions.sgd <- ab.conditions.sgd2 %>%
+  pivot_wider(names_from = FE, values_from = pCover)
+
+
+```
+
+
+
+```{r}
+
+######################
+
+
+# Figure 2. Overall distribution of FE abundance across the functional space
+redchem <- redchem %>% arrange(PAlphaTag)
+names(alphapalette) <- redchem$PAlphaTag[1:20]
+
+## relative abundance in ggplot
+fig2.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
+  full_join(ab.conditions.sgd2) %>%
+  left_join(alphatag) %>%
+  left_join(redchem) %>%
+  arrange(PAlphaTag) %>% 
+  filter(CowTagID != "VSEEP")
+
+fig2bphos <- fig2.fd.sgd %>%
+  filter(pCover > 0) %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(aes(size = pCover,
+                 color = PAlphaTag,
+                 fill = PAlphaTag),
+             shape = 21) + # shape of a fillable circle. lets us fill with alpha values
+  geom_polygon(data = All.ch.tib %>% filter(CowTagID != "VSEEP"),
+               aes(x = x, y = y,
+                   color = PAlphaTag),
+               alpha = 0.5,
+               fill = NA) + # no fill on the polygon
+  labs(x = "PCoA1", y = "PCoA2") +
+  facet_wrap(~PAlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        strip.background = element_rect(fill = "white")) +
+  scale_fill_manual(values = alphapalette) +
+  scale_color_manual(values = mypalette)
+
+fig2bphos
+
+
+ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_Phosphate.png"), fig2bphos, height = 5, width = 7)
+
+```
+
+
+
+```{r}
+
+
+###########################################################################
+## RESIDUALS AND NITRATES + NITRITES
+###########################################################################
+
+
+summary(lm(data = resFric %>% left_join(redchem) %>% filter(CowTagID != "VSEEP"),
+           resSp ~ poly(NN_umolL, 2)))
+summary(lm(data = resFric %>% left_join(redchem) %>% filter(CowTagID != "VSEEP"),
+           resFEp ~ poly(NN_umolL, 2)))
+summary(lm(data = resFric %>% left_join(redchem) %>% filter(CowTagID != "VSEEP"),
+           resVol ~ poly(NN_umolL, 2)))
+
+# color palette assignment
+cols <- pnw_palette("Bay",20,type="continuous")
+cols <- rev(cols) # reverse color pattern so high sgd gets red
+tagorder <- redchem %>% arrange(NNAlphaTag)
+names(cols) <- tagorder$NNAlphaTag
+
+# Figure 1. Species and functional diversity changes along SGD gradient
+# All volumes in distinct plots
+pnn <- resFric %>%
+  left_join(redchem) %>%
+  select(Sp = resSpp, FE = resFEp, Vol4D = Vol8D, NNAlphaTag) %>%
+  pivot_longer(cols = 1:3, names_to = "Parameters", values_to = "Values") %>%
+  mutate(NNAlphaTag = factor(NNAlphaTag)) %>%
+  mutate(Parameters = factor(Parameters, levels = c("Sp", "FE", "Vol4D"))) %>%
+  # plot facet_wrapped
+  ggplot(aes(x = Parameters, y = Values, fill = NNAlphaTag)) +
+  geom_col(color = "black") +
+  facet_wrap(~NNAlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90),
+        legend.position = "none") +
+  #ylim(0,100) +
+  scale_fill_manual(values = cols) +
+  labs(fill = "Survey Location", x = "", y = "Relative % of Community (residuals)")
+# geom_text(aes(x = Parameters, label = round(Values,0)),
+#           size = 3, vjust = -0.4)
+pnn
+
+ggsave(here("Output", "PaperFigures", "Figure1barplot_res_NN.png"), pnn, width = 6, height = 5)
+
+```
+
+
+
+```{r}
+
+### Functional space using PCoA (modified Teixido script)
+
+q <- list()
+All.ch.tib <- tibble(x = as.numeric(),
+                     y = as.numeric(),
+                     CowTagID = as.character())
+All.m.sgd <- tibble(PC1 = as.numeric(),
+                    PC2 = as.numeric(),
+                    PC3 = as.numeric(),
+                    PC4 = as.numeric(),
+                    CowTagID = as.character(),
+                    FE = as.character())
+
+# needs to be df before running for loop
+#species_entities <- as.data.frame(column_to_rownames(species_entities, var = 'Taxa'))
+
+cowtagOrder <- alphatag %>%
+  arrange(AlphaTag) %>%
+  select(CowTagID)
+cowtagOrder <- cowtagOrder$CowTagID[2:20] # removes seep
+
+
+
+for(i in cowtagOrder) {
+
+  tag = i # use for rbinding data below
+
+  species.sgd <- colnames(sgd.sp)[which(sgd.sp[i,] > 0)]
+  # only species present in each treatment
+
+  fes_cond.sgd <- species_entities[rownames(species_entities) %in% species.sgd, ]
+
+  m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% fes_cond.sgd, ]
+  m.sgd <- data.matrix(m.sgd) # parse from data frame to matrix array
+
+  mid.m.sgd <- as_tibble(m.sgd) %>%
+    mutate(CowTagID = tag, FE = rownames(m.sgd))
+  All.m.sgd <- All.m.sgd %>% rbind(mid.m.sgd)
+
+  tr.sgd <- tri.mesh(m.sgd[,1],m.sgd[,2], duplicate = "remove") # duplicate: default = "error", "strip" = removes all duplicate points, "remove" = leaves one point of duplicate points
+
+  ch.sgd <- convex.hull(tr.sgd)
+
+  ch.tib <- cbind(ch.sgd$x, ch.sgd$y, ch.sgd$i) # parse as tibble df
+  colnames(ch.tib) <- c("x", "y", "i")
+  ch.tib <- as_tibble(ch.tib) %>%
+    select(x,y) %>%
+    mutate(CowTagID = tag)
+
+  All.ch.tib <- All.ch.tib %>% rbind(ch.tib)
+}
+
+# add VSEEP coordinates
+seep.species.sgd <- colnames(sgd.sp)[which(sgd.sp['VSEEP',] > 0)] # select present species from seep
+seep.fes_cond.sgd <- species_entities[rownames(species_entities) %in% seep.species.sgd, ]
+seep.m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% seep.fes_cond.sgd, ]
+seep.mid.m.sgd <- as_tibble(seep.m.sgd) %>%
+  mutate(CowTagID = "VSEEP", FE = rownames(seep.m.sgd))
+sub.ch.tib <- seep.mid.m.sgd %>%
+  select(CowTagID, x = PC1, y = PC2)
+
+All.ch.tib <- All.ch.tib %>%
+  rbind(sub.ch.tib) %>%
+  left_join(alphatag) %>%
+  select(-CowTagID) %>%
+  left_join(redchem) %>%
+  mutate(NNAlphaTag = factor(NNAlphaTag))
+All.m.sgd <- All.m.sgd %>%
+  rbind(seep.mid.m.sgd) %>%
+  left_join(alphatag) %>%
+  select(-CowTagID) %>%
+  left_join(redchem) %>%
+  mutate(NNAlphaTag = factor(NNAlphaTag))
+
+# graph faceted polygons showing functional volume
+
+qAll <- All.ch.tib %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_polygon(aes(fill = NNAlphaTag, color = NNAlphaTag), alpha = 0.5) + # create polygon using product of convex.hull(tri.mesh)
+  labs(x = "PCoA 1", y = "PCoA 2") +
+  geom_point(data = as_tibble(All.m.sgd), aes(x = PC1, y = PC2, color = NNAlphaTag)) +
+  theme_bw() +
+  theme(#legend.position = "none",
+    panel.grid = element_blank(),
+    panel.spacing = unit(1, "lines")) + # increase facet wrap panel spacing
+  scale_fill_manual(values = cols) +
+  scale_color_manual(values = cols) +
+  facet_wrap(~NNAlphaTag) +
+  xlim(min(fd.coord.sgd[,1]), max(fd.coord.sgd[,1])) + ylim(min(fd.coord.sgd[,2]), max(fd.coord.sgd[,2]))
+qAll
+# I want to view this on a map. Can I put polygons as map points?
+
+#ggsave(here("Output", "PaperFigures", "Teixido_Figure1volume_dmb_CowTags.png"), qAll, width = 8, height = 5)
+
+```
+
+
+
+```{r}
+
+### COMBINE VOLUME FIGURE FROM Presence SCRIPT WITH ABOVE TO INCLUDE POLYGON
+
+mypalette <- rev(pnw_palette(name = "Bay", n = 20))
+alphapalette <- c(paste0(mypalette[1],"70"), paste0(mypalette[2],"70"), paste0(mypalette[3],"70"),
+                  paste0(mypalette[4],"70"), paste0(mypalette[4],"70"), paste0(mypalette[6],"70"),
+                  paste0(mypalette[7],"70"), paste0(mypalette[8],"70"), paste0(mypalette[9],"70"),
+                  paste0(mypalette[10],"70"), paste0(mypalette[11],"70"), paste0(mypalette[12],"70"),
+                  paste0(mypalette[13],"70"), paste0(mypalette[14],"70"), paste0(mypalette[15],"70"),
+                  paste0(mypalette[16],"70"), paste0(mypalette[17],"70"), paste0(mypalette[18],"70"),
+                  paste0(mypalette[19],"70"), paste0(mypalette[20], "70"))
+
+#load data
+ab.sgd <- read_csv(here("Data", "Species_Abundances_wide.csv"))
+ab.sgd <- as.data.frame(column_to_rownames(ab.sgd, var = 'CowTagID')) # move tag names to rownames and make data.frame class
+
+
+spe_fes.sgd <- as.data.frame(read_csv(here("Data", "Species_FE.csv")))
+
+alphatag <- read_csv(here("Data","CowTag_to_AlphaTag.csv"))
+
+################################## Data manipulation and arrangements
+
+ab.conditions.sgd <- ab.sgd
+
+################################# compute abundance of FEs for the three conditions
+
+fes.sgd <- levels(as_factor(spe_fes.sgd$FE))
+
+ab.conditions.sgd <- rownames_to_column(ab.conditions.sgd, var = "CowTagID")
+ab.conditions.sgd2 <- ab.conditions.sgd %>%
+  pivot_longer(names_to = "Taxa", values_to = "pCover", cols = 2:ncol(ab.conditions.sgd)) %>%
+  left_join(spe_fes.sgd) %>%
+  group_by(CowTagID, FE) %>%
+  summarise(pCover = sum(pCover)) %>%
+  ungroup()
+ab.conditions.sgd <- ab.conditions.sgd2 %>%
+  pivot_wider(names_from = FE, values_from = pCover)
+
+
+```
+
+
+
+```{r}
+
+######################
+
+
+# Figure 2. Overall distribution of FE abundance across the functional space
+redchem <- redchem %>% arrange(NNAlphaTag)
+names(alphapalette) <- redchem$NNAlphaTag[1:20]
+
+## relative abundance in ggplot
+fig2.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
+  full_join(ab.conditions.sgd2) %>%
+  left_join(alphatag) %>%
+  left_join(redchem) %>%
+  arrange(NNAlphaTag) %>% 
+  filter(CowTagID != "VSEEP")
+
+fig2bnn <- fig2.fd.sgd %>%
+  filter(pCover > 0) %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(aes(size = pCover,
+                 color = NNAlphaTag,
+                 fill = NNAlphaTag),
+             shape = 21) + # shape of a fillable circle. lets us fill with alpha values
+  geom_polygon(data = All.ch.tib %>% filter(CowTagID != "VSEEP"),
+               aes(x = x, y = y,
+                   color = NNAlphaTag),
+               alpha = 0.5,
+               fill = NA) + # no fill on the polygon
+  labs(x = "PCoA1", y = "PCoA2") +
+  facet_wrap(~NNAlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        strip.background = element_rect(fill = "white")) +
+  scale_fill_manual(values = alphapalette) +
+  scale_color_manual(values = mypalette)
+
+fig2bnn
+
+
+ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_NN.png"), fig2bnn, height = 5, width = 7)
+
+
+```
+
+
+

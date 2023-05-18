@@ -1,0 +1,386 @@
+---
+title: "Presence - Absence"
+author: "Danielle Barnas"
+date: "2022-10-14"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE, warning = F}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+# Install necessary libraries
+```{r, eval = F}
+if("tidyverse" %in% rownames(installed.packages()) == FALSE){install.packages("tidyverse")}
+if("here" %in% rownames(installed.packages()) == FALSE){install.packages("here")}
+if("ggrepel" %in% rownames(installed.packages()) == FALSE){install.packages("ggrepel")}
+if("PNWColors" %in% rownames(installed.packages()) == FALSE){install.packages("PNWColors")}
+if("vegan" %in% rownames(installed.packages()) == FALSE){install.packages("vegan")}
+if("pairwiseAdonis" %in% rownames(installed.packages()) == FALSE){ devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")}
+if("patchwork" %in% rownames(installed.packages()) == FALSE){install.packages("patchwork")}
+if("ggmap" %in% rownames(installed.packages()) == FALSE){install.packages("ggmap")}
+```
+
+
+# Load Libraries
+```{r}
+library(tidyverse)
+library(here)
+library(ggrepel)
+library(PNWColors)
+library(vegan)
+library(pairwiseAdonis)
+library(patchwork)
+```
+
+
+# Read in data
+```{r, message = F}
+comp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
+taxa <- read_csv(here("Data","Surveys","Distinct_Taxa.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari",
+         CowTagID != "V13" &
+           CowTagID != "VSEEP") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+#turb <- read_csv(here("Data","Biogeochem", "July2022", "Turb_NC.csv"))
+# richness, % richness of community pool, and % volume of community pool
+Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
+
+
+# create color palette for plotting
+mypalette <- pnw_palette(name="Bay")
+midpalette <- pnw_palette(name = "Bay", n = 30)
+largepalette <- pnw_palette(name = "Bay", n = 100)
+```
+
+
+
+# Presence Absence
+```{r}
+# prep df for nMDS
+mycomp <- comp %>% 
+  filter(Location == "Varari", Taxa != "Bare Rock" & Taxa != "Sand" & Taxa != "Rubble") %>% 
+  group_by(CowTagID, Taxa) %>% 
+  summarise(SpeciesCounts = sum(SpeciesCounts)) %>%   # sum up any repeated species rows
+  ungroup() %>% 
+  mutate(PA = 1) %>% 
+  select(-SpeciesCounts) %>% 
+  pivot_wider(names_from = Taxa, values_from = PA) %>% 
+  mutate_at(.vars = 2:52, .funs = ~if_else(is.na(.), 0, .))
+```
+
+```{r}
+## checking patterns of relative presence-absence, follows same pattern as relative species richness
+temp <- mycomp %>% 
+  filter(CowTagID != "VSEEP") %>% 
+  pivot_longer(cols = 2:52, names_to = "Taxa", values_to = "PA") %>% 
+  mutate(relPA = PA / 51) %>% 
+  group_by(CowTagID) %>% 
+  summarise(relPA = sum(relPA)) %>% 
+  left_join(meta) %>% 
+  left_join(chem)
+temp %>% 
+  ggplot(aes(x = dist_to_seep_m, y = relPA)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red")
+mod1 <- lm(data = temp, relPA ~ meanRugosity)
+plot(mod1)
+mod1r <- residuals(mod1)
+temp %>% 
+  cbind(mod1r)
+# modeling relative presence of species (same patterns as NbSpP)
+summary(lm(data = temp, mod1r ~ dist_to_seep_m)) # 0.007
+summary(lm(data = temp, mod1r ~ poly(Phosphate_umolL,2))) # 0.02
+summary(lm(data = temp, mod1r ~ poly(NN_umolL,2))) # 0.03
+summary(lm(data = temp, mod1r ~ poly(Ammonia_umolL,2))) # 0.04
+summary(lm(data = temp, mod1r ~ VisibleHumidic_Like)) # 0.01
+
+summary(lm(data = temp, VisibleHumidic_Like ~ dist_to_seep_m)) # 0.01
+
+
+temp %>% 
+  ggplot(aes(y = mod1r, x = Ammonia_umolL)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red")
+
+## LOWEST P VALUE ~ DISTANCE TO SEEP (lm)
+## HIGHEST R2 ~ AMMONIA (poly has highest pvalue but lm has lowest)
+  
+```
+
+
+```{r}
+CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
+mycomp$CowTagID <- factor(mycomp$CowTagID, levels = CTlevels)
+
+perm1 <- mycomp %>% 
+  arrange(CowTagID) %>% 
+  filter(CowTagID != "VSEEP") %>% 
+  select(-CowTagID)
+```
+
+# nMDS for PA
+```{r}
+ord1 <- metaMDS(perm1, k=2, distance='jaccard') # Jaccard is better for binary data
+ord1
+# stress with k=2 dimensions. Is it < 0.3? 
+ord1$stress
+
+# stress plot - want to minimize scatter
+stressplot(ord1)
+```
+
+```{r}
+# get points for species
+Group <- rownames(ord1$species) # get characteristic names
+MDS1 <- c(ord1$species[,1]) # MDS1 for characteristics
+MDS2 <- c(ord1$species[,2]) # MDS2 for characteristics
+Data <- as_tibble(cbind(Group, MDS1, MDS2)) %>%  # bind all cols into tibble
+  mutate(MDS1 = as.numeric(MDS1), # as numeric 
+         MDS2 = as.numeric(MDS2)) %>% 
+  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
+  select(MDS1, MDS2, Group)
+
+# get points cowtagid's
+Groupb <- as.character(CTlevels) # assign CowTagID
+MDS1b <- ord1$points[,1] # MDS1 for CowTagID
+MDS2b <- ord1$points[,2] # MDS2 for CowTagID
+Datab <- as_tibble(cbind(Groupb, MDS1b, MDS2b)) %>%  # bind all cols into tibble
+  mutate(MDS1b = as.numeric(MDS1b), # as numeric
+         MDS2b = as.numeric(MDS2b)) %>% 
+  rename(CowTagID = Groupb)
+
+joinDF <- meta %>% 
+  left_join(chem) %>% 
+  select(CowTagID, del15N:N_percent, dist_to_seep_m, Salinity:Tyrosine_Like)
+
+Datab <- Datab %>% 
+  left_join(joinDF)
+```
+
+```{r}
+# based on permanova classifications, classify sites by relative distance from seep
+Datab <- Datab %>% 
+  mutate(relDist = if_else(dist_to_seep_m <= 26, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid"))) %>% 
+  #mutate(relDist = if_else(dist_to_seep_m <= 47, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid"))) %>% 
+  mutate(relPhosphate = if_else(Phosphate_umolL <= 0.05, "LowP", if_else(Phosphate_umolL > 0.15, "HighP", "MidP"))) %>% 
+  mutate(relNN = if_else(NN_umolL <= 0.25, "LowN", if_else(NN_umolL > 0.46, "HighN", "MidN"))) %>% 
+  relocate(relDist, .after = CowTagID)
+
+ggplot(data = Data,
+       aes(x = MDS1,
+           y = MDS2)) +
+  geom_point(color = "black") +
+  geom_point(data = Datab,
+             aes(x = MDS1b,
+                 y = MDS2b,
+                 color = dist_to_seep_m),
+             size = 3) +
+  geom_text_repel(data = Data, # species
+                  aes(x = MDS1,
+                      y = MDS2,
+                      label = Group),
+                  size = 2) +
+  geom_text_repel(data = Datab, # site names
+                  aes(x = MDS1b,
+                      y = MDS2b,
+                      label = CowTagID),
+                  size = 4) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "right") +
+  ggforce::geom_mark_ellipse(
+    data = Datab,
+    aes(x = MDS1b,
+        y = MDS2b,
+        fill = relDist, label = relDist),
+    alpha = .15, show.legend = FALSE,
+    label.buffer = unit(1, "mm")) +
+  ##coord_cartesian(xlim = c(-4, 7), ylim = c(-6, 4)) +
+  ##scale_shape_manual(values = c(22,16))+
+  ##scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  ##scale_fill_hue(l = 45)
+  scale_color_gradient(low = "red", high = "yellow") # set color scale
+```
+
+
+### PERMANOVA: Distance
+#### V14, V17, V20, V9 all separate from the remaining sites by distance
+```{r}
+PermFull <- mycomp %>%
+  filter(CowTagID != "V13" &
+           CowTagID != "VSEEP") %>% 
+  arrange(CowTagID) %>% 
+  left_join(joinDF) %>%
+  mutate(relDist = if_else(dist_to_seep_m <= 26, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid"))) 
+
+permanovamodel<-adonis2(PermFull[,2:52]~relDist, PermFull, permutations = 999,
+                        method="jaccard") # should change out cowtagid with some grouping name
+permanovamodel
+
+pairwise.adonis(PermFull[,2:52], PermFull$relDist, perm=999)
+```
+
+
+
+
+### PERMANOVA: Distance
+```{r}
+PermFull <- mycomp %>%
+  filter(CowTagID != "V13" &
+           CowTagID != "VSEEP") %>% 
+  arrange(CowTagID) %>% 
+  left_join(joinDF) %>%
+  #mutate(relNN = if_else(NN_umolL <= 0.05, "LowP", if_else(NN_umolL > 0.19, "HighP", "MidP")))
+  #mutate(relPhosphate = if_else(Phosphate_umolL <= 0.05, "LowP", if_else(Phosphate_umolL > 0.19, "HighP", "MidP")))
+  mutate(relDist = if_else(dist_to_seep_m <= 47, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid"))) # V14, V17, V20, V9
+  #mutate(relDist = if_else(dist_to_seep_m <= 26, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid")))
+permanovamodel<-adonis2(PermFull[,2:52]~relDist, PermFull, permutations = 999,
+                        method="jaccard") # should change out cowtagid with some grouping name
+permanovamodel
+pairwise.adonis(PermFull[,2:52], PermFull$relDist, perm=999)
+```
+
+
+```{r}
+PermFull <- mycomp %>%
+  filter(CowTagID != "V13" &
+           CowTagID != "VSEEP") %>% 
+  arrange(CowTagID) %>% 
+  left_join(joinDF) %>%
+  #mutate(relNN = if_else(NN_umolL <= 0.05, "LowP", if_else(NN_umolL > 0.19, "HighP", "MidP")))
+  mutate(relPhosphate = if_else(Phosphate_umolL <= 0.05, "LowP", if_else(Phosphate_umolL > 0.19, "HighP", "MidP")))
+permanovamodel<-adonis2(PermFull[,2:52]~relDist, PermFull, permutations = 999,
+                        method="jaccard") # should change out cowtagid with some grouping name
+permanovamodel
+pairwise.adonis(PermFull[,2:52], PermFull$relDist, perm=999)
+
+Datab %>% arrange(Phosphate_umolL) %>% select(Phosphate_umolL)
+```
+
+
+
+## nMDS of biogeochemical parameters
+
+```{r}
+CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
+mycomp$CowTagID <- factor(mycomp$CowTagID, levels = CTlevels)
+
+perm1 <- mycomp %>% 
+  arrange(CowTagID) %>% 
+  filter(CowTagID != "VSEEP") %>% 
+  select(-CowTagID)
+```
+
+# nMDS for PA
+```{r}
+ord1 <- metaMDS(perm1, k=2, distance='jaccard') # Jaccard is better for binary data
+ord1
+# stress with k=2 dimensions. Is it < 0.3? 
+ord1$stress
+
+# stress plot - want to minimize scatter
+stressplot(ord1)
+```
+
+```{r}
+# get points for species
+Group <- rownames(ord1$species) # get characteristic names
+MDS1 <- c(ord1$species[,1]) # MDS1 for characteristics
+MDS2 <- c(ord1$species[,2]) # MDS2 for characteristics
+Data <- as_tibble(cbind(Group, MDS1, MDS2)) %>%  # bind all cols into tibble
+  mutate(MDS1 = as.numeric(MDS1), # as numeric 
+         MDS2 = as.numeric(MDS2)) %>% 
+  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>% 
+  select(MDS1, MDS2, Group)
+
+# get points cowtagid's
+Groupb <- as.character(CTlevels) # assign CowTagID
+MDS1b <- ord1$points[,1] # MDS1 for CowTagID
+MDS2b <- ord1$points[,2] # MDS2 for CowTagID
+Datab <- as_tibble(cbind(Groupb, MDS1b, MDS2b)) %>%  # bind all cols into tibble
+  mutate(MDS1b = as.numeric(MDS1b), # as numeric
+         MDS2b = as.numeric(MDS2b)) %>% 
+  rename(CowTagID = Groupb)
+
+joinDF <- meta %>% 
+  left_join(chem) %>% 
+  select(CowTagID, del15N:N_percent, dist_to_seep_m, Salinity:Tyrosine_Like)
+
+Datab <- Datab %>% 
+  left_join(joinDF)
+```
+
+```{r}
+# based on permanova classifications, classify sites by relative distance from seep
+Datab <- Datab %>% 
+  mutate(relDist = if_else(dist_to_seep_m <= 26, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid"))) %>% 
+  #mutate(relDist = if_else(dist_to_seep_m <= 47, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid"))) %>% 
+  mutate(relPhosphate = if_else(Phosphate_umolL <= 0.05, "LowP", if_else(Phosphate_umolL > 0.15, "HighP", "MidP"))) %>% 
+  mutate(relNN = if_else(NN_umolL <= 0.25, "LowN", if_else(NN_umolL > 0.46, "HighN", "MidN"))) %>% 
+  relocate(relDist, .after = CowTagID)
+
+ggplot(data = Data,
+       aes(x = MDS1,
+           y = MDS2)) +
+  geom_point(color = "black") +
+  geom_point(data = Datab,
+             aes(x = MDS1b,
+                 y = MDS2b,
+                 color = dist_to_seep_m),
+             size = 3) +
+  geom_text_repel(data = Data, # species
+                  aes(x = MDS1,
+                      y = MDS2,
+                      label = Group),
+                  size = 2) +
+  geom_text_repel(data = Datab, # site names
+                  aes(x = MDS1b,
+                      y = MDS2b,
+                      label = CowTagID),
+                  size = 4) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "right") +
+  ggforce::geom_mark_ellipse(
+    data = Datab,
+    aes(x = MDS1b,
+        y = MDS2b,
+        fill = relDist, label = relDist),
+    alpha = .15, show.legend = FALSE,
+    label.buffer = unit(1, "mm")) +
+  ##coord_cartesian(xlim = c(-4, 7), ylim = c(-6, 4)) +
+  ##scale_shape_manual(values = c(22,16))+
+  ##scale_colour_hue(l = 45)+ # l: luminance/lightness 0-100
+  ##scale_fill_hue(l = 45)
+  scale_color_gradient(low = "red", high = "yellow") # set color scale
+```
+
+
+### PERMANOVA: Distance
+#### V14, V17, V20, V9 all separate from the remaining sites by distance
+```{r}
+PermFull <- mycomp %>%
+  filter(CowTagID != "V13" &
+           CowTagID != "VSEEP") %>% 
+  arrange(CowTagID) %>% 
+  left_join(joinDF) %>%
+  mutate(relDist = if_else(dist_to_seep_m <= 26, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid"))) 
+
+permanovamodel<-adonis2(PermFull[,2:52]~relDist, PermFull, permutations = 999,
+                        method="jaccard") # should change out cowtagid with some grouping name
+permanovamodel
+
+pairwise.adonis(PermFull[,2:52], PermFull$relDist, perm=999)
+```
+
+

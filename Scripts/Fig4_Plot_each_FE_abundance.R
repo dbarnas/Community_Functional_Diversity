@@ -12,7 +12,7 @@ morphpalette <- rev(pnw_palette(name = "Moth", n = 12))
 calcpalette <- c("#f9eac2","#b2d2a4", "#96ad90", "#1a4314")
 #symbpalette <- c("#98d7c2", "#167d7f", "#29a0b1", "#05445e")
 erpalette <- c("#fbc490", "#fbaa60", "#f67b50")
-fmpalette <- c( "#deb3ad","#de847b", "#c85250")
+#fmpalette <- c( "#deb3ad","#de847b", "#c85250")
 
 
 ab.sgd <- read_csv(here("Data", "Species_Abundances_wide.csv"))
@@ -23,7 +23,7 @@ dist <- read_csv(here("Data","Full_metadata.csv")) %>%
   filter(Location == "Varari",
          CowTagID != "V13",
          #CowTagID != "VSEEP"
-         ) %>%
+  ) %>%
   select(CowTagID, dist_to_seep_m) %>%
   arrange(dist_to_seep_m)
 dist <- dist[1:20,]
@@ -76,9 +76,9 @@ pc <- myplot(Calc, calcpalette)
 per <- myplot(ER, erpalette)
 
 plot1 <- (pm) /
-(per + pc) /
-(pt) +
-plot_annotation(tag_levels = 'A') +
+  (per + pc) /
+  (pt) +
+  plot_annotation(tag_levels = 'A') +
   theme(plot.tag = element_text(size = 10))
 plot1
 
