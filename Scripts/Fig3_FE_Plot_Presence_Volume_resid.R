@@ -926,29 +926,6 @@ plot_fe_group_pcoa <- plot_fe_group_pcoa %>%
 plot_fe_group_pcoa
 ggsave(here("Output", "PaperFigures", "FE_grouped_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
 
-## pc1 is driven by energetic resource (autotrophs on the left, mixotrophs on the right, heterotrophs in the middle)
-## let's also view some combinations to see what's driving pc2
-plot_fe_group_pcoa2 <- fd.coord.sgd.tibble %>%
-  separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
-           sep = ",", remove = F) %>%
-  unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
-  unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
-  unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
-  pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait") %>%
-  rename('Taxonomic Group' = Taxon_Group,
-         'Morphology' = Morph,
-         'Calcification' = Calc,
-         'Energetic Resource' = ER) %>%
-  ggplot(aes(x = PC1, y = PC2)) +
-  geom_point() +
-  geom_text_repel(aes(label = Trait),
-                  size = 3,
-                  max.overlaps = 18) +
-  theme_bw() +
-  theme(panel.grid = element_blank()) +
-  facet_wrap(~Group)
-plot_fe_group_pcoa2
-
 
 ### View representative species for each functional entity
 FE_representatives <- as_tibble(rownames_to_column(species_entities)) %>%
@@ -971,8 +948,7 @@ FE_reps_pca_plot
 ### Show all trait points possible as a blank diagram for visualization of full volume
 
 FE_pca_plot_allPoints <- fig2.fd.sgd %>%
-  filter(pCover > 0) %>%
-  filter(CowTagID == "V2") %>%  # to show outline diagram of polygon and V2 hits every outer point
+  filter(pCover > 0) %>%  # to show outline diagram of polygon and V2 hits every outer point
   ggplot(aes(x = PC1, y = PC2)) +
   geom_point() + # shape of a fillable circle. lets us fill with alpha values
   geom_polygon(data = All.ch.tib %>% filter(AlphaTag == "S"),
@@ -987,7 +963,7 @@ FE_pca_plot_allPoints <- fig2.fd.sgd %>%
         strip.background = element_rect(fill = "white"))
 
 FE_pca_plot_allPoints
-#ggsave(here("Output", "PaperFigures","Example_Polygon.png"), FE_pca_plot_allPoints, width = 6, height = 6)
+ggsave(here("Output", "PaperFigures","Example_Polygon.png"), FE_pca_plot_allPoints, width = 6, height = 6)
 
 mylm <- fd.coord.sgd.tibble %>%
   separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
@@ -997,7 +973,7 @@ mylm <- fd.coord.sgd.tibble %>%
   # unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
   #pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait")
 summary(lm(data = mylm,PC2 ~ Taxon_Group))
-summary(lm(data = mylm,PC2 ~ Morph))
+summary(lm(data = mylm,PC1 ~ ER))
 
 
 ## Can use the three values above (SpR, FER, Vol4D), and also community composition: either relative abundance or presence-absence
