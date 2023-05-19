@@ -308,33 +308,44 @@ ab.conditions.sgd <- ab.conditions.sgd2 %>%
 ######################
 
 
-# Figure 2. Overall distribution of FE abundance across the functional space
+# Figure 2A. Overall distribution of FE abundance across the functional space colored by NN_umolL
 
-names(alphapalette) <- alphatag$AlphaTag[1:20]
+disc.redchem <- redchem %>%
+  mutate(Phosphate_umolL = as.character(round(Phosphate_umolL,3)),
+         NN_umolL = as.character(round(NN_umolL,3)))
+
+#names(alphapalette) <- alphatag$AlphaTag[1:20]
+names(alphapalette) <- (disc.redchem %>% left_join(alphatag) %>% arrange(NN_umolL))$NN_umolL
 
 ## relative abundance in ggplot
 fig2.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
   full_join(ab.conditions.sgd2) %>%
   left_join(alphatag) %>%
-  arrange(AlphaTag)
+  arrange(AlphaTag) %>%
+  left_join(disc.redchem)
 
 fig2bdist <- fig2.fd.sgd %>%
+  left_join(disc.redchem) %>%
   filter(pCover > 0) %>%
   ggplot(aes(x = PC1, y = PC2)) +
   geom_point(aes(size = pCover,
-                 color = AlphaTag,
-                 fill = AlphaTag),
-             shape = 21) + # shape of a fillable circle. lets us fill with alpha values
-  geom_polygon(data = All.ch.tib,
+                 # color = AlphaTag,
+                 # fill = AlphaTag),
+                 color = NN_umolL,
+                 fill = NN_umolL),
+             shape = 21,
+             show.legend = FALSE) + # shape of a fillable circle. lets us fill with alpha values
+  geom_polygon(data = All.ch.tib %>% left_join(alphatag) %>% left_join(disc.redchem),
                aes(x = x, y = y,
-                   color = AlphaTag),
+                   #color = AlphaTag),
+                   color = NN_umolL),
                alpha = 0.5,
                fill = NA) + # no fill on the polygon
-  labs(x = "PCoA1", y = "PCoA2") +
+  labs(x = "PCoA1", y = "PCoA2", color = "N+N (umol L-1)") +
   facet_wrap(~AlphaTag) +
   theme_bw() +
   theme(panel.grid = element_blank(),
-        legend.position = "none",
+        #legend.position = "none",
         strip.background = element_rect(fill = "white")) +
   scale_fill_manual(values = alphapalette) +
   scale_color_manual(values = mypalette)
@@ -342,7 +353,56 @@ fig2bdist <- fig2.fd.sgd %>%
 fig2bdist
 
 
-ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_distance.png"), fig2bdist, height = 5, width = 7)
+ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_dist_NN.png"), fig2bdist, height = 5, width = 7)
+
+
+
+# Figure 2B. Overall distribution of FE abundance across the functional space colored by Phosphate_umolL
+
+disc.redchem <- redchem %>%
+  mutate(Phosphate_umolL = as.character(round(Phosphate_umolL,3)),
+         NN_umolL = as.character(round(NN_umolL,3)))
+
+#names(alphapalette) <- alphatag$AlphaTag[1:20]
+names(alphapalette) <- (disc.redchem %>% left_join(alphatag) %>% arrange(Phosphate_umolL))$Phosphate_umolL
+
+## relative abundance in ggplot
+fig2.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
+  full_join(ab.conditions.sgd2) %>%
+  left_join(alphatag) %>%
+  arrange(AlphaTag) %>%
+  left_join(disc.redchem)
+
+fig2bdist <- fig2.fd.sgd %>%
+  left_join(disc.redchem) %>%
+  filter(pCover > 0) %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(aes(size = pCover,
+                 # color = AlphaTag,
+                 # fill = AlphaTag),
+                 color = Phosphate_umolL,
+                 fill = Phosphate_umolL),
+             shape = 21,
+             show.legend = FALSE) + # shape of a fillable circle. lets us fill with alpha values
+  geom_polygon(data = All.ch.tib %>% left_join(alphatag) %>% left_join(disc.redchem),
+               aes(x = x, y = y,
+                   #color = AlphaTag),
+                   color = Phosphate_umolL),
+               alpha = 0.5,
+               fill = NA) + # no fill on the polygon
+  labs(x = "PCoA1", y = "PCoA2", color = "Phosphate (umol L-1)") +
+  facet_wrap(~AlphaTag) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        #legend.position = "none",
+        strip.background = element_rect(fill = "white")) +
+  scale_fill_manual(values = alphapalette) +
+  scale_color_manual(values = mypalette)
+
+fig2bdist
+
+
+ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_dist_phos.png"), fig2bdist, height = 5, width = 7)
 
 
 
@@ -359,8 +419,8 @@ redchem <- redchem %>%
   mutate(PAlphaTag = c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")) %>%
   unite(PAlphaTag, CowTagID, col = "PAlphaTag", sep = "-", remove=F) %>%
   arrange(NN_umolL) %>%
-  mutate(NAlphaTag = c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")) %>%
-  unite(NAlphaTag, CowTagID, col = "NAlphaTag", sep = "-", remove=F)
+  mutate(NNAlphaTag = c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T")) %>%
+  unite(NNAlphaTag, CowTagID, col = "NNAlphaTag", sep = "-", remove=F)
 
 
 summary(lm(data = resFric %>% left_join(redchem) %>% filter(CowTagID != "VSEEP"),
@@ -816,7 +876,8 @@ fig2bnn
 
 ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_NN.png"), fig2bnn, height = 5, width = 7)
 
-
+##########################################################################################
+##########################################################################################
 
 ## checking things with nyssa
 
@@ -829,116 +890,119 @@ ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_NN.png"), fig2bnn
 
 
 
-#
-#
-# ### View location of each functional entity:
-# fd.coord.sgd.tibble <- as_tibble(rownames_to_column(as.data.frame(fd.coord.sgd))) %>%
-#   rename(FE = "rowname")
-#
-# FE_pca_plot <- fd.coord.sgd.tibble %>%
-#   ggplot(aes(x = PC1, y = PC2)) +
-#   geom_point() +
-#   geom_text_repel(aes(label = FE),
-#                   size = 3) +
-#   theme_bw() +
-#   theme(panel.grid = element_blank())
-# FE_pca_plot
-# #ggsave(here("Output", "PaperFigures", "FE_pca_labeled.png"), FE_pca_plot, width = 10, height = 10)
-#
-#
-# ## View functional trait faceted figures
-# plot_fe_group_pcoa <- fd.coord.sgd.tibble %>%
-#   separate(FE, into = c('Taxonomic Group','Morphology','Calcification','Energetic Resource'),
-#            sep = ",", remove = F) %>%
-#   pivot_longer(cols = 'Taxonomic Group':'Energetic Resource', names_to = "Group", values_to = "Trait") %>%
-#   ggplot(aes(x = PC1, y = PC2)) +
-#   geom_point() +
-#   geom_text_repel(aes(label = Trait),
-#                   size = 2,
-#                   max.overlaps = 18) +
-#   theme_bw() +
-#   theme(panel.grid = element_blank()) +
-#   facet_wrap(~Group)
-# plot_fe_group_pcoa
-# #ggsave(here("Output", "PaperFigures", "FE_group_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
-#
-# ## pc1 is driven by energetic resource (autotrophs on the left, mixotrophs on the right, heterotrophs in the middle)
-# ## let's also view some combinations to see what's driving pc2
-# plot_fe_group_pcoa2 <- fd.coord.sgd.tibble %>%
-#   separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
-#            sep = ",", remove = F) %>%
-#   unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
-#   unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
-#   unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
-#   pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait") %>%
-#   rename('Taxonomic Group' = Taxon_Group,
-#          'Morphology' = Morph,
-#          'Calcification' = Calc,
-#          'Energetic Resource' = ER) %>%
-#   ggplot(aes(x = PC1, y = PC2)) +
-#   geom_point() +
-#   geom_text_repel(aes(label = Trait),
-#                   size = 3,
-#                   max.overlaps = 18) +
-#   theme_bw() +
-#   theme(panel.grid = element_blank()) +
-#   facet_wrap(~Group)
-# plot_fe_group_pcoa2
-#
-#
-# ### View representative species for each functional entity
-# FE_representatives <- as_tibble(rownames_to_column(species_entities)) %>%
-#   rename(Species = "rowname") %>%
-#   left_join(fd.coord.sgd.tibble) %>%
-#   group_by(FE) %>%
-#   filter(row_number()==1)
-#
-# FE_reps_pca_plot <- FE_representatives %>%
-#   ggplot(aes(x = PC1, y = PC2)) +
-#   geom_point() +
-#   geom_text_repel(aes(label = Species),
-#                   size = 3) +
-#   theme_bw() +
-#   theme(panel.grid = element_blank())
-# FE_reps_pca_plot
-# #ggsave(here("Output", "PaperFigures", "FE_pca_labeled_representatives.png"), FE_reps_pca_plot, width = 10, height = 10)
-#
-#
-# ### Show all trait points possible as a blank diagram for visualization of full volume
-#
-# FE_pca_plot_allPoints <- fig2.fd.sgd %>%
-#   filter(pCover > 0) %>%
-#   filter(CowTagID == "V2") %>%  # to show outline diagram of polygon and V2 hits every outer point
-#   ggplot(aes(x = PC1, y = PC2)) +
-#   geom_point() + # shape of a fillable circle. lets us fill with alpha values
-#   geom_polygon(data = All.ch.tib %>% filter(AlphaTag == "S"),
-#                aes(x = x, y = y),
-#                alpha = 0.5,
-#                fill = NA,
-#                color = "black") + # no fill on the polygon
-#   labs(x = "PCoA1", y = "PCoA2") +
-#   theme_bw() +
-#   theme(panel.grid = element_blank(),
-#         legend.position = "none",
-#         strip.background = element_rect(fill = "white"))
-#
-# FE_pca_plot_allPoints
-# #ggsave(here("Output", "PaperFigures","Example_Polygon.png"), FE_pca_plot_allPoints, width = 6, height = 6)
-#
-# mylm <- fd.coord.sgd.tibble %>%
-#   separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
-#            sep = ",", remove = F)
-#   # unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
-#   # unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
-#   # unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
-#   #pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait")
-# summary(lm(data = mylm,PC2 ~ Taxon_Group))
-# summary(lm(data = mylm,PC2 ~ Morph))
-#
-#
-# ## Can use the three values above (SpR, FER, Vol4D), and also community composition: either relative abundance or presence-absence
-# ## then can do a permanova / nMDS of community comp with the volume / FErichness
-#
+
+
+### View location of each functional entity:
+fd.coord.sgd.tibble <- as_tibble(rownames_to_column(as.data.frame(fd.coord.sgd))) %>%
+  rename(FE = "rowname")
+
+FE_pca_plot <- fd.coord.sgd.tibble %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point() +
+  geom_text_repel(aes(label = FE),
+                  size = 3) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+FE_pca_plot
+ggsave(here("Output", "PaperFigures", "FE_pca_labeled.png"), FE_pca_plot, width = 5, height = 5)
+
+
+## View functional trait faceted figures
+plot_fe_group_pcoa <- fd.coord.sgd.tibble %>%
+  separate(FE, into = c('Phyla','Morphology','Calcification','Energetic Resource'),
+           sep = ",", remove = F) %>%
+  pivot_longer(cols = 'Phyla':'Energetic Resource', names_to = "Group", values_to = "Trait")
+plot_fe_group_pcoa$Group <- factor(plot_fe_group_pcoa$Group,
+                                      levels = c("Phyla", "Morphology", "Calcification", "Energetic Resource"))
+plot_fe_group_pcoa <- plot_fe_group_pcoa %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point() +
+  geom_text_repel(aes(label = Trait),
+                  size = 3,
+                  max.overlaps = 18) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~Group)
+plot_fe_group_pcoa
+ggsave(here("Output", "PaperFigures", "FE_grouped_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
+
+## pc1 is driven by energetic resource (autotrophs on the left, mixotrophs on the right, heterotrophs in the middle)
+## let's also view some combinations to see what's driving pc2
+plot_fe_group_pcoa2 <- fd.coord.sgd.tibble %>%
+  separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
+           sep = ",", remove = F) %>%
+  unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
+  unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
+  unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
+  pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait") %>%
+  rename('Taxonomic Group' = Taxon_Group,
+         'Morphology' = Morph,
+         'Calcification' = Calc,
+         'Energetic Resource' = ER) %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point() +
+  geom_text_repel(aes(label = Trait),
+                  size = 3,
+                  max.overlaps = 18) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~Group)
+plot_fe_group_pcoa2
+
+
+### View representative species for each functional entity
+FE_representatives <- as_tibble(rownames_to_column(species_entities)) %>%
+  rename(Species = "rowname") %>%
+  left_join(fd.coord.sgd.tibble) %>%
+  group_by(FE) %>%
+  filter(row_number()==1)
+
+FE_reps_pca_plot <- FE_representatives %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point() +
+  geom_text_repel(aes(label = Species),
+                  size = 3) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+FE_reps_pca_plot
+#ggsave(here("Output", "PaperFigures", "FE_pca_labeled_representatives.png"), FE_reps_pca_plot, width = 10, height = 10)
+
+
+### Show all trait points possible as a blank diagram for visualization of full volume
+
+FE_pca_plot_allPoints <- fig2.fd.sgd %>%
+  filter(pCover > 0) %>%
+  filter(CowTagID == "V2") %>%  # to show outline diagram of polygon and V2 hits every outer point
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point() + # shape of a fillable circle. lets us fill with alpha values
+  geom_polygon(data = All.ch.tib %>% filter(AlphaTag == "S"),
+               aes(x = x, y = y),
+               alpha = 0.5,
+               fill = NA,
+               color = "black") + # no fill on the polygon
+  labs(x = "PCoA1", y = "PCoA2") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        strip.background = element_rect(fill = "white"))
+
+FE_pca_plot_allPoints
+#ggsave(here("Output", "PaperFigures","Example_Polygon.png"), FE_pca_plot_allPoints, width = 6, height = 6)
+
+mylm <- fd.coord.sgd.tibble %>%
+  separate(FE, into = c('Taxon_Group', 'Morph', 'Calc', 'ER'),
+           sep = ",", remove = F)
+  # unite(Taxon_Group, Morph, col = "Taxon_Morph", remove = F) %>%
+  # unite(Taxon_Group, Calc, col = "Taxon_Calc", remove = F) %>%
+  # unite(Morph, Calc, col = "Morph_Calc", remove = F) %>%
+  #pivot_longer(cols = c('Taxon_Morph', 'Taxon_Calc', 'Morph_Calc'), names_to = "Group", values_to = "Trait")
+summary(lm(data = mylm,PC2 ~ Taxon_Group))
+summary(lm(data = mylm,PC2 ~ Morph))
+
+
+## Can use the three values above (SpR, FER, Vol4D), and also community composition: either relative abundance or presence-absence
+## then can do a permanova / nMDS of community comp with the volume / FErichness
+
 #
 #
 # ### relative abundance

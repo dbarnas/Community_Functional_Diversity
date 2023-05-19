@@ -50,7 +50,7 @@ chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv"))
 turb <- read_csv(here("Data","Biogeochem", "July2022", "Turb_NC.csv"))
 # richness, % richness of community pool, and % volume of community pool
 Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
-
+resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv"))
 
 # create color palette for plotting
 mypalette <- pnw_palette(name="Bay")
@@ -76,29 +76,9 @@ Full_data <- Fric %>%
   left_join(chem) %>% 
   select(-Location)
 
-# calculate residuals
-ct <- Full_data %>% 
-  select(CowTagID)
-rNbSp <- residuals(lm(data = Full_data, NbSp ~ meanRugosity)) %>% cbind(ct) %>% distinct()
-rNbSpP <- residuals(lm(data = Full_data, NbSpP ~ meanRugosity)) %>% cbind(ct) %>% distinct()
-rNbFEs <- residuals(lm(data = Full_data, NbFEs ~ meanRugosity)) %>% cbind(ct) %>% distinct()
-rNbFEsP <- residuals(lm(data = Full_data, NbFEsP ~ meanRugosity)) %>% cbind(ct) %>% distinct()
-rVol8D <- residuals(lm(data = Full_data, Vol8D ~ meanRugosity)) %>% cbind(ct) %>% distinct()
-#deal with V4 repetition
-rNbSp<-rNbSp[3:nrow(rNbSp),]
-rNbSpP<-rNbSpP[3:nrow(rNbSpP),]
-rNbFEs<-rNbFEs[3:nrow(rNbFEs),]
-rNbFEsP<-rNbFEsP[3:nrow(rNbFEsP),]
-rVol8D<-rVol8D[3:nrow(rVol8D),]
-#rejoin to full
+# join residuals df
 Full_data <- Full_data %>% 
-  left_join(rNbSp) %>% select(-NbSp) %>% rename(NbSp = '.') %>% 
-  left_join(rNbSpP) %>% select(-NbSpP) %>% rename(NbSpP = '.')%>% 
-  left_join(rNbFEs) %>% select(-NbFEs) %>% rename(NbFEs = '.')%>% 
-  left_join(rNbFEsP) %>% select(-NbFEsP) %>% rename(NbFEsP = '.')%>% 
-  left_join(rVol8D) %>% select(-Vol8D) %>% rename(Vol8D = '.') %>% 
-  relocate(NbSp:Vol8D, .after = CowTagID) %>% 
-  distinct()
+  left_join(resFric)
 
 myturb <- Full_data %>% 
   select(CowTagID,NbSp:Vol8D, del15N:N_percent) %>% 
@@ -124,6 +104,7 @@ plotfun <- function(mydata = Full_data, x, y, myfacet, myformula) {
                      x = !!x,
                      color = Season)) +
   geom_point() +
+  geom_text_repel(aes(label = CowTagID)) +
   geom_smooth(method = "lm", formula = myformula) +
   facet_wrap(enquo(myfacet), scales = "free") +
   labs(y = paste(as_label(y)),
@@ -352,6 +333,31 @@ pvalplot(mydata = pTO, season = "June2022")
 ```
 
 
+```{r}
+tempturb <- myturb %>% 
+  select(-Season) %>% 
+  pivot_wider(names_from = Parameters, values_from = Values) %>% 
+  left_join(chem) %>% 
+  filter(Season == "Dry") %>% 
+  select(CowTagID, NbSp:N_percent, Parameters, CVSeasonal) %>% 
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+
+summary(lm(data = tempturb, del15N ~ poly(Silicate_umolL,2)))
+summary(lm(data = tempturb, C_N ~ poly(Silicate_umolL,2)))
+summary(lm(data = tempturb, N_percent ~ poly(Silicate_umolL,2)))
+
+tempturb %>% 
+  pivot_longer(cols = del15N:N_percent, names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Silicate_umolL, y = Values)) +
+  geom_point() +
+  geom_text_repel(aes(label = CowTagID))+
+  facet_wrap(~Parameters, scales = "free") +
+  theme_bw()
+  
+```
+
+
+
 
 ## MAXIMUM VALUES
 ```{r}
@@ -488,7 +494,6 @@ p5b <- paramPlot(mydata = Full_data, ParamType = MeanAll, PTname = "MeanAll_poly
 
 ## CV VALUES BY SEASON
 ```{r}
-
 plotfun(y = NbSpP, x = CVSeasonal, myfacet = Parameters, myformula = "y~x")
 plotfun(y = NbSpP, x = CVSeasonal, myfacet = Parameters, myformula = "y~poly(x,2)")
 
@@ -514,14 +519,16 @@ longcv <- Full_data %>%
   filter(Season == "Dry") %>% 
   select(CowTagID:N_percent, dist_to_seep_m, Parameters, CVSeasonal) %>% 
   pivot_wider(names_from = Parameters, values_from = CVSeasonal) %>% 
-  select(CowTagID:dist_to_seep_m, Phosphate_umolL, NN_umolL, Ammonia_umolL, VisibleHumidic_Like, Salinity, M_C)
+  select(CowTagID:dist_to_seep_m, Phosphate_umolL, NN_umolL, Ammonia_umolL, VisibleHumidic_Like, Salinity, M_C, Silicate_umolL)
+
 longcv %>% 
   pivot_longer(cols = c(del15N:M_C), names_to = "Parameters", values_to = "Values") %>% 
   ggplot(aes(x = Values, y = NbSpP)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~x", color = "black") +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
-  facet_wrap(~Parameters, scales = "free")
+  facet_wrap(~Parameters, scales = "free") +
+  theme_bw()
 
 # NBSP
 summary(lm(data = longcv, NbSpP ~ Ammonia_umolL)) #lm
@@ -540,6 +547,37 @@ summary(lm(data = longcv, Vol8D ~ Ammonia_umolL)) #lm
 summary(lm(data = longcv, Vol8D ~ poly(NN_umolL,2))) # poly
 summary(lm(data = longcv, Vol8D ~ poly(Phosphate_umolL,2))) # poly
 summary(lm(data = longcv, Vol8D ~ poly(Salinity,2))) # poly
+
+
+
+
+
+#########
+summary(lm(data = longcv, NN_umolL ~ poly(Salinity,2)))
+summary(lm(data = longcv, Phosphate_umolL ~ Salinity))
+summary(lm(data = longcv, NN_umolL ~ Silicate_umolL))
+summary(lm(data = longcv, Phosphate_umolL ~ Silicate_umolL))
+summary(lm(data = longcv, NN_umolL ~ poly(dist_to_seep_m,2)))
+summary(lm(data = longcv, Phosphate_umolL ~ poly(dist_to_seep_m,2)))
+  
+
+longcv %>% 
+  left_join(resFric) %>% 
+  pivot_longer(cols = c(dist_to_seep_m, Salinity, Silicate_umolL), names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = NN_umolL)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
+  theme_bw() +
+  facet_wrap(~Parameters, scales = "free")
+
+longcv %>% 
+  left_join(resFric) %>% 
+  pivot_longer(cols = c(dist_to_seep_m, Salinity, Silicate_umolL), names_to = "Parameters", values_to = "Values") %>% 
+  ggplot(aes(x = Values, y = Phosphate_umolL)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
+  theme_bw() +
+  facet_wrap(~Parameters, scales = "free")
 
 ```
 
