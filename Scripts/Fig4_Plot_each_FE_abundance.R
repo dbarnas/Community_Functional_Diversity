@@ -23,13 +23,16 @@ dist <- read_csv(here("Data","Full_metadata.csv")) %>%
   select(CowTagID, dist_to_seep_m) %>%
   arrange(dist_to_seep_m)
 dist <- dist[1:20,]
-chem <- read_csv(here("Data", "Biogeochem", "Nutrients_Processed_All.csv")) %>%
+fullchem <- read_csv(here("Data", "Biogeochem", "Nutrients_Processed_All.csv")) %>%
   filter(Location == "Varari",
-         Season == "Dry",
-         Parameters == "Phosphate_umolL" | Parameters == "NN_umolL") %>%
+         Season == "Dry")
+chem <- fullchem %>%
+  filter(Parameters == "Phosphate_umolL" | Parameters == "NN_umolL") %>%
   select(CowTagID, Parameters, CVSeasonal) %>%
   pivot_wider(names_from = Parameters, values_from = CVSeasonal)
-
+fullchem <- fullchem %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
 
 ### CREATE PALETTES FOR FIGURES ###
 
@@ -53,11 +56,18 @@ Full_data <- ab.sgd %>%
   left_join(alphatag) %>%
   left_join(chem)
 
-Full_data$AlphaTag <- factor(Full_data$AlphaTag)
+# Full_data$NN_umolL <- factor(Full_data$NN_umolL)
+# Full_data$Phosphate_umolL <- factor(Full_data$Phosphate_umolL)
 Full_data$Morph2 <- factor(Full_data$Morph2,
                            levels = c('Br', 'Dig', 'Fol', 'Fil', 'Stol',
                                       'Mush', 'Poly', 'Cushion', 'Mas', 'Enc', 'Sph'))
-
+# arrange alphatag factor for nutrient levels
+AlphaOrder <- Full_data %>%
+  left_join(dist) %>%
+  arrange(dist_to_seep_m) %>%
+  distinct(AlphaTag)
+AlphaOrder <- AlphaOrder$AlphaTag
+Full_data$AlphaTag <- factor(Full_data$AlphaTag, levels = AlphaOrder)
 
 myplot <- function(param, pal){
 
@@ -83,55 +93,159 @@ myplot <- function(param, pal){
 
 }
 
+
+
+
 ptplot <- function(entity, param){
 
   my_data <- Full_data %>%
     filter(CowTagID != "VSEEP") %>%
     group_by(AlphaTag,{{entity}}, {{param}}) %>%
-    summarise(pCover = sum(pCover))
+    summarise(pCover = sum(pCover)) %>%
+    mutate(indep = round(as.numeric({{param}}),2))
 
-  myfacet = enquo(entity)
-  independent = enquo(param)
+  myfacet <- enquo(entity)
+  x.var <- colnames(my_data[,3])
 
   plota <- my_data %>%
-    ggplot(aes(x = !!independent,
+    ggplot(aes(x = indep, #!!independent,
                y = pCover,
-               fill = !!myfacet
+               color = !!myfacet
                )) +
     geom_point() +
-    geom_smooth(method = "lm", formula = "y~x", color = "black") +
-    geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
+    #geom_smooth(method = "lm", formula = "y~x", color = "black") +
+    #geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
     theme_bw() +
     theme(panel.grid = element_blank(),
-          legend.position = "top") +
-    #scale_fill_manual(aes(values = !!myfacet)) +
+          legend.position = "none") +
     facet_wrap(myfacet, scales = "free") +
-    labs(x = "", y = "% Cover")
-    #ylim(min = 0, max = 100)
+    labs(x = paste(x.var), y = "% Cover")
 
   return(plota)
 
 }
 
+Param_data <- Full_data %>%
+  filter(CowTagID != "VSEEP") %>%
+  mutate(entity = as.character(Morph2)) %>%
+  group_by(AlphaTag,entity,NN_umolL) %>%
+  summarise(pCover = sum(pCover)) %>%
+  filter(entity != "Cyanobacteria" & entity != "Mush")
+
+
+pval <- function(data = Full_data, entity, param, form = "poly"){ # poly or lm
+
+
+  Param_data <- data %>%
+    filter(CowTagID != "VSEEP") %>%
+    mutate(entity = as.character({{entity}})) %>%
+    group_by(AlphaTag,entity, {{param}}) %>%
+    summarise(pCover = sum(pCover)) %>%
+    filter(entity != "Cyanobacteria" & # single point in Taxon_Group
+           entity != "Mush") %>% # single point in Morph2
+    mutate(entity = if_else(entity == "Non-AC", "NAC", entity))
+
+  distinctFT <- unique(Param_data$entity)
+
+  p_df <- tibble(FTrait = as.character(),
+                 Parameter = as.character(),
+                 pvalue1 = as.numeric(),
+                 pvalue2 = as.numeric(),
+                 r_squared = as.numeric(),
+                 adj_r_squared = as.numeric())
+
+  for(i in 1:length(distinctFT)){
+
+    mydata <- Param_data %>%
+      filter(entity %in% distinctFT[i]) %>%
+      pivot_wider(names_from = entity, values_from = pCover)
+
+      Parameter = colnames(mydata)[2]
+      FTrait = distinctFT[i]
+      if(form == "poly"){
+      mod <- lm(paste(FTrait, "~ poly(", Parameter, ",2)"), data = mydata)
+      pvalue1 <- summary(mod)[4]$coefficients[11]
+      pvalue2 <- summary(mod)[4]$coefficients[12]
+      r_squared <- summary(mod)[8]$r.squared
+      adj_r_squared <- summary(mod)[9]$adj.r.squared
+      } else if(form == "lm"){
+        mod <- lm(paste(FTrait, "~", Parameter), data = mydata)
+        pvalue1 <- summary(mod)$coefficients[8]
+        pvalue2 <- NA
+        r_squared <- summary(mod)$r.squared
+        adj_r_squared <- summary(mod)$adj.r.squared
+      }
+
+      temp <- as_tibble(cbind(FTrait, Parameter,
+                              pvalue1, pvalue2, r_squared, adj_r_squared)) %>%
+        mutate(pvalue1 = as.numeric(pvalue1),
+               pvalue2 = as.numeric(pvalue2),
+               r_squared = as.numeric(r_squared),
+               adj_r_squared = as.numeric(adj_r_squared)) %>%
+        mutate(FTrait = if_else(FTrait == "NAC", "Non-AC", FTrait))
+
+      p_df <- p_df %>%
+        rbind(temp)
+      }
+  return(p_df)
+}
+
 ### PLOT FUNCTIONS ACROSS SEEP ###
+### TAXA
+# stacked bar
 pt <- myplot(Taxon_Group, taxonpalette)
 pt2 <- myplot(Taxon_Group, taxonpalette) + theme(legend.position = "none")
-ptplot(Taxon_Group, Phosphate_umolL)
-ptplot(Taxon_Group, NN_umolL)
+# regression
+ppt <- ptplot(Taxon_Group, Phosphate_umolL)
+npt <- ptplot(Taxon_Group, NN_umolL)
+ppt + npt
+# pvalues
+pv1 <- pval(entity = Taxon_Group, param = Phosphate_umolL)
+pv2 <- pval(entity = Taxon_Group, param = NN_umolL)
 
+### MORPHOLOGY
+# stacked bar
 pm <- myplot(Morph2, morphpalette)
 pm2 <- myplot(Morph2, morphpalette) + theme(legend.position = "right")
 pm3 <- myplot(Morph2, morphpalette) + theme(legend.position = "none")
-ptplot(Morph2, Phosphate_umolL)
-ptplot(Morph2, NN_umolL)
+# regression
+ppm <- ptplot(Morph2, Phosphate_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
+npm <- ptplot(Morph2, NN_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
+ppm + npm
+# pvalues
+pv3 <- pval(entity = Morph2, param = Phosphate_umolL)
+pv4 <- pval(entity = Morph2, param = NN_umolL)
 
+# CALCIFICATION
+# stacked bar
 pc <- myplot(Calc, calcpalette)
-ptplot(Calc, Phosphate_umolL)
-ptplot(Calc, NN_umolL)
+# regression
+pper <- ptplot(Calc, Phosphate_umolL)
+nper <- ptplot(Calc, NN_umolL) + geom_smooth(method = "lm", formula = "y~x", color = "black")
+nper2 <- ptplot(Calc, NN_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
+#pper + nper
+nper + nper2
+# pvalues
+pv5 <- pval(entity = Calc, param = Phosphate_umolL)
+pv6 <- pval(entity = Calc, param = NN_umolL)
 
+# ENERGETIC RESOURCE
+# stacked bar
 per <- myplot(ER, erpalette)
-ptplot(ER, Phosphate_umolL)
-ptplot(ER, NN_umolL)
+# regression
+pper <- ptplot(ER, Phosphate_umolL)
+nper <- ptplot(ER, NN_umolL)
+pper + nper
+# pvalues
+pv7 <- pval(entity = ER, param = Phosphate_umolL)
+pv8 <- pval(entity = ER, param = NN_umolL)
+
+# bind pvalue df
+mypval <- rbind(pv1,pv2,pv3,pv4,pv5,pv6,pv7,pv8)
+mypval %>%
+  filter(pvalue1 < 0.05 | pvalue2 < 0.05)
+
+
 
 plot1 <- (pm) /
   (per + pc) /
@@ -208,6 +322,22 @@ plot1
    facet_wrap(~FE, scales = "free_y") +
    theme(legend.position = "none")
 
+
+ # nutrients relative to distance
+ summary(lm(data = Full_data %>% filter(CowTagID != "VSEEP") %>% left_join(dist), NN_umolL ~ poly(dist_to_seep_m,2)))
+ Full_data %>%
+   filter(CowTagID != "VSEEP") %>%
+   left_join(dist) %>%
+   select(AlphaTag, Phosphate_umolL, NN_umolL, dist_to_seep_m) %>%
+   rename('Nitrate+Nitrite' = NN_umolL,
+          'Phosphate' = Phosphate_umolL) %>%
+   pivot_longer(cols = c('Phosphate', 'Nitrate+Nitrite'), names_to = "Parameters", values_to = "Values") %>%
+   ggplot(aes(x = dist_to_seep_m, y = Values)) +
+   geom_point(aes(color = Parameters), show.legend = FALSE) +
+   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+   facet_wrap(~Parameters, scales = "free") +
+   theme_bw() +
+   labs(x = "Distance to seep (m)", y = "CV of Nutrient Values (umol/L)")
 
 
  ### PHOSPHATE ###
@@ -326,3 +456,18 @@ Full_data %>%
   theme(legend.position = "none")
 
 
+# nutrients relative to silicate and salinity
+summary(lm(data = Full_data %>% filter(CowTagID != "VSEEP") %>% left_join(fullchem), NN_umolL ~ Silicate_umolL))
+Full_data %>%
+  filter(CowTagID != "VSEEP") %>%
+  left_join(fullchem) %>%
+  select(AlphaTag, Phosphate_umolL, NN_umolL, Silicate_umolL) %>%
+  rename('Nitrate+Nitrite' = NN_umolL,
+         'Phosphate' = Phosphate_umolL) %>%
+  pivot_longer(cols = c('Phosphate', 'Nitrate+Nitrite'), names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = Silicate_umolL, y = Values)) +
+  geom_point(aes(color = Parameters), show.legend = FALSE) +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  facet_wrap(~Parameters, scales = "free") +
+  theme_bw() +
+  labs(x = "CV of Silicate (umol/L)", y = "CV of Nutrient Values (umol/L)")

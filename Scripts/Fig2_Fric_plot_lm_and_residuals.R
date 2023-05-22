@@ -11,6 +11,7 @@ library(ggrepel)
 library(patchwork)
 
 Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
+resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv"))
 meta <- read_csv(here("Data", "Full_Metadata.csv"))
 chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
   filter(Season == "Dry") %>%
@@ -22,7 +23,7 @@ chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
 
 
 ### Join Sp and FE and Vol4D with metadata
-reg.Fric <- Fric %>%
+reg.Fric <- resFric %>%
   as_tibble() %>%
   left_join(meta) %>%
   filter(CowTagID != "VSEEP" &
@@ -42,24 +43,12 @@ resModFERp <- lm(NbFEsP ~ meanRugosity, data=reg.Fric) # relative entity richnes
 resModVol <- lm(Vol8D ~ meanRugosity, data=reg.Fric) # relative entity volume
 
 #view model summary
-summary(resModSpRp) # *** strong significance
-summary(resModFERp) # *** significance
-summary(resModVol) # *** strong significance
+summary(resModSpRp) # ** strong significance
+summary(resModFERp) # *** strong significance
+summary(resModVol) # * 0.49 weak significance
 
-#calculate the standardized residuals
-resSpR <- residuals(resModSpR)
-resFER <- residuals(resModFER)
-resSpRp <- residuals(resModSpRp)
-resFERp <- residuals(resModFERp)
-resVol <- residuals(resModVol)
-
-#column bind standardized residuals back to original data frame
-res_data <- reg.Fric %>%
-  cbind(resSpR) %>%
-  cbind(resFER) %>%
-  cbind(resSpRp) %>%
-  cbind(resFERp) %>%
-  cbind(resVol) %>%
+# use above to justify use of resFric
+resFric <- reg.Fric %>%
   left_join(chem)
 
 ## WHEN SEEP IS REMOVED, DIST TO SEEP IS NO LONGER SIGNIFICANT FOR ALL PARAMETERS
@@ -68,53 +57,52 @@ res_data <- reg.Fric %>%
 ## Vol: Decrease with increasing M_C, Inc with Inc Ammonia, Inc with elevating Salinity, then vol drops again
 
 #check residuals against other parameters
-res_data %>%
-  pivot_longer(cols = Salinity:Tyrosine_Like, names_to = "Parameters", values_to = "Values") %>%
-  ggplot(aes(x = Values, y = resSpRp)) +
+resFric %>%
+  pivot_longer(cols = c(del15N:N_percent, dist_to_seep_m, Salinity:Tyrosine_Like), names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = Values, y = resSp)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~x", color = "black") +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
   facet_wrap(~Parameters, scales = "free") +
   theme_bw()
-summary(lm(data = res_data, resSpRp ~ dist_to_seep_m)) # **
-summary(lm(data = res_data, resSpRp ~ poly(Ammonia_umolL,2))) # *
-summary(lm(data = res_data, resSpRp ~ poly(NN_umolL,2))) # *
-summary(lm(data = res_data, resSpRp ~ VisibleHumidic_Like)) # *
-summary(lm(data = res_data, resSpRp ~ poly(Phosphate_umolL,2))) # *
+summary(lm(data = resFric, resSpp ~ dist_to_seep_m)) # *
+summary(lm(data = resFric, resSpp ~ Ammonia_umolL)) # *
+summary(lm(data = resFric, resSpp ~ VisibleHumidic_Like)) # *
+summary(lm(data = resFric, resSpp ~ poly(Phosphate_umolL,2))) # *
+summary(lm(data = resFric, resSpp~ poly(NN_umolL,2))) # *
 
 
 
 
-res_data %>%
-  pivot_longer(cols = Salinity:Tyrosine_Like, names_to = "Parameters", values_to = "Values") %>%
-  ggplot(aes(x = Values, y = resFERp)) +
+resFric %>%
+  pivot_longer(cols = c(del15N:N_percent, dist_to_seep_m, Salinity:Tyrosine_Like), names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = Values, y = resFEp)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~x", color = "black") +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
   facet_wrap(~Parameters, scales = "free") +
   theme_bw()
-summary(lm(data = res_data, resFERp ~ dist_to_seep_m)) # NS
-summary(lm(data = res_data, resFERp ~ poly(NN_umolL,2))) # *
-summary(lm(data = res_data, resFERp ~ poly(Phosphate_umolL,2))) # *
+summary(lm(data = resFric, resFEp ~ dist_to_seep_m)) # NS
+summary(lm(data = resFric, resFEp ~ poly(NN_umolL,2))) # *
+summary(lm(data = resFric, resFEp ~ poly(Phosphate_umolL,2))) # *
 
-res_data %>%
-  pivot_longer(cols = Salinity:Tyrosine_Like, names_to = "Parameters", values_to = "Values") %>%
+resFric %>%
+  pivot_longer(cols = c(del15N:N_percent, dist_to_seep_m, Salinity:Tyrosine_Like), names_to = "Parameters", values_to = "Values") %>%
   ggplot(aes(x = Values, y = resVol)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~x", color = "black") +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
   facet_wrap(~Parameters, scales = "free") +
   theme_bw()
-summary(lm(data = res_data, resVol ~ dist_to_seep_m)) # NS
-summary(lm(data = res_data, resVol ~ Ammonia_umolL)) # *
-summary(lm(data = res_data, resVol ~ M_C)) # *
-summary(lm(data = res_data, resVol ~ poly(NN_umolL,2))) # *
-summary(lm(data = res_data, resVol ~ poly(Phosphate_umolL,2))) # *
-summary(lm(data = res_data, resVol ~ poly(Salinity,2))) # *
+summary(lm(data = resFric, resVol ~ dist_to_seep_m)) # NS
+summary(lm(data = resFric, resVol ~ Ammonia_umolL)) # *
+summary(lm(data = resFric, resVol ~ poly(NN_umolL,2))) # *
+summary(lm(data = resFric, resVol ~ poly(Phosphate_umolL,2))) # *
+summary(lm(data = resFric, resVol ~ poly(Salinity,2))) # *
 
 #plot predictor variable vs. standardized residuals
 
-# isolate seep poing
+# isolate seep point
 # ptseep <- Fric %>%
 #   filter(CowTagID == "VSEEP")
 
@@ -125,9 +113,9 @@ summary(lm(data = res_data, resVol ~ poly(Salinity,2))) # *
 #####################################################################
 
 ## Raw richness residuals
-rug_res_SpR_plot <- res_data %>%
+rug_res_SpR_plot <- resFric %>%
   ggplot(aes(x = dist_to_seep_m,
-             y = resSpR)) +
+             y = resSp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -146,9 +134,9 @@ rug_res_SpR_plot <- res_data %>%
        x = "Distance to seep (m)")
 rug_res_SpR_plot
 
-rug_res_FER_plot <- res_data %>%
+rug_res_FER_plot <- resFric %>%
   ggplot(aes(x = dist_to_seep_m,
-             y = resFER)) +
+             y = resFE)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -168,9 +156,9 @@ rug_res_FER_plot <- res_data %>%
 rug_res_FER_plot
 
 ## Relative richness and volume residuals
-rug_res_SpRp_plot <- res_data %>%
+rug_res_SpRp_plot <- resFric %>%
   ggplot(aes(x = dist_to_seep_m,
-             y = resSpRp)) +
+             y = resSpp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -189,9 +177,9 @@ rug_res_SpRp_plot <- res_data %>%
        x = "Distance to seep (m)")
 rug_res_SpRp_plot
 
-rug_res_FERp_plot <- res_data %>%
+rug_res_FERp_plot <- resFric %>%
   ggplot(aes(x = dist_to_seep_m,
-             y = resFERp)) +
+             y = resFEp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -210,7 +198,7 @@ rug_res_FERp_plot <- res_data %>%
        x = "Distance to seep (m)")
 rug_res_FERp_plot
 
-rug_res_Vol_plot <- res_data %>%
+rug_res_Vol_plot <- resFric %>%
   ggplot(aes(x = dist_to_seep_m,
              y = resVol)) +
   geom_point(size = 2.5) +
@@ -249,9 +237,9 @@ ggsave(here("Output", "PaperFigures", "lm_relative_residuals_dist.png"), plot2, 
 #####################################################################
 
 ## Raw richness residuals
-rug_res_SpR_plot <- res_data %>%
+rug_res_SpR_plot <- resFric %>%
   ggplot(aes(x = Phosphate_umolL,
-             y = resSpR)) +
+             y = resSp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -270,9 +258,9 @@ rug_res_SpR_plot <- res_data %>%
        x = "Phosphate (umol L-1)")
 rug_res_SpR_plot
 
-rug_res_FER_plot <- res_data %>%
+rug_res_FER_plot <- resFric %>%
   ggplot(aes(x = Phosphate_umolL,
-             y = resFER)) +
+             y = resFE)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -292,9 +280,9 @@ rug_res_FER_plot <- res_data %>%
 rug_res_FER_plot
 
 ## Relative richness and volume residuals
-rug_res_SpRp_plot <- res_data %>%
+rug_res_SpRp_plot <- resFric %>%
   ggplot(aes(x = Phosphate_umolL,
-             y = resSpRp)) +
+             y = resSpp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -313,9 +301,9 @@ rug_res_SpRp_plot <- res_data %>%
        x = "Phosphate (umol L-1)")
 rug_res_SpRp_plot
 
-rug_res_FERp_plot <- res_data %>%
+rug_res_FERp_plot <- resFric %>%
   ggplot(aes(x = Phosphate_umolL,
-             y = resFERp)) +
+             y = resFEp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -334,7 +322,7 @@ rug_res_FERp_plot <- res_data %>%
        x = "Phosphate (umol L-1)")
 rug_res_FERp_plot
 
-rug_res_Vol_plot <- res_data %>%
+rug_res_Vol_plot <- resFric %>%
   ggplot(aes(x = Phosphate_umolL,
              y = resVol)) +
   geom_point(size = 2.5) +
@@ -374,9 +362,9 @@ ggsave(here("Output", "PaperFigures", "lm_relative_residuals_Phos.png"), plot2, 
 #####################################################################
 
 ## Raw richness residuals
-rug_res_SpR_plot <- res_data %>%
+rug_res_SpR_plot <- resFric %>%
   ggplot(aes(x = NN_umolL,
-             y = resSpR)) +
+             y = resSp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -395,9 +383,9 @@ rug_res_SpR_plot <- res_data %>%
        x = "NN (umol L-1)")
 rug_res_SpR_plot
 
-rug_res_FER_plot <- res_data %>%
+rug_res_FER_plot <- resFric %>%
   ggplot(aes(x = NN_umolL,
-             y = resFER)) +
+             y = resFE)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -417,9 +405,9 @@ rug_res_FER_plot <- res_data %>%
 rug_res_FER_plot
 
 ## Relative richness and volume residuals
-rug_res_SpRp_plot <- res_data %>%
+rug_res_SpRp_plot <- resFric %>%
   ggplot(aes(x = NN_umolL,
-             y = resSpRp)) +
+             y = resSpp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -438,9 +426,9 @@ rug_res_SpRp_plot <- res_data %>%
        x = "NN (umol L-1)")
 rug_res_SpRp_plot
 
-rug_res_FERp_plot <- res_data %>%
+rug_res_FERp_plot <- resFric %>%
   ggplot(aes(x = NN_umolL,
-             y = resFERp)) +
+             y = resFEp)) +
   geom_point(size = 2.5) +
   # geom_point(data = ptseep,
   #            aes(x = dist_to_seep_m,
@@ -459,7 +447,7 @@ rug_res_FERp_plot <- res_data %>%
        x = "NN (umol L-1)")
 rug_res_FERp_plot
 
-rug_res_Vol_plot <- res_data %>%
+rug_res_Vol_plot <- resFric %>%
   ggplot(aes(x = NN_umolL,
              y = resVol)) +
   geom_point(size = 2.5) +
@@ -497,27 +485,47 @@ ggsave(here("Output", "PaperFigures", "lm_relative_residuals_NN.png"), plot2, he
 
 # ratio of FE:Sp richness ~ distance to seep
 # value of 1 would show that each species has its own function, and any lower values show lower functional diversity
-res_data %>%
+resFric %>%
   ggplot(aes(x = NN_umolL,
-             y = resFER / resSpR)) +
+             y = NbFEs / NbSp)) +
   geom_point(size = 2.5) +
-  # geom_point(data = ptseep,
-  #            aes(x = dist_to_seep_m,
-  #                y = resSpR),
-  #            shape = 23,
-  #            size = 5,
-  #            color = "black",
-  #            fill = "black") + # add seep point as icon
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   theme_bw() +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 13)) +
   geom_hline(yintercept = 0, linetype = "dashed") +
   theme(panel.grid = element_blank()) +
-  labs(y = "Relative FE Volume (%, Rugosity-normalized)",
+  labs(y = "FE / Sp",
        x = "NN (umol L-1)")
 
+resFric %>%
+  ggplot(aes(x = Phosphate_umolL,
+             y = NbFEs / NbSp)) +
+  geom_point(size = 2.5) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 13)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.grid = element_blank()) +
+  labs(y = "FE / Sp",
+       x = "Phosphate (umol L-1)")
 
+
+resFric %>%
+  ggplot(aes(x = dist_to_seep_m,
+             y = NbFEs / NbSp)) +
+  geom_point(size = 2.5) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 13)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme(panel.grid = element_blank()) +
+  labs(y = "FE / Sp",
+       x = "Distance to seep (m)")
+
+summary(lm(data = resFric, (NbFEs / NbSp) ~ poly(dist_to_seep_m,2)))
 ## Can use the three values above, and also community composition: either relative abundance or presence-absence
 ## then can do a permanova / nMDS of community comp with the volume / FErichness
 
