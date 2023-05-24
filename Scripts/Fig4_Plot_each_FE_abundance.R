@@ -191,10 +191,32 @@ pval <- function(data = Full_data, entity, param, form = "poly"){ # poly or lm
 }
 
 ### PLOT FUNCTIONS ACROSS SEEP ###
+### FUNCTIONAL ENTITIES
+anova(lm(pCover ~ poly(Phosphate_umolL,2)*FE, data = Full_data %>%
+             filter(CowTagID != "VSEEP"))) # using all abundance data at each location
+### SUMMARY
+# Does an individual entity change its relative abundance along the phosphate gradient? Yes!
+## Chlorophyta, Fil, NC, Auto p=0.005 (no interaction...not sure what this means then)
+## Cnidaria, Mas, Herm, Mix p=0.003 (no interaction...not sure what this means then)
+# Does an individual entity change along the NN gradient? Yes!
+## Cnidaria, Mas, Herm, Mix p=5.4e-5 (interactio bw NN and FE)
+## Phaeophyta, Fol, Non-AC, Auto p=0.002 (no interaction...not sure what this means then)
+## Chlorophyta, Fil, NC, Auto p=0.01 (interaction bw NN and FE)
+### ANOVA
+# NN:FE interaction p<0.0008, F=2.08, DF=34
+# P:FE interaction p<0.002, F=1.99, DF=34
+
+anova(lm(pCover ~ poly(Phosphate_umolL,2)*FE, data = Full_data)) # including the seep
+### ANOVA
+# NN:FE interaction p=0.001, F=2.03, DF=34
+# P:FE no interaction
+
+
 ### TAXA
 # stacked bar
 pt <- myplot(Taxon_Group, taxonpalette)
 pt2 <- myplot(Taxon_Group, taxonpalette) + theme(legend.position = "none")
+pt
 # regression
 ppt <- ptplot(Taxon_Group, Phosphate_umolL)
 npt <- ptplot(Taxon_Group, NN_umolL)
@@ -202,6 +224,11 @@ ppt + npt
 # pvalues
 pv1 <- pval(entity = Taxon_Group, param = Phosphate_umolL)
 pv2 <- pval(entity = Taxon_Group, param = NN_umolL)
+# anova
+anova(lm(pCover~poly(NN_umolL,2)*Taxon_Group, data = Full_data %>% filter(CowTagID != "VSEEP")))
+anova(lm(pCover~poly(Phosphate_umolL,2)*Taxon_Group, data = Full_data %>% filter(CowTagID != "VSEEP")))
+## no interaction of NN:FE or P:FE
+
 
 ### MORPHOLOGY
 # stacked bar
@@ -215,6 +242,15 @@ ppm + npm
 # pvalues
 pv3 <- pval(entity = Morph2, param = Phosphate_umolL)
 pv4 <- pval(entity = Morph2, param = NN_umolL)
+# anova
+anova(lm(pCover~poly(NN_umolL,2)*Morph2, data = Full_data %>% filter(CowTagID != "VSEEP")))
+anova(lm(pCover~poly(Phosphate_umolL,2)*Morph2, data = Full_data %>% filter(CowTagID != "VSEEP")))
+## NN:FE p<2e-6, F=3.67, DF=18
+## P:FE p<5e-7, F=3.87, DF=18
+# summary
+summary(lm(pCover~poly(NN_umolL,2)*Morph2, data = Full_data %>% filter(CowTagID != "VSEEP")))
+summary(lm(pCover~poly(Phosphate_umolL,2)*Morph2, data = Full_data %>% filter(CowTagID != "VSEEP")))
+
 
 # CALCIFICATION
 # stacked bar
@@ -228,6 +264,15 @@ nper + nper2
 # pvalues
 pv5 <- pval(entity = Calc, param = Phosphate_umolL)
 pv6 <- pval(entity = Calc, param = NN_umolL)
+# anova
+anova(lm(pCover~poly(NN_umolL,2)*Calc, data = Full_data %>% filter(CowTagID != "VSEEP")))
+anova(lm(pCover~poly(Phosphate_umolL,2)*Calc, data = Full_data %>% filter(CowTagID != "VSEEP")))
+## NN:FE p<2e-6, F=3.67, DF=18
+## P:FE p<5e-7, F=3.87, DF=18
+# summary
+summary(lm(pCover~poly(NN_umolL,2)*Calc, data = Full_data %>% filter(CowTagID != "VSEEP")))
+summary(lm(pCover~poly(Phosphate_umolL,2)*Calc, data = Full_data %>% filter(CowTagID != "VSEEP")))
+
 
 # ENERGETIC RESOURCE
 # stacked bar
@@ -239,6 +284,15 @@ pper + nper
 # pvalues
 pv7 <- pval(entity = ER, param = Phosphate_umolL)
 pv8 <- pval(entity = ER, param = NN_umolL)
+# anova
+anova(lm(pCover~poly(NN_umolL,2)*ER, data = Full_data %>% filter(CowTagID != "VSEEP")))
+anova(lm(pCover~poly(Phosphate_umolL,2)*ER, data = Full_data %>% filter(CowTagID != "VSEEP")))
+## NN:FE p<2e-6, F=3.67, DF=18
+## P:FE p<5e-7, F=3.87, DF=18
+# summary
+summary(lm(pCover~poly(NN_umolL,2)*ER, data = Full_data %>% filter(CowTagID != "VSEEP")))
+summary(lm(pCover~poly(Phosphate_umolL,2)*ER, data = Full_data %>% filter(CowTagID != "VSEEP")))
+
 
 # bind pvalue df
 mypval <- rbind(pv1,pv2,pv3,pv4,pv5,pv6,pv7,pv8)
