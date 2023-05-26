@@ -228,6 +228,20 @@ pv2 <- pval(entity = Taxon_Group, param = NN_umolL)
 anova(lm(pCover~poly(NN_umolL,2)*Taxon_Group, data = Full_data %>% filter(CowTagID != "VSEEP")))
 anova(lm(pCover~poly(Phosphate_umolL,2)*Taxon_Group, data = Full_data %>% filter(CowTagID != "VSEEP")))
 ## no interaction of NN:FE or P:FE
+# summary
+summary(lm(pCover~poly(NN_umolL,2)*Taxon_Group, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Taxon_Group, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
+summary(lm(pCover~poly(Phosphate_umolL,2)*Taxon_Group, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Taxon_Group, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
+Full_data %>%
+  filter(CowTagID!= "VSEEP") %>%
+  group_by(CowTagID, Taxon_Group, NN_umolL, Phosphate_umolL) %>%
+  summarise(pCover=sum(pCover)) %>%
+  ggplot(aes(x = NN_umolL, y = pCover)) +geom_point()+geom_smooth(method = "lm", formula="y~poly(x,2)") + facet_wrap(~Taxon_Group)
 
 
 ### MORPHOLOGY
@@ -243,13 +257,25 @@ ppm + npm
 pv3 <- pval(entity = Morph2, param = Phosphate_umolL)
 pv4 <- pval(entity = Morph2, param = NN_umolL)
 # anova
-anova(lm(pCover~poly(NN_umolL,2)*Morph2, data = Full_data %>% filter(CowTagID != "VSEEP")))
-anova(lm(pCover~poly(Phosphate_umolL,2)*Morph2, data = Full_data %>% filter(CowTagID != "VSEEP")))
-## NN:FE p<2e-6, F=3.67, DF=18
-## P:FE p<5e-7, F=3.87, DF=18
+anova(lm(pCover~poly(NN_umolL,2)*Morph2, data = Full_data %>%
+           filter(CowTagID!= "VSEEP") %>%
+           group_by(CowTagID, Morph2, NN_umolL, Phosphate_umolL) %>%
+           summarise(pCover=sum(pCover))))
+anova(lm(pCover~poly(Phosphate_umolL,2)*Morph2, data = Full_data %>%
+           filter(CowTagID!= "VSEEP") %>%
+           group_by(CowTagID, Morph2, NN_umolL, Phosphate_umolL) %>%
+           summarise(pCover=sum(pCover))))
+## NN:FE p<0.04, F=1.83, DF=18
+## P:FE p<0.03, F=1.87, DF=18
 # summary
-summary(lm(pCover~poly(NN_umolL,2)*Morph2, data = Full_data %>% filter(CowTagID != "VSEEP")))
-summary(lm(pCover~poly(Phosphate_umolL,2)*Morph2, data = Full_data %>% filter(CowTagID != "VSEEP")))
+summary(lm(pCover~poly(NN_umolL,2)*Morph2, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Morph2, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
+summary(lm(pCover~poly(Phosphate_umolL,2)*Morph2, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Morph2, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
 
 
 # CALCIFICATION
@@ -260,18 +286,30 @@ pper <- ptplot(Calc, Phosphate_umolL)
 nper <- ptplot(Calc, NN_umolL) + geom_smooth(method = "lm", formula = "y~x", color = "black")
 nper2 <- ptplot(Calc, NN_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
 #pper + nper
-nper + nper2
+pper + nper
 # pvalues
 pv5 <- pval(entity = Calc, param = Phosphate_umolL)
 pv6 <- pval(entity = Calc, param = NN_umolL)
 # anova
-anova(lm(pCover~poly(NN_umolL,2)*Calc, data = Full_data %>% filter(CowTagID != "VSEEP")))
-anova(lm(pCover~poly(Phosphate_umolL,2)*Calc, data = Full_data %>% filter(CowTagID != "VSEEP")))
-## NN:FE p<2e-6, F=3.67, DF=18
-## P:FE p<5e-7, F=3.87, DF=18
+anova(lm(pCover~NN_umolL*Calc, data = Full_data %>%
+           filter(CowTagID!= "VSEEP") %>%
+           group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
+           summarise(pCover=sum(pCover))))
+anova(lm(pCover~poly(Phosphate_umolL,2)*Calc, data = Full_data %>%
+           filter(CowTagID!= "VSEEP") %>%
+           group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
+           summarise(pCover=sum(pCover))))
+## NN:FE p<0.01, F=3.14, DF=6
+## P:FE no interaction
 # summary
-summary(lm(pCover~poly(NN_umolL,2)*Calc, data = Full_data %>% filter(CowTagID != "VSEEP")))
-summary(lm(pCover~poly(Phosphate_umolL,2)*Calc, data = Full_data %>% filter(CowTagID != "VSEEP")))
+summary(lm(pCover~NN_umolL*Calc, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
+summary(lm(pCover~poly(Phosphate_umolL,2)*Calc, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
 
 
 # ENERGETIC RESOURCE
@@ -280,18 +318,30 @@ per <- myplot(ER, erpalette)
 # regression
 pper <- ptplot(ER, Phosphate_umolL)
 nper <- ptplot(ER, NN_umolL)
-pper + nper
+pper / nper
 # pvalues
 pv7 <- pval(entity = ER, param = Phosphate_umolL)
 pv8 <- pval(entity = ER, param = NN_umolL)
 # anova
-anova(lm(pCover~poly(NN_umolL,2)*ER, data = Full_data %>% filter(CowTagID != "VSEEP")))
-anova(lm(pCover~poly(Phosphate_umolL,2)*ER, data = Full_data %>% filter(CowTagID != "VSEEP")))
+anova(lm(pCover~poly(NN_umolL,2)*ER, data = Full_data %>%
+           filter(CowTagID!= "VSEEP") %>%
+           group_by(CowTagID, ER, NN_umolL, Phosphate_umolL) %>%
+           summarise(pCover=sum(pCover))))
+anova(lm(pCover~poly(Phosphate_umolL,2)*ER, data = Full_data %>%
+           filter(CowTagID!= "VSEEP") %>%
+           group_by(CowTagID, ER, NN_umolL, Phosphate_umolL) %>%
+           summarise(pCover=sum(pCover))))
 ## NN:FE p<2e-6, F=3.67, DF=18
 ## P:FE p<5e-7, F=3.87, DF=18
 # summary
-summary(lm(pCover~poly(NN_umolL,2)*ER, data = Full_data %>% filter(CowTagID != "VSEEP")))
-summary(lm(pCover~poly(Phosphate_umolL,2)*ER, data = Full_data %>% filter(CowTagID != "VSEEP")))
+summary(lm(pCover~poly(NN_umolL,2)*ER, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, ER, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
+summary(lm(pCover~poly(Phosphate_umolL,2)*ER, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, ER, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
 
 
 # bind pvalue df

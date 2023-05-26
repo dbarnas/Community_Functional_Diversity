@@ -154,6 +154,27 @@ fit <- cmdscale(gower, eig = TRUE, k = 4) # PCoA
 # variance explained by the axes
 cumsum(fit$eig[fit$eig >= 0]) / sum(fit$eig[fit$eig > 0])
 
+# # see distance between points (only in first two dimensions)
+# ptdist <- qfs$details_funct_space$dist_st$m_2D
+# # get rownames across distance matrix
+# rn <- rownames(qfs$details_funct_space$mat_coord)
+# rows <- rn[2:22]
+# # get distance values and row names/column names
+# distdf <- tibble(dist2d = as.numeric())
+# for(i in 1:length(ptdist)){
+#   data <- tibble(ptdist[i])
+#   colnames(data) <- c("dist2d")
+#   distdf <- distdf %>% rbind(data)
+# }
+# fedf <- tibble(FE = as.character())
+# for(i in 1:length(rows)){
+#     mylist <- as_tibble(rows[i:21])
+#     colnames(mylist) <- c("FE")
+#     fedf <- fedf %>% rbind(mylist)
+# }
+#
+# # join distances and rownames together
+# distdf <- cbind(fedf,distdf)
 
 
 # Functional Richness

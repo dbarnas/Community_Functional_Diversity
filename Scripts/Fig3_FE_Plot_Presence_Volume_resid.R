@@ -38,6 +38,7 @@ redchem <- chem %>% select(CowTagID, Phosphate_umolL, NN_umolL)
 
 # richness, % richness of community pool, and % volume of community pool
 Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
+resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv"))
 
 # PCoA axes of traits
 fd.coord.sgd <- read.csv(here("Data","FE_4D_coord_dmb.csv"), row.names = 1) # class data.frame
@@ -52,22 +53,7 @@ species_entities <- read_csv(here("Data", "Species_FE.csv"))
 
 
 
-##### CLEAN AND ANALYSIS #####
-resFric <- Fric %>%
-  left_join(meta)
-resSp <- residuals(lm(data = resFric, NbSp ~ meanRugosity))
-resSpp <- residuals(lm(data = resFric, NbSpP ~ meanRugosity))
-resFE <- residuals(lm(data = resFric, NbFEs ~ meanRugosity))
-resFEp <- residuals(lm(data = resFric, NbFEsP ~ meanRugosity))
-resVol <- residuals(lm(data = resFric, Vol8D ~ meanRugosity))
-resFric <- resFric %>%
-  cbind(resSp) %>%
-  cbind(resSpp) %>%
-  cbind(resFE) %>%
-  cbind(resFEp) %>%
-  cbind(resVol)
-
-
+##### CLEANING AND ANALYSIS #####
 comp <- comp %>%
   filter(Location == "Varari") %>%  # only analyze varari for now
   filter(CowTagID != "V13")
@@ -75,9 +61,6 @@ comp <- comp %>%
 
 # only cowtag ID's
 quad.label <- chem %>%
-  #filter(Location == "Varari",
-         #CowTagID != "VSEEP",
-         #CowTagID != "V13") %>%
   distinct(CowTagID)
 
 
@@ -199,9 +182,10 @@ for(i in cowtagOrder) {
   tag = i # use for rbinding data below
 
   species.sgd <- colnames(sgd.sp)[which(sgd.sp[i,] > 0)]
-  # only species present in each treatment
+  # only species present in each survey location
 
   fes_cond.sgd <- species_entities[rownames(species_entities) %in% species.sgd, ]
+  # functional entities characterizing those species
 
   m.sgd <- fd.coord.sgd[rownames(fd.coord.sgd) %in% fes_cond.sgd, ]
   m.sgd <- data.matrix(m.sgd) # parse from data frame to matrix array
@@ -335,8 +319,8 @@ fig2bdist <- fig2.fd.sgd %>%
                  fill = NN_umolL),
              shape = 21,
              show.legend = FALSE) + # shape of a fillable circle. lets us fill with alpha values
-  geom_polygon(data = All.ch.tib %>% left_join(alphatag) %>% left_join(disc.redchem),
-               aes(x = x, y = y,
+  geom_polygon(#data = All.ch.tib %>% left_join(alphatag) %>% left_join(disc.redchem),
+               aes(#x = x, y = y,
                    #color = AlphaTag),
                    color = NN_umolL),
                alpha = 0.5,
@@ -354,6 +338,70 @@ fig2bdist
 
 
 ggsave(here("Output", "PaperFigures", "Plot_Vol_Abund_PCoA_res_dist_NN.png"), fig2bdist, height = 5, width = 7)
+
+
+# ## attempt to get distances for fe difference analysis
+# temp <- fig2.fd.sgd %>%
+#   left_join(disc.redchem)
+#
+# temp2 <- fig2.fd.sgd %>%
+#   left_join(disc.redchem) %>%
+#   select(CowTagID, FE, PC1, PC2) %>%
+#   distinct(FE, PC1) %>%
+#   mutate(FE2 = FE,
+#          PC1B = PC1)
+# temp3 <- temp2 %>%
+#   select(FE2,PC1B) %>%
+#   pivot_wider(names_from = FE2, values_from = PC1B)
+# temp4 <- temp2 %>%
+#   cbind(temp3) %>%
+#   select(-c(FE2, PC1B)) %>%
+#   as_tibble() %>%
+#   mutate_at(.vars = 3:24, .funs = ~(.-PC1)) %>% # subtract each point from PC1. will do the same for PC2 and then calculate hypotenuse
+#   pivot_longer(cols = 3:24, names_to = "FE2", values_to = "distPC1") %>%
+#   filter(distPC1 > 0) %>%  # keep any positive values. since duplicated values would be neg/pos same number. remove duplicates by keeping only pos
+#   select(-PC1)
+#
+# temp2b <- fig2.fd.sgd %>%
+#   left_join(disc.redchem) %>%
+#   select(CowTagID, FE, PC1, PC2) %>%
+#   distinct(FE, PC2) %>%
+#   mutate(FE2 = FE,
+#          PC2B = PC2)
+# temp3b <- temp2b %>%
+#   select(FE2,PC2B) %>%
+#   pivot_wider(names_from = FE2, values_from = PC2B)
+# temp4b <- temp2b %>%
+#   cbind(temp3b) %>%
+#   select(-c(FE2, PC2B)) %>%
+#   as_tibble() %>%
+#   mutate_at(.vars = 3:24, .funs = ~(.-PC2)) %>%
+#   pivot_longer(cols = 3:24, names_to = "FE2", values_to = "distPC2") %>%
+#   filter(distPC2 > 0) %>%  # keep any positive values. since duplicated values would be neg/pos same number. remove duplicates by keeping only pos
+#   select(-PC2)
+#
+# pcDist <- full_join(temp4, temp4b)
+# myFE <- unique(pcDist$FE)
+# a <- pcDist %>% filter(FE == myFE[1]) %>%
+#   arrange(distPC1)
+# View(a)
+#
+# richPermFull <- temp %>%  # bind cowTagIDs
+#   mutate(categ = if_else(NN_umolL < 0.23, "LowN",
+#                          if_else(NN_umolL > 0.48, "HighN", "Mid")))
+#
+#
+# permanovamodel<-adonis2(richPermFull[,2:4]~categ, richPermFull, permutations = 999,
+#                         method="bray") # should change out cowtagid with some grouping name
+# permanovamodel
+# #If we are to trust the results of the permanova, then we have to assume that the dispersion among
+# #data is the same in each group. We can test with assumption with a PermDisp test:
+# disper<-vegdist(richPermFull[,2:4])
+# betadisper(disper, richPermFull$categ)
+# #Look at the Average distance to median...these numbers should be reasonably similar
+# #A rule of thumb is that one number should not be twice as high as any other
+# pairwise.adonis(richPermFull[2:25], richPermFull$relDist, perm=999)
+
 
 
 

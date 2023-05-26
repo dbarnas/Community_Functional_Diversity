@@ -35,6 +35,16 @@ reg.Fric <- resFric %>%
 
 ### Calculate regressions again with Residuals (remove structure/substrate)
 
+## plot richness and volume to rugosity
+resFric %>%
+  pivot_longer(cols = c(NbSpP, NbFEsP, Vol8D), names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = 1-meanRugosity, y = Values)) +#, color = NN_umolL)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black") +
+  facet_wrap(~Parameters, scales = "free") +
+  theme_bw()
+  #scale_color_continuous(low = "yellow", high = "blue")
+
 #fit model: linear relationship
 resModSpR <- lm(NbSp ~ meanRugosity, data=reg.Fric) # species richness
 resModFER <- lm(NbFEs ~ meanRugosity, data=reg.Fric) # entity richness
@@ -405,7 +415,10 @@ resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv")) %>%
   as_tibble() %>%
   left_join(meta) %>%
   left_join(chem) %>%
-  filter(CowTagID != "V13")
+  filter(CowTagID != "VSEEP",
+         CowTagID != "V13")
+
+resFric %>% mutate(FE_SP = NbFEs / NbSp) %>% select(CowTagID,NbFEs, NbSp, FE_SP)
 
 nnRat <- resFric %>%
   ggplot(aes(x = NN_umolL,
@@ -419,7 +432,8 @@ nnRat <- resFric %>%
   theme(panel.grid = element_blank()) +
   labs(y = "FE / Sp",
        x = "CV of NN (umol/L)") +
-  ylim(min = 0, max = 1) +
+  #ylim(min = 0, max = 1) +
+  geom_text_repel(aes(label = CowTagID)) +
   labs(y = "")
 
 pRat <- resFric %>%
@@ -434,7 +448,8 @@ pRat <- resFric %>%
   theme(panel.grid = element_blank()) +
   labs(y = "FE / Sp",
        x = "CV of Phosphate (umol/L)") +
-  ylim(min = 0, max = 1) +
+  #ylim(min = 0, max = 1) +
+  geom_text_repel(aes(label = CowTagID)) +
   labs(y = "")
 
 
@@ -450,7 +465,8 @@ dRat <- resFric %>%
   theme(panel.grid = element_blank()) +
   labs(y = "FE / Sp",
        x = "Distance to seep (m)") +
-  ylim(min = 0, max = 1)
+  #ylim(min = 0, max = 1) +
+  geom_text_repel(aes(label = CowTagID))
 
 dRat + pRat + nnRat+
   plot_annotation(tag_levels = 'A')
@@ -461,3 +477,15 @@ summary(lm(data = resFric, (NbFEs / NbSp) ~ Phosphate_umolL))
 ## Can use the three values above, and also community composition: either relative abundance or presence-absence
 ## then can do a permanova / nMDS of community comp with the volume / FErichness
 
+
+
+### checking if volume is significantly different across a nutrient cutoff point
+summary(lm(data = resFric %>%
+  filter(CowTagID != "VSEEP") %>%
+  select(CowTagID, resSp:resVol, NN_umolL, Phosphate_umolL) %>%
+  mutate(relNut = if_else(NN_umolL < 0.23, "lowN",
+                          if_else(NN_umolL > 0.48,"highN", "midN"))),
+ resVol ~ relNut))
+# 0.23 - 0.48
+# 0.23 - 1 (including seep)
+# 0.23 - 0.4
