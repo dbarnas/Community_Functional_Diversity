@@ -212,7 +212,7 @@ res_pval_plot <- res_pval %>%
   labs(y = "p-value: ~ Residuals") +
   theme(axis.text.x = element_text(angle = 90))
 
-ggsave(here("Output", "PaperFigures", "sp_res_pval_supplemental.png"), res_pval_plot, width = 6, height = 5)
+#ggsave(here("Output", "PaperFigures", "sp_res_pval_supplemental.png"), res_pval_plot, width = 6, height = 5)
 res_pval_plot
 
 
