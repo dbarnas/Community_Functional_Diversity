@@ -1,0 +1,12 @@
+Morphology,Phyla,Calcification,Energetic Resource,Symbiosis,Maximum Size,Growth rate,Feeding Mode,Life Span
+Branched (Br),Chlorophyta,Non-calcified (NC),Autotrophy,Asymbiotic,<10 cm,Very slow (<1 cm/yr),Photosynthesis,Annual
+Cushion-like (Cushion),Cnidaria,Articulated (AC),Heterotrophy,Symbiodineaceae,10-20 cm,Slow (1 cm/yr),Active filter-feeding (pumping),Perennial
+Digitate (Dig),Cyanobacteria,Non-articulated (Non-AC),Mixotrophy,Cyanobacterium,21-50 cm,Moderate (>1 cm/yr),Passive filter-feeding,
+Encrusting (Enc),Phaeophyta,Hermatypic (Herm),,,51-100 cm,Fast (5-10 cm/yr),,
+Filamentous (Fil),Porifera,,,,> 100 cm,Very fast (>10 cm/yr),,
+Foliose (Fol),Rhodophyta,,,,,,,
+Massive (Mas),,,,,,,,
+Mushroom (Mush),,,,,,,,
+Polypoid (Poly),,,,,,,,
+Spherical (Sph),,,,,,,,
+Stolonial (Stol),,,,,,,,

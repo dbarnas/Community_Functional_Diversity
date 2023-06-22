@@ -3,7 +3,7 @@
 ##### Created on: 10/22/2021 #####
 ##### Edited on: 2/25/2023 #####
 
-##### LOAD LIBRARY #####
+##### LOAD LIBRARIES #####
 library(here)
 library(tidyverse)
 library(ggmap)
@@ -33,6 +33,8 @@ chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
   pivot_wider(names_from = Parameters, values_from = CVSeasonal)
 V_kml <- getKMLcoordinates(kmlfile=here("Data", "Polygons", "Varari_Polygon.kml"), ignoreAltitude=T)
 
+
+##### MAP SITE LOCATIONS #####
 
 # isolate seep point for mapping
 seeppt <- meta %>%
@@ -156,10 +158,7 @@ alphameta <- alphatag %>%
   select(AlphaTag, lat, lon)
 
 # create my palette
-mypalette <- rev(pnw_palette(name = "Bay", n = 19))
-lowp <- mypalette[1]
-midp <- mypalette[9]
-highp <- mypalette[19]
+mypalette <- (pnw_palette(name = "Bay", n = 19))
 
 # nest by all parameters, tides, day/Night, Date, etc to make it easy to plot all types of maps
 # Varari
@@ -180,8 +179,8 @@ Varari_kriging <- chem %>%
                                    label = "Seep\nA",
                                    fill = "white") +
                         #scale_fill_manual(values = rev(pnw_palette(name = "Bay", type = "continuous"))) +
-                        scale_color_viridis_c("CV Phosphate (umol/L)", option = "plasma")+
-                        #scale_color_gradient(low = lowp, high = highp) +
+                        #scale_color_viridis_c("CV Phosphate (umol/L)", option = "plasma")+
+                        scale_color_gradientn(colors = mypalette) +
                         coord_sf() +
                         labs(color = "CV Phosphate (umol/L)",
                              x = "Longitude",y = "Latitude") +
@@ -198,7 +197,7 @@ Varari_kriging <- chem %>%
 #ggsave(here("output","August2021","Biogeochem", glue("Varari: {.y}.png")),plot)}))
 krigPlot <- Varari_kriging$plots[[1]]
 
-
+krigPlot
 
 
 for(i in 1:length(Varari_kriging$plots)){

@@ -246,17 +246,19 @@ ct_loadings <- as_tibble(eigenScores) %>%
                    xend = PC1*10,
                    yend = PC2*10),
                arrow = arrow(length = unit(0.1,"cm")),
-               color = "grey") +
-  annotate("text",
-           x = eigenScores$PC1*10+0.5,
-           y = eigenScores$PC2*10+0.5,
-           label = eigenScores$labels,
-           size = 3) +
+               color = "black") +
+  # annotate("text",
+  #          aes(x = PC1*10+0.5,
+  #              y = PC2*10+0.5,
+  #              label = labels),
+  #          size = 3) +
   coord_cartesian(xlim = c(-4, 5), ylim = c(-6, 5)) +
   theme_bw() +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  labs(title = "Loadings")
+  labs(title = "Loadings") +
+  geom_text(aes(labels = labels))
+
 
 ct_loadings
 

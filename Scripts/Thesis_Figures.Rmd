@@ -296,6 +296,34 @@ divPlots
 ### Table 1: Table of functional traits in categorical groups
 
 ```{r}
+###############################
+# LOAD LIBRARIES
+###############################
+library(tidyverse)
+library(here)
+
+
+
+###############################
+# READ IN DATA
+###############################
+fgroups <- read_csv(here("Data", "Table1_functional_groups_dmb.csv"))
+
+
+
+###############################
+# CREATE TABLE
+###############################
+TraitTable <- fgroups %>% 
+  select(Morphology:`Energetic Resource`) %>% 
+  mutate_at(.vars = vars(Phyla:`Energetic Resource`), .funs = ~if_else(is.na(.), " ", .)) %>%
+  kable() %>% 
+  kable_classic(html_font = "Times New Roman",
+                font_size = 20) %>% 
+  row_spec(0, italic = TRUE, bold = TRUE) %>% 
+  kable_as_image()
+TraitTable  
+save_kable(TraitTable, file = here("Output","Thesis_Figures_Output","TraitTable.png"))
 
 ```
 
@@ -355,7 +383,8 @@ AICtable <- modTable %>%
   row_spec(0, italic = TRUE, bold = TRUE) %>%  # header row
   pack_rows("% Sp", 1, 12) %>% 
   pack_rows("% FE", 13, 24) %>% 
-  pack_rows("% FEV", 25, 36)
+  pack_rows("% FEV", 25, 36) %>% 
+  as_image()
 
 AICtable
 ```

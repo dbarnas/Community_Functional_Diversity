@@ -154,28 +154,6 @@ fit <- cmdscale(gower, eig = TRUE, k = 4) # PCoA
 # variance explained by the axes
 cumsum(fit$eig[fit$eig >= 0]) / sum(fit$eig[fit$eig > 0])
 
-# # see distance between points (only in first two dimensions)
-# ptdist <- qfs$details_funct_space$dist_st$m_2D
-# # get rownames across distance matrix
-# rn <- rownames(qfs$details_funct_space$mat_coord)
-# rows <- rn[2:22]
-# # get distance values and row names/column names
-# distdf <- tibble(dist2d = as.numeric())
-# for(i in 1:length(ptdist)){
-#   data <- tibble(ptdist[i])
-#   colnames(data) <- c("dist2d")
-#   distdf <- distdf %>% rbind(data)
-# }
-# fedf <- tibble(FE = as.character())
-# for(i in 1:length(rows)){
-#     mylist <- as_tibble(rows[i:21])
-#     colnames(mylist) <- c("FE")
-#     fedf <- fedf %>% rbind(mylist)
-# }
-#
-# # join distances and rownames together
-# distdf <- cbind(fedf,distdf)
-
 
 # Functional Richness
 
@@ -235,14 +213,14 @@ Fric <- lapply(relative.sgd, function (x) {
   chg.sgd <- convhulln(fd.coord.sgd, options = "FA")
 
   c(length(species.sgd), length(species.sgd)/ncol(sgd.sp)*100, dim(m.sgd)[1], dim(m.sgd)[1]/dim(fd.coord.sgd)[1]*100, ch.sgd$vol/chg.sgd$vol*100)
-  #  72 is Teixido's total number of species, so I am dividing by my total number of species (52 at Varari)
+  #  72 is Teixido's total number of species, so I am dividing by my total number of species (51 at Varari)
 
 })#eo lapply
 
 
 names(Fric) = relative.sgd
 
-# Fric contains the number of species(NbSp) and FEs (NbFEs), relative percentages (NbSpP,NbFEsP ) , and the volume among the 3 pH zones
+# Fric contains the number of species(NbSp) and FEs (NbFEs), relative percentages (NbSpP,NbFEsP ) , and the volume along the survey sites
 Fric <- do.call(rbind, Fric)
 
 colnames(Fric) <- c("NbSp", "NbSpP", "NbFEs","NbFEsP", "Vol8D")

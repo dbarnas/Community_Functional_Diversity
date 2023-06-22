@@ -4,20 +4,27 @@
 ### Created by Danielle Barnas
 ### Created on February 26, 2023
 
-
+###############################
+# LOAD LIBRARIES
+###############################
 library(tidyverse)
 library(here)
 library(ggrepel)
 library(patchwork)
 library(MuMIn)
+library(tidytext)
 
+
+
+###############################
+# READ IN DATA
+###############################
 Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
 resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv"))
 meta <- read_csv(here("Data", "Full_Metadata.csv"))
-allchem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
   filter(Season == "Dry") %>%
-  filter(Location == "Varari", CowTagID != "V13")
-chem <- allchem %>%
+  filter(Location == "Varari", CowTagID != "V13") %>%
   filter(CowTagID != "VSEEP") %>%
   select(CowTagID, Parameters, CVSeasonal) %>%
   pivot_wider(names_from = Parameters, values_from = CVSeasonal)
@@ -30,17 +37,13 @@ reg.Fric <- resFric %>%
   left_join(meta) %>%
   filter(CowTagID != "VSEEP" &
            CowTagID != "V13")
-#mutate(meanRugosity = if_else(CowTagID == "VSEEP", 0.97, meanRugosity))
 
-#
-# allchem %>%
-#   filter(Parameters == "Ammonia_umolL") %>%
-#   arrange(CVSeasonal) %>%
-#   #mutate(P_CV = 1:20) %>%
-#   arrange(Maximum) %>%
-#   #mutate(P_Max = 1:20) %>%
-#   left_join(alphatag) %>%
-#   arrange(AlphaTag)
+
+
+
+###############################
+# RESIDUAL MODELS (~ RUGOSITY)
+###############################
 
 ### Calculate regressions again with Residuals (remove structure/substrate)
 
@@ -75,12 +78,18 @@ resFric %>%
 ## SpR: increase with increasing ammonia and visible humidics
 ## Vol: Decrease with increasing M_C, Inc with Inc Ammonia, Inc with elevating Salinity, then vol drops again
 
+
+
+###############################
+# MODEL RESIDUALS ~ SGD PARAMETERS
+###############################
+
 #check residuals against other parameters
 p1param <- resFric %>%
-  rename('Ammonia (umol/L)' = Ammonia_umolL, 'Distance to seep (m)' = dist_to_seep_m,
-         'Nitrate+Nitrite (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
+  rename('Nitrate+Nitrite (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
          'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
-  pivot_longer(cols = c(Salinity:'Ammonia (umol/L)','Distance to seep (m)'), names_to = "Parameters", values_to = "Values") %>%
+  select(-TA) %>%
+  pivot_longer(cols = c(Salinity:'Nitrate+Nitrite (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
   ggplot(aes(x = Values, y = resSpp)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~x", color = "black") +
@@ -89,18 +98,17 @@ p1param <- resFric %>%
   theme_bw() +
   labs(x = "Parameter Values", y = "Relative Species Richness (rugosity-normalized)") +
   theme(strip.background = element_rect(fill = "white"))
-summary(lm(data = resFric, resSpp ~ dist_to_seep_m)) # *
-summary(lm(data = resFric, resSpp ~ Ammonia_umolL)) # *
+
 summary(lm(data = resFric, resSpp ~ VisibleHumidic_Like)) # *
 summary(lm(data = resFric, resSpp ~ poly(Phosphate_umolL,2))) # *
 summary(lm(data = resFric, resSpp~ poly(NN_umolL,2))) # *
 
 
 p2param <- resFric %>%
-  rename('Ammonia (umol/L)' = Ammonia_umolL, 'Distance to seep (m)' = dist_to_seep_m,
-         'Nitrate+Nitrite (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
+  rename('Nitrate+Nitrite (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
          'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
-  pivot_longer(cols = c(Salinity:'Ammonia (umol/L)','Distance to seep (m)'), names_to = "Parameters", values_to = "Values") %>%
+  select(-TA) %>%
+  pivot_longer(cols = c(Salinity:'Nitrate+Nitrite (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
   ggplot(aes(x = Values, y = resFEp)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~x", color = "black") +
@@ -109,16 +117,16 @@ p2param <- resFric %>%
   theme_bw() +
   labs(x = "Parameter Values", y = "Relative FE Richness (rugosity-normalized)") +
   theme(strip.background = element_rect(fill = "white"))
-summary(lm(data = resFric, resFEp ~ dist_to_seep_m)) # NS
+
 summary(lm(data = resFric, resFEp ~ poly(NN_umolL,2))) # *
 summary(lm(data = resFric, resFEp ~ poly(Phosphate_umolL,2))) # *
 
 
 p3param <- resFric %>%
-  rename('Ammonia (umol/L)' = Ammonia_umolL, 'Distance to seep (m)' = dist_to_seep_m,
-         'Nitrate+Nitrite (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
+  rename('Nitrate+Nitrite (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
          'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
-  pivot_longer(cols = c(Salinity:'Ammonia (umol/L)','Distance to seep (m)'), names_to = "Parameters", values_to = "Values") %>%
+  select(-TA) %>%
+  pivot_longer(cols = c(Salinity:'Nitrate+Nitrite (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
   ggplot(aes(x = Values, y = resVol)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~x", color = "black") +
@@ -127,78 +135,15 @@ p3param <- resFric %>%
   theme_bw() +
   labs(x = "Parameter Values", y = "Relative FE Volume (rugosity-normalized)") +
   theme(strip.background = element_rect(fill = "white"))
-summary(lm(data = resFric, resVol ~ dist_to_seep_m)) # NS
-summary(lm(data = resFric, resVol ~ Ammonia_umolL)) # *
+
 summary(lm(data = resFric, resVol ~ poly(NN_umolL,2))) # *
 summary(lm(data = resFric, resVol ~ poly(Phosphate_umolL,2))) # *
 summary(lm(data = resFric, resVol ~ poly(Salinity,2))) # *
 
-ggsave(here("Output", "PaperFigures", "LM_param_Spp.png", p1param, height = 6, width = 6))
-ggsave(here("Output", "PaperFigures", "LM_param_FEp.png", p2param, height = 6, width = 6))
-ggsave(here("Output", "PaperFigures", "LM_param_Vol.png", p3param, height = 6, width = 6))
+ggsave(here("Output", "PaperFigures", "LM_param_Spp.png"), p1param, height = 6, width = 6)
+ggsave(here("Output", "PaperFigures", "LM_param_FEp.png"), p2param, height = 6, width = 6)
+ggsave(here("Output", "PaperFigures", "LM_param_Vol.png"), p3param, height = 6, width = 6)
 
-
-
-#####################################################################
-### MODEL SELECTION
-#####################################################################
-
-modelTable <- tibble(Y = as.character(),
-                     Parameter = as.character(),
-                     Reg_Type = as.character(), # linear or nonlinear
-                     AICc = as.numeric(),
-                     R2 = as.numeric())
-
-myDep <- colnames(resFric %>% select(resSpp, resFEp, resVol))
-mydata <- resFric %>%
-  select(CowTagID, resSpp, resFEp, resVol, Salinity, Temperature, pH, Phosphate_umolL, Silicate_umolL, NN_umolL, Ammonia_umolL)
-
-for(i in myDep){
-  Y <- as.character(i)
-  for(j in 5:ncol(mydata)){
-    Parameter <- colnames(mydata[j])
-    model1 <- lm(paste0(Y, "~", Parameter), data = mydata)
-    subdata1 <- as_tibble(cbind(Y,Parameter)) %>%
-      mutate(Reg_Type = "Linear",
-             AICc = AICc(model1),
-             R2 = summary(model1)$r.squared)
-    model2 <- lm(paste0(Y, "~ poly(", Parameter, ",2)"), data = mydata)
-    subdata2 <- as_tibble(cbind(Y,Parameter)) %>%
-      mutate(Reg_Type = "Nonlinear",
-             AICc = AICc(model2),
-             R2 = summary(model2)$r.squared)
-    modelTable <- modelTable %>%
-      rbind(subdata1) %>%
-      rbind(subdata2)
-  }
-}
-# View AIC and R2 values and calculate delAIC
-modelTable <- modelTable %>%
-  group_by(Y) %>%
-  arrange(AICc)
-View(modelTable)
-
-mod1 <- lm(data = resFric, resVol ~ poly(Salinity,2))
-summary(mod1)
-
-mod2 <- lm(data = resFric, Phosphate_umolL ~ poly(Ammonia_umolL,2))
-summary(mod2)
-
-resFric %>%
-  pivot_longer(cols = c(resSpp, resFEp, resVol), names_to = "Param", values_to = "Values") %>%
-  ggplot(aes(x = Ammonia_umolL, y = Values)) +
-  geom_point() +
-  geom_smooth(method = "lm", formula = "y~x", color = "black") +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
-  theme_bw() +
-  geom_text_repel(aes(label = CowTagID)) +
-  facet_wrap(~Param)
-resFric %>% ggplot(aes(x = Phosphate_umolL, y = resFEp)) + geom_point()
-# resSpp: nonlinear Ammonia regression has lowest AICc: dAICc = 1 from second lowest (linear Ammonia) and dAICc = 4 from third lowest (nonlinear NN)
-
-# resFEp: nonlinear Phosphate and NN regressions have lowest AICc: dAICc = 1 from second lowest (linear Ammonia)
-
-# resVol: linear Ammonia regression has lowest AICc: dAICc = 2 from second lowest (nonlinear Phosphate) and dAICc = 3 from third lowest (nonlinear Ammonia)
 
 
 #####################################################################
@@ -296,91 +241,60 @@ plot2
 
 
 #####################################################################
-### PHOSPHATE
+### PHOSPHATE (FIGURE 2)
 #####################################################################
 
+plotfun <-function(data = resFric %>% left_join(alphatag), y){
+
+  y <- enquo(y)
+
+  plota <- data %>%
+    ggplot(aes(x = Phosphate_umolL,
+               y = !!y)) +
+    geom_point(size = 2.5) +
+    geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+    theme_bw() +
+    theme(axis.title = element_text(size = 16),
+          axis.text = element_text(size = 13)) +
+    theme(panel.grid = element_blank()) +
+    labs(y = "",
+         x = "")  +
+    geom_text_repel(aes(label = AlphaTag),
+                    size = 6)
+
+
+  return(plota)
+
+}
+
 ## Relative non-normalized richness
-rug_SpR_plot <- resFric %>%
-  ggplot(aes(x = Phosphate_umolL,
-             y = NbSpP)) +
-  geom_point(size = 2.5) +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 13)) +
-  theme(panel.grid = element_blank()) +
-  labs(y = "% SR",
-       x = "") +
+rug_SpR_plot <- plotfun(y = NbSpP) + labs(y = "% SR", x = "")+
   ylim(min = 0, max = 100)
 rug_SpR_plot
 
-rug_FER_plot <- resFric %>%
-  ggplot(aes(x = Phosphate_umolL,
-             y = NbFEsP)) +
-  geom_point(size = 2.5) +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 13)) +
-  theme(panel.grid = element_blank()) +
-  labs(y = "% FER",
-       x = "") +
+rug_FER_plot <- plotfun(y = NbFEsP) + labs(y = "% FER", x = "")+
   ylim(min = 0, max = 100)
 rug_FER_plot
 
-rug_Vol_plot <- resFric %>%
-  ggplot(aes(x = Phosphate_umolL,
-             y = Vol8D)) +
-  geom_point(size = 2.5) +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 13)) +
-  theme(panel.grid = element_blank()) +
-  labs(y = "% FEV",
-       x = "") +
+rug_Vol_plot <- plotfun(y = Vol8D) + labs(y = "% FEV", x = "")+
   ylim(min = 0, max = 100)
 rug_Vol_plot
 
 ## Relative richness and volume residuals
-rug_res_SpRp_plot <- resFric %>%
-  ggplot(aes(x = Phosphate_umolL,
-             y = resSpp)) +
-  geom_point(size = 2.5) +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 13)) +
+rug_res_SpRp_plot <- plotfun(y = resSpp) +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  theme(panel.grid = element_blank()) +
   labs(y = "% SR (Rugosity-normalized)",
        x = "CV Phosphate (umol/L)")
 rug_res_SpRp_plot
 
-rug_res_FERp_plot <- resFric %>%
-  ggplot(aes(x = Phosphate_umolL,
-             y = resFEp)) +
-  geom_point(size = 2.5) +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 13)) +
+rug_res_FERp_plot <- plotfun(y = resFEp) +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  theme(panel.grid = element_blank()) +
   labs(y = "% FER (Rugosity-normalized)",
        x = "CV Phosphate (umol/L)")
 rug_res_FERp_plot
 
-rug_res_Vol_plot <- resFric %>%
-  ggplot(aes(x = Phosphate_umolL,
-             y = resVol)) +
-  geom_point(size = 2.5) +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
-  theme_bw() +
-  theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 13)) +
+rug_res_Vol_plot <- plotfun(y = resVol) +
   geom_hline(yintercept = 0, linetype = "dashed") +
-  theme(panel.grid = element_blank()) +
   labs(y = "% FEV (Rugosity-normalized)",
        x = "CV Phosphate (umol/L)")
 rug_res_Vol_plot
@@ -398,7 +312,9 @@ plot2
 #ggsave(here("Output", "PaperFigures", "lm_relative_residuals_Phos.png"), plot2, height = 6, width = 10)
 
 divPlots <- plot1 / plot2 +
-  plot_annotation(tag_levels = 'A')
+  plot_annotation(tag_levels = 'A') +
+  theme(plot.tag = element_text(size = ))
+divPlots
 ggsave(here("Output", "PaperFigures", "LM_diversity_Phosphate.png"), divPlots, height = 6, width = 10)
 
 #####################################################################
