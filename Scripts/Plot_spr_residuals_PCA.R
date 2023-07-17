@@ -20,37 +20,30 @@ library(ggmap)
 #div <- read_csv(here("Data","Surveys","Species_Diversity.csv")) # cannot calculate species div with % cover data
 #rich <- read_csv(here("Data","Surveys","Species_Richness.csv"))
 meta <- read_csv(here("Data", "Full_Metadata.csv"))
-comp <- read_csv(here("Data","Surveys","Species_Composition_2022.csv"))
-taxa <- read_csv(here("Data","Surveys","Distinct_Taxa.csv"))
-chem <- read_csv(here("Data","Biogeochem", "Nutrient_Processed_CV.csv"))
+comp <- read_csv(here("Data","Species_Abundances_wide.csv"))
+taxa <- read_csv(here("Data","Species_FE.csv"))
+alphatag <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Location == "Varari",
+         Season == "Dry",
+         #CowTagID != "VSEEP" &
+           CowTagID != "V13") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  right_join(alphatag) %>%
+  filter(AlphaTag != "A")
+
 
 # create color palette for plotting
 mypalette <- pnw_palette("Bay", 19, type="continuous")
 midpalette <- pnw_palette(name = "Bay", n = 30)
 largepalette <- pnw_palette(name = "Bay", n = 100)
 
-
+myorder <- chem %>%
+  filter(Parameters == "Phosphate_umolL") %>%
+  arrange(CVSeasonal)
+myorder <- myorder$AlphaTag
 
 ### set up functions
-## Create function to order cowtagID's when plotting
-order <- function(data = Full_data, param, by){
-
-  param<- enquo(param)
-  by<- enquo(by)
-
-  orderParam <- data %>%
-    arrange(!!param) %>%
-    distinct(!!by) %>%
-    mutate(CowTagID = as_factor(as.character(!!by)))
-
-  # sort factor levels by N_percent
-  ParamLevels <- paste(orderParam$CowTagID)
-  # assign order to factor levels by % N
-  data$CowTagID <- factor(data$CowTagID, levels = ParamLevels)
-  # levels(data$CowTagID) # check
-
-  return(data)
-}
 
 ### Create function for geom_point plots with facet_wrapping
 # create ggplot function
@@ -85,60 +78,19 @@ groupplot <- function(mydata = Full_data, x, y, fw) {
 # reduce metadata, remove cabral and v13
 meta <- meta %>%
   filter(Location == "Varari",
+         CowTagID != "VSEEP" &
          CowTagID != "V13") %>%
   select(Location, CowTagID, LiveCoral:Sand, dist_to_seep_m, adj_CT_depth_cm, meanRugosity) # will add nutrient data later
 
 # calculate species richness
-rich <- comp %>%
-  select(Location, CowTagID, Taxa, SpeciesCounts) %>%
-  mutate(Taxa = if_else(Taxa == 'Bare Rock', "Hard Substrate", Taxa),
-         Taxa = if_else(Taxa == 'Rubble', "Hard Substrate", Taxa)) %>%
-  filter(Taxa != "Sand" & Taxa != "Hard Substrate") %>% # actually just remove the hard substrate and sand
-  group_by(Location, CowTagID, Taxa) %>%
-  count(Taxa) %>%
-  mutate(n = 1) %>%
-  ungroup() %>%
-  group_by(Location,CowTagID) %>%
-  mutate(spRichness = sum(n)) %>%
-  distinct(Location, CowTagID, spRichness) %>%
-  ungroup()
 
 # join dfs
-Full_data <- rich %>%
+Full_data <- comp %>%
+  left_join(alphatag) %>%
   full_join(chem) %>%
-  drop_na(lat) %>% # remove largely incomplete datasets
-  filter(Location == "Varari",
+  filter(CowTagID != "VSEEP",
          CowTagID != "V13") %>%
-  #filter(CowTagID != "C14") %>%  # not surveyed
   left_join(meta)
-
-
-comp <- comp %>%
-  select(Location, CowTagID, Taxa, SpeciesCounts) %>%
-  mutate(Taxa = if_else(Taxa == 'Bare Rock', "Hard Substrate", Taxa),
-         Taxa = if_else(Taxa == 'Rubble', "Hard Substrate", Taxa)) %>%
-  filter(Taxa != "Sand" & Taxa != "Hard Substrate") %>% # actually just remove the hard substrate and sand
-  group_by(Location, CowTagID, Taxa) %>%
-  mutate(SpeciesCounts = sum(SpeciesCounts)) %>%
-  distinct() %>%
-  ungroup() %>% # ungroup by taxa to regroup by site
-  group_by(Location, CowTagID) %>%
-  mutate(totalcount = sum(SpeciesCounts),
-         sp_percent = SpeciesCounts / totalcount*100) %>%
-  select(-totalcount) %>%
-  left_join(Full_data) %>%
-  ungroup() %>%
-  filter(Location == "Varari",
-         CowTagID != "V13") # only Varari for now and not v13
-
-# rearrange
-Full_data <- Full_data %>%
-  relocate(Location, .before = CowTagID)
-
-# only Varari for now
-Full_data <- Full_data %>%
-  filter(Location == "Varari",
-         CowTagID != "V13")
 
 
 

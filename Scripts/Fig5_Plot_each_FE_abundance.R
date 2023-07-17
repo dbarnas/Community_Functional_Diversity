@@ -33,7 +33,7 @@ fullchem <- fullchem %>%
 ### CREATE PALETTES FOR FIGURES ###
 
 taxonpalette <- c("#0f4a6f", "#6aa4b0", "#29a0b1",
-                  # "#98d7c2",
+                  "#98d7c2",
                   "#738fa7", "#2e8bc0", "#7391c8", "#52688f")
 morphpalette <- rev(pnw_palette(name = "Moth", n = 11))
 calcpalette <- c("#f9eac2","#b2d2a4", "#96ad90", "#1a4314")
@@ -94,6 +94,7 @@ myplot <- function(param, pal){
 ptplot <- function(entity, param){
 
   my_data <- Full_data %>%
+    filter(Morph2 != "Mush" & Taxon_Group != "Cyanobacteria") %>%  # remove single points
     filter(CowTagID != "VSEEP") %>%
     group_by(AlphaTag,{{entity}}, {{param}}) %>%
     summarise(pCover = sum(pCover)) %>%
@@ -225,19 +226,33 @@ anova(lm(pCover ~ poly(Phosphate_umolL,2)*FE, data = Full_data)) # including the
 
 ### TAXA
 # stacked bar
-pt <- myplot(Taxon_Group, taxonpalette)
+pt <- myplot(Taxon_Group, taxonpalette) + labs(fill = "Phyla")
 pt2 <- myplot(Taxon_Group, taxonpalette) + theme(legend.position = "none")
 pt
 # regression
-ppt <- ptplot(Taxon_Group, Phosphate_umolL)
-npt <- ptplot(Taxon_Group, NN_umolL)
+ppt <- ptplot(Taxon_Group, Phosphate_umolL) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = expression("Phosphate ("*mu*"mol/L)"), title = "Phyla")
+npt <- ptplot(Taxon_Group, NN_umolL) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = expression("Nitrate+Nitrite ("*mu*"mol/L)"), title = "Phyla")
+npt
 ppt
+ggsave(here("Output", "PaperFigures", "taxa_nn.png"), npt, device = "png", width = 6, height = 6)
 # pvalues
 pv1 <- pval(entity = Taxon_Group, param = Phosphate_umolL)
 pv2 <- pval(entity = Taxon_Group, param = NN_umolL)
 # anova
-anova(lm(pCover~poly(NN_umolL,2)*Taxon_Group, data = Full_data %>% filter(CowTagID != "VSEEP")))
-anova(lm(pCover~poly(Phosphate_umolL,2)*Taxon_Group, data = Full_data %>% filter(CowTagID != "VSEEP")))
+anova(lm(pCover~poly(NN_umolL,2)*Taxon_Group, data = Full_data %>%
+           filter(CowTagID != "VSEEP") %>%
+           group_by(CowTagID, Taxon_Group, NN_umolL, Phosphate_umolL) %>%
+           summarise(pCover=sum(pCover))))
+anova(lm(pCover~poly(Phosphate_umolL,2)*Taxon_Group, data = Full_data %>%
+           filter(CowTagID != "VSEEP") %>%
+           group_by(CowTagID, Taxon_Group, NN_umolL, Phosphate_umolL) %>%
+           summarise(pCover=sum(pCover))))
 ## no interaction of NN:FE or P:FE
 # summary
 summary(lm(pCover~poly(NN_umolL,2)*Taxon_Group, data = Full_data %>%
@@ -248,6 +263,11 @@ summary(lm(pCover~poly(Phosphate_umolL,2)*Taxon_Group, data = Full_data %>%
              filter(CowTagID!= "VSEEP") %>%
              group_by(CowTagID, Taxon_Group, NN_umolL, Phosphate_umolL) %>%
              summarise(pCover=sum(pCover))))
+summary(lm(pCover~poly(NN_umolL,2), data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Taxon_Group, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover)) %>%
+             filter(Taxon_Group == "Turf")))
 Full_data %>%
   filter(CowTagID!= "VSEEP") %>%
   group_by(CowTagID, Taxon_Group, NN_umolL, Phosphate_umolL) %>%
@@ -257,13 +277,23 @@ Full_data %>%
 
 ### MORPHOLOGY
 # stacked bar
-pm <- myplot(Morph2, morphpalette)
-pm2 <- myplot(Morph2, morphpalette) + theme(legend.position = "right")
+pm <- myplot(Morph2, morphpalette) + labs(fill = "Morphology")
+pm2 <- myplot(Morph2, morphpalette) + theme(legend.position = "right") + labs(fill = "Morphology")
 pm3 <- myplot(Morph2, morphpalette) + theme(legend.position = "none")
+pm
 # regression
-ppm <- ptplot(Morph2, Phosphate_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
-#npm <- ptplot(Morph2, NN_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
+ppm <- ptplot(Morph2, Phosphate_umolL) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = expression("Phosphate ("*mu*"mol/L)"), title = "Morphology")
+npm <- ptplot(Morph2, NN_umolL) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = expression("Nitrate+Nitrite ("*mu*"mol/L)"), title = "Morphology")
+npm
 ppm
+ggsave(here("Output", "PaperFigures", "morphology_phos.png"), ppm, device = "png", width = 6, height = 6)
+ggsave(here("Output", "PaperFigures", "morphology_nn.png"), npm, device = "png", width = 6, height = 6)
 # pvalues
 pv3 <- pval(entity = Morph2, param = Phosphate_umolL)
 pv4 <- pval(entity = Morph2, param = NN_umolL)
@@ -318,18 +348,44 @@ summary(lm(pCover~poly(Phosphate_umolL,2), data = Full_data %>%
              group_by(CowTagID, Phosphate_umolL) %>%
              summarise(pCover=sum(pCover))))
 
+summary(lm(pCover~poly(NN_umolL,2), data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             filter(Morph2 == "Poly") %>%
+             group_by(CowTagID, NN_umolL) %>%
+             summarise(pCover=sum(pCover))))
 
+summary(lm(pCover~poly(NN_umolL,2), data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             filter(Morph2 == "Mas") %>%
+             group_by(CowTagID, NN_umolL) %>%
+             summarise(pCover=sum(pCover))))
+
+summary(lm(pCover~poly(NN_umolL,2), data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             filter(Morph2 == "Cushion") %>%
+             group_by(CowTagID, NN_umolL) %>%
+             summarise(pCover=sum(pCover))))
 
 
 # CALCIFICATION
 # stacked bar
-pc <- myplot(Calc, calcpalette)
+pc <- myplot(Calc, calcpalette) + labs(fill = "Calcification")
+pc
 # regression
-pper <- ptplot(Calc, Phosphate_umolL)
-nper <- ptplot(Calc, NN_umolL) + geom_smooth(method = "lm", formula = "y~x", color = "black")
-nper2 <- ptplot(Calc, NN_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
+ppc <- ptplot(Calc, Phosphate_umolL) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = expression("Phosphate ("*mu*"mol/L)"), title = "Calcification")
+npc <- ptplot(Calc, NN_umolL) +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = expression("Nitrate+Nitrite ("*mu*"mol/L)"), title = "Calcification")
+#npc2 <- ptplot(Calc, NN_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
 #pper + nper
-pper
+npc
+ppc
+ggsave(here("Output", "PaperFigures", "calc_nn.png"), npc, device = "png", width = 6, height = 6)
+
 # pvalues
 pv5 <- pval(entity = Calc, param = Phosphate_umolL)
 pv6 <- pval(entity = Calc, param = NN_umolL)
@@ -345,6 +401,10 @@ anova(lm(pCover~poly(Phosphate_umolL,2)*Calc, data = Full_data %>%
 ## NN:FE p<0.01, F=3.14, DF=6
 ## P:FE no interaction
 # summary
+summary(lm(pCover~poly(NN_umolL,2)*Calc, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover))))
 summary(lm(pCover~NN_umolL*Calc, data = Full_data %>%
              filter(CowTagID!= "VSEEP") %>%
              group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
@@ -353,15 +413,40 @@ summary(lm(pCover~poly(Phosphate_umolL,2)*Calc, data = Full_data %>%
              filter(CowTagID!= "VSEEP") %>%
              group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
              summarise(pCover=sum(pCover))))
+summary(lm(pCover~NN_umolL, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover)) %>%
+             filter(Calc == "Herm")))
+summary(lm(pCover~Phosphate_umolL, data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover)) %>%
+             filter(Calc == "NC")))
+summary(lm(pCover~poly(Phosphate_umolL,2), data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, Calc, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover)) %>%
+             filter(Calc == "Non-AC")))
 
 
 # ENERGETIC RESOURCE
 # stacked bar
-per <- myplot(ER, erpalette)
+per <- myplot(ER, erpalette) + labs(fill = "Energetic \nResource")
+per
 # regression
-pper <- ptplot(ER, Phosphate_umolL)
-nper <- ptplot(ER, NN_umolL)
+pper <- ptplot(ER, Phosphate_umolL) +
+  #geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  #geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = expression("Phosphate ("*mu*"mol/L)"), title = "Energetic Resource")
+nper <- ptplot(ER, NN_umolL) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = expression("Nitrate+Nitrite ("*mu*"mol/L)"), title = "Energetic Resource")
+nper
 pper
+ggsave(here("Output", "PaperFigures", "ER_nn.png"), nper, device = "png", width = 6, height = 6)
 # pvalues
 pv7 <- pval(entity = ER, param = Phosphate_umolL)
 pv8 <- pval(entity = ER, param = NN_umolL)
@@ -377,7 +462,7 @@ anova(lm(pCover~poly(Phosphate_umolL,2)*ER, data = Full_data %>%
 ## NN:FE p<2e-6, F=3.67, DF=18
 ## P:FE p<5e-7, F=3.87, DF=18
 # summary
-summary(lm(pCover~poly(NN_umolL,2)*ER, data = Full_data %>%
+summary(lm(pCover~NN_umolL*ER, data = Full_data %>%
              filter(CowTagID!= "VSEEP") %>%
              group_by(CowTagID, ER, NN_umolL, Phosphate_umolL) %>%
              summarise(pCover=sum(pCover))))
@@ -385,12 +470,19 @@ summary(lm(pCover~poly(Phosphate_umolL,2)*ER, data = Full_data %>%
              filter(CowTagID!= "VSEEP") %>%
              group_by(CowTagID, ER, NN_umolL, Phosphate_umolL) %>%
              summarise(pCover=sum(pCover))))
+summary(lm(pCover~poly(NN_umolL,2), data = Full_data %>%
+             filter(CowTagID!= "VSEEP") %>%
+             group_by(CowTagID, ER, NN_umolL, Phosphate_umolL) %>%
+             summarise(pCover=sum(pCover)) %>%
+             filter(ER == "Auto")))
+
 
 
 # bind pvalue df
 mypval <- rbind(pv1,pv2,pv3,pv4,pv5,pv6,pv7,pv8)
-mypval %>%
-  filter(pvalue1 < 0.05 | pvalue2 < 0.05)
+TraitSignif <- mypval %>%
+  filter(pvalue1 < 0.07 | pvalue2 < 0.07)
+write_csv(TraitSignif, here("Output", "PaperFigures", "Trait_pVal.csv"))
 
 plot1 <- (pm) /
   (per + pc) /
@@ -400,8 +492,8 @@ plot1 <- (pm) /
 plot1
 
 
- ggsave(here("Output", "PaperFigures", "Plot_FEgroups_dist.png"), plot1, width = 6, height = 10)
- ggsave(here("Output", "PaperFigures", "Plot_FEgroups_dist2.png"), plot1, width = 6, height = 6)
+ ggsave(here("Output", "PaperFigures", "Fig5_Plot_FEgroups.png"), plot1, width = 8, height = 10)
+ ggsave(here("Output", "PaperFigures", "Plot_FEgroups_3.png"), plot1, width = 6, height = 6)
 
  ggsave(here("Output", "PaperFigures", "Plot_Taxon_dist.png"), pt, width = 6, height = 3.5)
  ggsave(here("Output", "PaperFigures", "Plot_Taxon_dist.png"), pt2, width = 6, height = 3)
@@ -409,6 +501,29 @@ plot1
  ggsave(here("Output", "PaperFigures", "Plot_Morph_dist.png"), pm3, width = 6, height = 3)
  ggsave(here("Output", "PaperFigures", "Plot_Calc_dist.png"), pc, width = 6, height = 3.5)
  ggsave(here("Output", "PaperFigures", "Plot_ER_dist.png"), per, width = 6, height = 3.5)
+
+pplot1 <- (ppm) / (pper + ppc) / (ppt) +
+  plot_annotation(tag_levels = 'A')
+pplot1
+ggsave(here("Output", "PaperFigures", "SuppFig5_Trait_LM.png"), pplot1, width = 8, height = 12)
+
+
+####################################################
+####################################################
+
+
+
+
+
+####################################################
+####################################################
+
+
+
+
+
+
+
 
 
 

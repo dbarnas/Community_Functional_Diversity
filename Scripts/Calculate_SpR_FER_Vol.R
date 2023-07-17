@@ -252,7 +252,8 @@ write_csv(Fric, here("Data", "Sp_FE_Vol.csv"))
 resFric <- Fric %>%
   left_join(meta) %>%
   mutate(meanRugosity = if_else(CowTagID == "VSEEP", 0.97, meanRugosity)) %>%
-  arrange(CowTagID)
+  arrange(CowTagID) %>%
+  mutate(meanRugosity = 1 - meanRugosity) # such that higher rugosity relates to more structural heterogeneity
 
 # calculate residuals and join together
 resSp <- residuals(lm(data = resFric, NbSp ~ meanRugosity))

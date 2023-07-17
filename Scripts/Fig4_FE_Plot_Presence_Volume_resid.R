@@ -171,8 +171,10 @@ disc.redchem <- redchem %>%
   left_join(alphatag)
 names(alphapalette) <- (disc.redchem  %>% arrange(Phosphate_umolL) %>% mutate(nAlphaTag = AlphaTag))$nAlphaTag
 names(mypalette) <- (disc.redchem %>% arrange(Phosphate_umolL) %>% mutate(nAlphaTag = AlphaTag))$nAlphaTag
+myOrder <- (disc.redchem %>% arrange(Phosphate_umolL))$AlphaTag
 #volumeOrder <- (disc.redchem %>% arrange(resVol))$AlphaTag
 volumeOrder <- (disc.redchem %>% arrange(Vol8D))$AlphaTag
+
 
 # add VSEEP point
 All.ch.tib <- All.ch.tib %>%
@@ -182,8 +184,7 @@ All.ch.tib <- All.ch.tib %>%
   group_by(AlphaTag) %>%
   mutate(Area = polyarea(x,y)) %>%
   mutate(nAlphaTag = factor(AlphaTag, levels = names(alphapalette))) %>%
-  arrange(Area) %>%
-  mutate(AlphaTag = factor(AlphaTag, levels = volumeOrder))
+  mutate(AlphaTag = factor(AlphaTag, levels = myOrder))
 #AreaOrder <- unique(All.ch.tib$AlphaTag)
 #All.ch.tib$AlphaTag <- factor(All.ch.tib$AlphaTag, levels = AreaOrder) # arrange facet by polygon area
 
@@ -196,7 +197,7 @@ All.m.sgd <- All.m.sgd %>%
   select(-CowTagID) %>%
 #  left_join(PolyArea) %>%
   mutate(nAlphaTag = factor(AlphaTag, levels = names(alphapalette)),
-         AlphaTag = factor(AlphaTag, levels = volumeOrder))
+         AlphaTag = factor(AlphaTag, levels = myOrder))
 #         AlphaTag = factor(AlphaTag, levels = AreaOrder))
 
 
@@ -260,7 +261,7 @@ ab.conditions.sgd <- ab.conditions.sgd2 %>%
 
 # order alpha tag by phosphate levels and volume residuals
 n.alphatag <- alphatag %>% mutate(nAlphaTag = factor(alphatag$AlphaTag, levels = names(alphapalette))) %>% select(-AlphaTag)
-alphatag$AlphaTag <- factor(alphatag$AlphaTag, levels = volumeOrder)
+alphatag$AlphaTag <- factor(alphatag$AlphaTag, levels = myOrder)
 
 ## relative abundance in ggplot
 fig2.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
@@ -286,7 +287,7 @@ fig2bdist <- fig2.fd.sgd %>%
   facet_wrap(~AlphaTag) +
   theme_bw() +
   theme(panel.grid = element_blank(),
-        #legend.position = "none",
+        legend.position = "none",
         strip.background = element_rect(fill = "white")) +
   scale_fill_manual(values = alphapalette) +
   scale_color_manual(values = mypalette)
@@ -294,6 +295,154 @@ fig2bdist <- fig2.fd.sgd %>%
 fig2bdist
 
 ggsave(here("Output", "PaperFigures", "Fig4_Vol_Abund_PCoA_PO4.png"), fig2bdist, height = 6, width = 7)
+
+
+#####################
+# Blank figure with points and outline
+#####################
+blankPoly <- fig2.fd.sgd %>%
+  filter(pCover > 0) %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(shape = 21, size = 4, fill = "grey") +
+  geom_polygon(data = All.ch.tib %>% filter(AlphaTag == "K"), # K, N, and S all have the same largest area
+               aes(x = x, y = y, color = AlphaTag),
+               alpha = 0.5,
+               fill = NA) + # no fill on the polygon
+  labs(x = "PCoA1", y = "PCoA2") +
+  theme_bw() +
+  xlim(-0.35, 0.65) +
+  ylim(-0.5, 0.5) +
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14)) +
+  scale_color_manual(values = "black")
+
+ggsave(here("Output", "PaperFigures", "Blank_polygon.png"), blankPoly, height = 6, width = 7)
+
+
+
+blankPoly_small <- fig2.fd.sgd %>%
+  filter(pCover > 0) %>%
+  filter(AlphaTag == "D",
+         AlphaTag != "A-Seep") %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(shape = 21, size = 4, fill = "grey") +
+  geom_polygon(data = All.ch.tib %>% filter(AlphaTag == "D"), # D has the smallest area after Seep
+               aes(x = x, y = y, color = AlphaTag),
+               alpha = 0.5,
+               fill = NA) + # no fill on the polygon
+  labs(x = "PCoA1", y = "PCoA2") +
+  xlim(-0.3, 0.6) +
+  ylim(-0.5, 0.5) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "none",
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14)) +
+  scale_color_manual(values = "black")
+
+ggsave(here("Output", "PaperFigures", "Blank_polygon_small.png"), blankPoly_small, height = 6, width = 7)
+
+
+#####################
+# VARIANCE IN HIGH, MODERATE, LOW
+#####################
+library(vegan) # nMDS and permanova
+library(pairwiseAdonis)
+
+# to look at variation of FE dispersion, look at a distance matrix
+Alpha_FE <- ab.conditions.sgd2 %>% left_join(alphatag) %>% filter(pCover > 0) %>% select(AlphaTag, FE)
+Alpha_chem <- redchem %>%
+  left_join(alphatag) %>%
+  select(AlphaTag, Phosphate_umolL)
+
+dist(fd.coord.sgd, method = "euclidean")
+dist_FE <- as.data.frame(as.matrix(dist(fd.coord.sgd, method = "euclidean")))
+dist_chem <- rownames_to_column(dist_FE, var = "FE") %>%
+  right_join(Alpha_FE) %>%
+  filter(AlphaTag != "A-Seep") %>%
+  pivot_longer(cols = 2:(ncol(.)-1), names_to = "crossFE", values_to = "distances") %>%
+  group_by(AlphaTag) %>%
+  summarise(Avg_dist = mean(distances)) %>%
+  arrange(desc(Avg_dist)) %>%
+  left_join(Alpha_chem)
+
+summary(lm(data = dist_chem, Avg_dist ~ poly(Phosphate_umolL,2)))
+
+## check this using ANOSIM?
+## look up other literature on this
+
+
+#### PREP DATA FOR MODEL
+VarResFric <- resFric %>%
+  left_join(alphatag) %>%
+  select(AlphaTag, Vol8D)
+low <- VarResFric %>%
+  filter(AlphaTag == "B" | AlphaTag == "F" | AlphaTag == "E" | AlphaTag == "Q" | AlphaTag == "K") %>%
+  mutate(Varcat = "Low")
+high <- VarResFric %>%
+  filter(AlphaTag == "D" | AlphaTag == "C" | AlphaTag == "N" | AlphaTag == "H") %>%
+  mutate(Varcat = "High")
+LH <- rbind(low,high)
+VarResFric <- VarResFric %>%
+  filter(AlphaTag != "A-Seep") %>%
+  left_join(LH) %>%
+  mutate(Varcat = if_else(is.na(Varcat), "Moderate", Varcat))
+
+### try the permanova
+LH <- LH %>% select(-Vol8D)
+permData <- fig2.fd.sgd %>%
+  filter(pCover > 0) %>%
+  left_join(LH) %>%
+  mutate(Varcat = if_else(is.na(Varcat), "Moderate", Varcat)) %>%
+  select(-c(CowTagID,pCover,AlphaTag,nAlphaTag,FE)) %>%
+  relocate(Varcat, .before = PC1)
+
+
+
+permanovamodel<-adonis2(permData[,-1]~Varcat, permData, permutations = 999, method="euclidean")
+permanovamodel
+#assume that the dispersion among data is the same in each group. We can test with assumption with a PermDisp test:
+disper<-vegdist(permData[,-1])
+betadisper(disper, permData$Varcat)
+library(pairwiseAdonis)
+pairwise.adonis(permData[-1], permData$Varcat, perm=999)
+
+
+
+### try with abundances
+LH <- LH %>% select(-Vol8D)
+permData <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
+  full_join(ab.conditions.sgd2) %>%
+  select(FE, CowTagID, pCover) %>%
+  left_join(alphatag) %>%
+  filter(AlphaTag != "A-Seep") %>%
+  select(-CowTagID) %>%
+  pivot_wider(names_from = FE, values_from = pCover) %>%
+  left_join(LH) %>%
+  mutate(Varcat = if_else(is.na(Varcat), "Moderate", Varcat)) %>%
+  relocate(Varcat, .after = AlphaTag) %>%
+  select(-AlphaTag)
+
+
+permanovamodel<-adonis2(permData[,-1]~Varcat, permData, permutations = 999,method="bray")
+permanovamodel
+
+#assume that the dispersion among data is the same in each group. We can test with assumption with a PermDisp test:
+disper<-vegdist(permData[,-1])
+betadisper(disper, permData$Varcat)
+#Look at the Average distance to median...these numbers should be reasonably similar
+#A rule of thumb is that one number should not be twice as high as any other
+
+#An option for doing post-hoc pairwise comparisons in R
+library(pairwiseAdonis)
+pairwise.adonis(permData[-1], permData$Varcat, perm=999)
+
+
+
+#### MODEL
+
 
 
 ###########################################################################
@@ -326,9 +475,9 @@ names(cols) <- tagorder$nAlphaTag # name colors by Phosphate gradient
 pphos <- resFric %>%
   left_join(redchem) %>%
   left_join(n.alphatag) %>%
-  select('% Sp' = resSpp, '% FE' = resFEp, '% FEV' = resVol, AlphaTag, nAlphaTag) %>%
+  select('% SR' = resSpp, '% FER' = resFEp, '% FEV' = resVol, AlphaTag, nAlphaTag) %>%
   pivot_longer(cols = 1:3, names_to = "Parameters", values_to = "Values") %>%
-  mutate(Parameters = factor(Parameters, levels = c("% Sp", "% FE", "% FEV"))) %>%
+  mutate(Parameters = factor(Parameters, levels = c("% SR", "% FER", "% FEV"))) %>%
   # plot facet_wrapped
   ggplot(aes(x = Parameters, y = Values, fill = nAlphaTag)) +
   geom_col(color = "black") +
@@ -339,7 +488,8 @@ pphos <- resFric %>%
         legend.position = "none") +
   #ylim(0,100) +
   scale_fill_manual(values = cols) +
-  labs(fill = "Survey Location", x = "", y = "Relative % of Community (Rugosity-normalized)") +
+  geom_hline(yintercept = 0) +
+  labs(fill = "Survey Location", x = "", y = "Residual proportions (%)") +
   theme(strip.background = element_rect(fill = "white"))
 # geom_text(aes(x = Parameters, label = round(Values,0)),
 #           size = 3, vjust = -0.4)
@@ -351,9 +501,9 @@ ggsave(here("Output", "PaperFigures", "Supp_barplot_res_phosphate.png"), pphos, 
 pphosRaw <- resFric %>%
   left_join(redchem) %>%
   left_join(n.alphatag) %>%
-  select('% Sp' = NbSpP, '% FE' = NbFEsP, '% FEV' = Vol8D, AlphaTag, nAlphaTag) %>%
+  select('% SR' = NbSpP, '% FER' = NbFEsP, '% FEV' = Vol8D, AlphaTag, nAlphaTag) %>%
   pivot_longer(cols = 1:3, names_to = "Parameters", values_to = "Values") %>%
-  mutate(Parameters = factor(Parameters, levels = c("% Sp", "% FE", "% FEV"))) %>%
+  mutate(Parameters = factor(Parameters, levels = c("% SR", "% FER", "% FEV"))) %>%
   # plot facet_wrapped
   ggplot(aes(x = Parameters, y = Values, fill = nAlphaTag)) +
   geom_col(color = "black") +
@@ -364,7 +514,7 @@ pphosRaw <- resFric %>%
         legend.position = "none") +
   ylim(0,100) +
   scale_fill_manual(values = cols) +
-  labs(fill = "Survey Location", x = "", y = "Relative % of Community") +
+  labs(fill = "Survey Location", x = "", y = "Community Proportions (%)") +
   geom_text(aes(x = Parameters, label = round(Values,0)),
            size = 3, vjust = -0.4) +
   theme(strip.background = element_rect(fill = "white"))
@@ -372,8 +522,9 @@ pphosRaw
 
 ggsave(here("Output", "PaperFigures", "Supp_barplot_raw_phosphate.png"), pphosRaw, width = 6, height = 5)
 
-
-
+pphosPlots <- pphosRaw / pphos +
+  plot_annotation(tag_levels = "A")
+ggsave(here("Output", "PaperFigures", "SuppFig2_barplot_phosphate.png"), pphosPlots, width = 5, height = 8)
 
 ###########################################################################
 ## SPECIES VOLUME AND NUTRIENTS
@@ -457,7 +608,7 @@ v14.sub.ch.tib <- v14.sub.ch.tib %>%
 ### Arrange AlphaTag ID's by CV Phosphate
 names(alphapalette) <- (disc.redchem %>% left_join(alphatag) %>% arrange(Phosphate_umolL) %>% mutate(nAlphaTag = AlphaTag))$nAlphaTag
 names(mypalette) <- (disc.redchem %>% left_join(alphatag) %>% arrange(Phosphate_umolL) %>% mutate(nAlphaTag = AlphaTag))$nAlphaTag
-volumeOrder <- (disc.redchem %>% left_join(alphatag) %>% arrange(resVol))$AlphaTag
+myOrder <- (disc.redchem %>% left_join(alphatag) %>% arrange(Phosphate_umolL))$AlphaTag
 
 # add VSEEP and V14 points
 
@@ -468,7 +619,7 @@ All.ch.tib <- All.ch.tib %>%
   left_join(redchem) %>%
   select(-CowTagID) %>%
   mutate(nAlphaTag = factor(AlphaTag, levels = names(alphapalette)),
-         AlphaTag = factor(AlphaTag, levels = volumeOrder))
+         AlphaTag = factor(AlphaTag, levels = myOrder))
 All.m.sgd <- All.m.sgd %>%
   rbind(seep.mid.m.sgd) %>%
   rbind(v14.mid.m.sgd) %>%
@@ -476,7 +627,7 @@ All.m.sgd <- All.m.sgd %>%
   left_join(redchem) %>%
   select(-CowTagID) %>%
   mutate(nAlphaTag = factor(AlphaTag, levels = names(alphapalette)),
-         AlphaTag = factor(AlphaTag, levels = volumeOrder))
+         AlphaTag = factor(AlphaTag, levels = myOrder))
 
 # graph faceted polygons showing functional volume
 
@@ -563,7 +714,7 @@ fig4B_species <- fig2.fd.sgd %>%
 
 fig4B_species
 
-ggsave(here("Output", "PaperFigures", "Fig4_species_Vol_Abund_PCoA_PO4.png"), fig4B_species, height = 5, width = 7)
+ggsave(here("Output", "PaperFigures", "Fig_species_Vol_Abund_PCoA_PO4.png"), fig4B_species, height = 5, width = 7)
 
 ##########################################################################################
 ##########################################################################################
@@ -610,7 +761,7 @@ plot_fe_group_pcoa <- fe_group_pcoa %>%
   facet_wrap(~Group)
 plot_fe_group_pcoa
 
-ggsave(here("Output", "PaperFigures", "FE_grouped_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
+ggsave(here("Output", "PaperFigures", "Fig4_FE_grouped_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
 
 
 # ### View representative species for each functional entity
@@ -630,8 +781,11 @@ ggsave(here("Output", "PaperFigures", "FE_grouped_pcoa.png"), plot_fe_group_pcoa
 
 #### PATCH PLOTS TOGETHER FOR FIGURE 4
 
-fig2bdist / plot_fe_group_pcoa +
+Figure4 <- fig2bdist / plot_fe_group_pcoa +
   plot_annotation(tag_levels = "A")
+
+ggsave(here("Output", "PaperFigures", "Fig4_FEV_pcoa.png"),Figure4, device = "png", width = 6, height = 10)
+
 
 # just to get the Phosphate scale bar
 apal<-(pnw_palette("Bay"))
@@ -657,6 +811,7 @@ ct.coord <- read_csv(here("Data","FE_4D_coord_cowtags.csv"))
 ## relative abundance in ggplot
 fig2.fd.sgd <- ct.coord %>%
   rename(CowTagID = '...1') %>%
+  filter(CowTagID != "VSEEP") %>%
   #full_join(ab.conditions.sgd2) %>%
   left_join(alphatag) %>%
   arrange(AlphaTag)
@@ -713,113 +868,110 @@ ggsave(here("Output", "PaperFigures", "Species_biplot_pcoa.png"), fig2b_species_
 ## Can use the three values above (SpR, FER, Vol4D), and also community composition: either relative abundance or presence-absence
 ## then can do a permanova / nMDS of community comp with the volume / FErichness
 
-#
-#
-# ### relative abundance
-# FE_nmds_data <- myspecies %>%
-#   filter(CowTagID != "VSEEP") %>%  # remove seep for nMDS for now
-#   pivot_longer(cols = Turf:'Caulerpa racemosa', names_to = "Taxa", values_to = "pCover") %>%
-#   filter(pCover > 0) %>%
-#   left_join(as_tibble(rownames_to_column(species_entities, var = "Taxa"))) %>%
-#   group_by(CowTagID, FE) %>% # get relative abundance of FE (pCvoer is already percent, so just add percentages of FE)
-#   mutate(pCoverFE = sum(pCover)) %>%
-#   distinct(CowTagID, FE, pCoverFE) %>%
-#   drop_na(FE) %>%
-#   pivot_wider(names_from = FE, values_from = pCoverFE) %>% # longform for the nmds and will establish absence through NAs
-#   mutate_at(vars(2:ncol(.)), .funs = ~if_else(is.na(.), 0, .)) # zero for NA's 1's for presence
-# # will cbind cowtags later
-# # set levels as numerical order of plates
-# CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
-# FE_nmds_data$CowTagID <- factor(FE_nmds_data$CowTagID, levels = CTlevels)
-# # arrange by cowtag and then remove for nmds
-# FE_nmds_data <- FE_nmds_data %>%
-#   arrange(CowTagID) %>%
-#   ungroup() %>%
-#   select(-CowTagID)
-#
-#
-# ord1 <- metaMDS(FE_nmds_data, k=2, distance='bray')
-#
-# # stress with k=2 dimensions. Is it < 0.3?
-# ord1$stress
-#
-# # stress plot - want to minimize scatter
-# stressplot(ord1)
-#
-# #param_mds <- nMDS_species(ord1) # MDS1 and MDS2 for FEs
-# # get points for species
-# Group <- rownames(ord1$species) # get characteristic names
-# MDS1 <- c(ord1$species[,1]) # MDS1 for characteristics
-# MDS2 <- c(ord1$species[,2]) # MDS2 for characteristics
-# Data <- as_tibble(cbind(Group, MDS1, MDS2)) %>%  # bind all cols into tibble
-#   mutate(MDS1 = as.numeric(MDS1), # as numeric
-#          MDS2 = as.numeric(MDS2)) %>%
-#   #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>%
-#   select(MDS1, MDS2, Group)
-#
-#
-# #param_mds_cat <- nMDS_points(ord1, meta, c('CowTagID', 'dist_to_seep_m')) # MDS1 and MDS2 for CowTagID
-# Groupb <- as.character(CTlevels) # assign CowTagID
-# MDS1b <- ord1$points[,1] # MDS1 for CowTagID
-# MDS2b <- ord1$points[,2] # MDS2 for CowTagID
-# Datab <- as_tibble(cbind(Groupb, MDS1b, MDS2b)) %>%  # bind all cols into tibble
-#   mutate(MDS1b = as.numeric(MDS1b), # as numeric
-#          MDS2b = as.numeric(MDS2b)) %>%
-#   rename(CowTagID = Groupb)
-#
-# joinDF <- meta %>%
-#   select(CowTagID, dist_to_seep_m)
-#
-# Datab <- Datab %>%
-#   left_join(joinDF)
-#
-#
-# ## plot
-# nMDSplot <- ggplot(data = Data,
-#                    aes(x = MDS1,
-#                        y = MDS2)) +
-#   geom_point(color = "black") +
-#   geom_point(data = Datab,
-#              aes(x = MDS1b,
-#                  y = MDS2b,
-#                  color = (dist_to_seep_m)),
-#              size = 3) +
-#   geom_text_repel(data = Data, # site characteristics
-#                   aes(x = MDS1,
-#                       y = MDS2,
-#                       label = Group),
-#                   size = 2) +
-#   theme_bw() +
-#   theme(panel.grid = element_blank(),
-#         legend.position = "right") +
-#   geom_label_repel(data = Datab, # site characteristics
-#                    aes(x = MDS1b,
-#                        y = MDS2b,
-#                        label = CowTagID),
-#                    size = 5,
-#                    max.overlaps = 16) + # increase from 10 because too many FEs overlapping
-#   scale_color_gradient(low = "red", high = "yellow")
-# nMDSplot
-#
-# ggsave(here("Output", "PaperFigures", "FE_nmds_plot.png"), nMDSplot, width = 10, height = 10)
-#
-# ### PERMANOVA
-# richPermFull <- cbind(Groupb, FE_nmds_data) %>%  # bind cowTagIDs
-#   rename(CowTagID = Groupb) %>%
-#   left_join(joinDF) %>%
-#   mutate(relDist = if_else(dist_to_seep_m <= 26, "Near", if_else(dist_to_seep_m > 100, "Far", "Mid")))
-#
-# # dist < 26 > 100 ***0.001 V20, V17, V14 near vs mid 0.012, near vs far 0.045
-# # dist < 47 > 100 **0.003 V20, V17, V14, V9 near vs mid 0.006
-# # dist < 50 > 100 insignif. V20, V17, V14, V9, V10
-#
-# # dist < 26 > 120 **0.002 near vs mid 0.009
-# # dist < 47 > 120 **0.001 near vs mid 0.021
-#
-# permanovamodel<-adonis2(richPermFull[,2:25]~relDist, richPermFull, permutations = 999,
-#                         method="bray") # should change out cowtagid with some grouping name
-# permanovamodel
-#
+
+
+### relative abundance
+FE_nmds_data <- myspecies %>%
+  filter(CowTagID != "VSEEP") %>%  # remove seep for nMDS for now
+  pivot_longer(cols = Turf:'Caulerpa racemosa', names_to = "Taxa", values_to = "pCover") %>%
+  filter(pCover > 0) %>%
+  left_join(as_tibble(rownames_to_column(species_entities, var = "Taxa"))) %>%
+  group_by(CowTagID, FE) %>% # get relative abundance of FE (pCvoer is already percent, so just add percentages of FE)
+  mutate(pCoverFE = sum(pCover)) %>%
+  distinct(CowTagID, FE, pCoverFE) %>%
+  drop_na(FE) %>%
+  pivot_wider(names_from = FE, values_from = pCoverFE) %>% # longform for the nmds and will establish absence through NAs
+  mutate_at(vars(2:ncol(.)), .funs = ~if_else(is.na(.), 0, .)) # zero for NA's 1's for presence
+# will cbind cowtags later
+# set levels as numerical order of plates
+CTlevels <- c('V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V14','V15','V16','V17','V18','V19','V20')
+FE_nmds_data$CowTagID <- factor(FE_nmds_data$CowTagID, levels = CTlevels)
+# arrange by cowtag and then remove for nmds
+FE_nmds_data <- FE_nmds_data %>%
+  arrange(CowTagID) %>%
+  ungroup() %>%
+  select(-CowTagID)
+
+
+ord1 <- metaMDS(FE_nmds_data, k=2, distance='jaccard') # jaccard for P/A
+
+# stress with k=2 dimensions. Is it < 0.3?
+ord1$stress
+
+# stress plot - want to minimize scatter
+stressplot(ord1)
+
+#param_mds <- nMDS_species(ord1) # MDS1 and MDS2 for FEs
+# get points for species
+Group <- rownames(ord1$species) # get characteristic names
+MDS1 <- c(ord1$species[,1]) # MDS1 for characteristics
+MDS2 <- c(ord1$species[,2]) # MDS2 for characteristics
+Data <- as_tibble(cbind(Group, MDS1, MDS2)) %>%  # bind all cols into tibble
+  mutate(MDS1 = as.numeric(MDS1), # as numeric
+         MDS2 = as.numeric(MDS2)) %>%
+  #mutate(Taxon_Group = if_else(Taxa == "Hard Substrate", "Abiotic", Taxon_Group)) %>%
+  select(MDS1, MDS2, Group)
+
+
+#param_mds_cat <- nMDS_points(ord1, meta, c('CowTagID', 'dist_to_seep_m')) # MDS1 and MDS2 for CowTagID
+Groupb <- as.character(CTlevels) # assign CowTagID
+MDS1b <- ord1$points[,1] # MDS1 for CowTagID
+MDS2b <- ord1$points[,2] # MDS2 for CowTagID
+Datab <- as_tibble(cbind(Groupb, MDS1b, MDS2b)) %>%  # bind all cols into tibble
+  mutate(MDS1b = as.numeric(MDS1b), # as numeric
+         MDS2b = as.numeric(MDS2b)) %>%
+  rename(CowTagID = Groupb)
+
+joinDF <- chem %>%
+  select(CowTagID, Phosphate_umolL)
+
+Datab <- Datab %>%
+  left_join(joinDF)
+
+
+## plot
+nMDSplot <- ggplot(data = Data,
+                   aes(x = MDS1,
+                       y = MDS2)) +
+  geom_point(color = "black") +
+  geom_point(data = Datab,
+             aes(x = MDS1b,
+                 y = MDS2b,
+                 color = (Phosphate_umolL)),
+             size = 3) +
+  geom_text_repel(data = Data, # site characteristics
+                  aes(x = MDS1,
+                      y = MDS2,
+                      label = Group),
+                  size = 3) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        legend.position = "right") +
+  geom_label_repel(data = Datab, # site characteristics
+                   aes(x = MDS1b,
+                       y = MDS2b,
+                       label = CowTagID),
+                   size = 5,
+                   max.overlaps = 16) + # increase from 10 because too many FEs overlapping
+  scale_color_gradient(low = "red", high = "yellow")
+nMDSplot
+
+ggsave(here("Output", "PaperFigures", "FE_nmds_plot.png"), nMDSplot, width = 10, height = 10)
+
+### PERMANOVA
+richPermFull <- cbind(Groupb, FE_nmds_data) %>%  # bind cowTagIDs
+  rename(CowTagID = Groupb) %>%
+  left_join(joinDF) %>%
+  mutate(rel = if_else(Phosphate_umolL > 0.15, "High", # D, C, N, H
+                       if_else(Phosphate_umolL < 0.06, "Low", # Q, E, F, B
+                               "Moderate")))
+
+
+
+permanovamodel<-adonis2(richPermFull[,2:24]~rel, richPermFull, permutations = 999,
+                        method="bray") # should change out cowtagid with some grouping name
+permanovamodel
+
 # #If we are to trust the results of the permanova, then we have to assume that the dispersion among
 # #data is the same in each group. We can test with assumption with a PermDisp test:
 # disper<-vegdist(richPermFull[,2:25])
