@@ -158,6 +158,12 @@ mat_funct <- column_to_rownames(myspecies_PA, var = "CowTagID")
 # computing PCoA using Caillez correction
 mat_pcoa<-pcoa(mat_dissim , correction="cailliez")
 
+# get proportion of variances explained
+# eigenvalues for each survey location:
+mat_pcoa$values[,1]
+# relative proportion
+mat_pcoa$values[,3]
+
 # changing number of dimensions given number of positive eigenvalues
 nbdim<-min(nbdim,ncol(mat_pcoa$vectors) )
 
