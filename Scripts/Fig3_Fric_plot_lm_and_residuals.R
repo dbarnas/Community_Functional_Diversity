@@ -46,23 +46,37 @@ resFric <- resFric %>%
 # RESIDUAL MODELS (~ RUGOSITY)
 ###############################
 
-### Calculate regressions again with Residuals (remove structure/substrate)
+### Calculate regressions against Rugosity
 
 #fit model: linear relationship
 # resModSpR <- lm(NbSp ~ meanRugosity, data=reg.Fric) # species richness
 # resModFER <- lm(NbFEs ~ meanRugosity, data=reg.Fric) # entity richness
-# resModSpRp <- lm(NbSpP ~ meanRugosity, data=reg.Fric) # relative species richness
-# resModFERp <- lm(NbFEsP ~ meanRugosity, data=reg.Fric) # relative entity richness
-# resModVol <- lm(Vol8D ~ meanRugosity, data=reg.Fric) # relative entity volume
-#
-# #view model summary
-# summary(resModSpRp) # ** strong significance
-# summary(resModFERp) # *** strong significance
-# summary(resModVol) # * 0.49 weak significance
+resModSpRp <- lm(NbSpP ~ poly(meanRugosity,2), data=resFric) # relative species richness
+resModFERp <- lm(NbFEsP ~ poly(meanRugosity,2), data=resFric) # relative entity richness
+resModVol <- lm(Vol8D ~ poly(meanRugosity,2), data=resFric) # relative entity volume
 
-# use above to justify use of resFric
-# resFric <- reg.Fric %>%
-#   left_join(chem)
+#view model summary
+summary(resModSpRp) # ** strong significance
+summary(resModFERp) # *** strong significance
+summary(resModVol) # * 0.49 weak significance
+
+### Calculate regressions against Salinity
+
+#fit model: linear relationship
+# resModSpR <- lm(NbSp ~ meanRugosity, data=reg.Fric) # species richness
+# resModFER <- lm(NbFEs ~ meanRugosity, data=reg.Fric) # entity richness
+salModSpRp <- lm(NbSpP ~ poly(Salinity,2), data=resFric) # relative species richness
+salModFERp <- lm(NbFEsP ~ poly(Salinity,2), data=resFric) # relative entity richness
+salModVol <- lm(Vol8D ~ poly(Salinity,2), data=resFric) # relative entity volume
+
+#view model summary
+summary(salModSpRp) # ** strong significance
+summary(salModFERp) # *** strong significance
+summary(salModVol) # * 0.49 weak significance
+
+
+
+
 
 ## plot richness and volume to rugosity
 SuppFig1H <- resFric %>%
@@ -71,16 +85,41 @@ SuppFig1H <- resFric %>%
   mutate(Parameters = factor(Parameters, levels = c('% SR', '% FER','% FEV'))) %>%
   ggplot(aes(x = meanRugosity, y = Values)) +#, color = NN_umolL)) +
   geom_point() +
-  geom_smooth(method = "lm", color = "black") +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   facet_wrap(~Parameters, scales = "fixed") +
   theme_bw() +
   theme(strip.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
         axis.text = element_text(size = 12),
         axis.title = element_text(size = 14)) +
-  labs(x = "Mean rugosity", y = "Proportional Values") +
+  labs(x = "Mean rugosity", y = "Relative Diversity") +
   plot_annotation(tag_levels = list(c('H')))
 
 ggsave(here("Output", "PaperFigures", "SuppFig1H_rugosity.png"), SuppFig1H, device = "png", height = 6, width = 6)
+
+
+
+## plot richness and volume to salinity
+SuppFig1Hb <- resFric %>%
+  rename("% SR" = NbSpP, "% FER" = NbFEsP, "% FEV" = Vol8D) %>%
+  pivot_longer(cols = c('% SR', '% FER','% FEV'), names_to = "Parameters", values_to = "Values") %>%
+  mutate(Parameters = factor(Parameters, levels = c('% SR', '% FER','% FEV'))) %>%
+  ggplot(aes(x = Salinity, y = Values)) +#, color = NN_umolL)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  facet_wrap(~Parameters, scales = "fixed") +
+  theme_bw() +
+  theme(strip.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45,hjust = 1),
+        axis.title = element_text(size = 14)) +
+  labs(x = "CV Salinity", y = "Relative Diversity") +
+  plot_annotation(tag_levels = list(c('H')))
+
+ggsave(here("Output", "PaperFigures", "SuppFig1H_salinity.png"), SuppFig1Hb, device = "png", height = 6, width = 6)
+
+
 
 ## WHEN SEEP IS REMOVED, DIST TO SEEP IS NO LONGER SIGNIFICANT FOR ALL PARAMETERS
 ## PHOSPHATE AND NN SIGNIFICANT FOR ALL (POLYNOMIAL): increase Rich and Vol with elevating NN and Phosphate, then rich and vol drop off
