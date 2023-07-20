@@ -1,0 +1,11 @@
+﻿Term,Description
+FT,Functional trait
+FG,Functional group
+FE,Functional entity
+SR,Species richness
+FER,Functional entity richness
+FEV,Functional entity volume (volume of entities located in the available community trait space)
+SGD,Submarine groundwater discharge
+PO43-,Phosphate (𝜇mol/L)
+N+N,Nitrate + Nitrite (𝜇mol/L)
+ΔAICc,Delta Corrected Akaike information criterion; model AICc value compared to lowest AICc value from other models
