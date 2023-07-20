@@ -181,15 +181,16 @@ Varari_kriging <- allchem %>%
   mutate(preds = map(data, ~Krig_function_safe(dat_in = .x, poly = V_kml)), # run the function for every nested group
          longname = paste(Parameter),
          plots = map2(preds, longname, ~ggmap(VarariBaseMap)+
-                        geom_point(data=.x$result, aes(x=x, y=y, colour=log(pred)), size=4, alpha=0.5) +
+                        geom_point(data=.x$result, aes(x=x, y=y, colour=pred), size=4, alpha=0.5) +
                         geom_label(data = alphameta, aes(x=lon, y=lat, label = AlphaTag)) +
                         geom_label(data = seeppt,
                                    aes(x = lon, y = lat + 0.00001),
                                    label = "Seep\nA",
                                    fill = "white") +
-                        scale_color_gradientn(colors = mypalette) +
+                        scale_color_gradientn(colors = mypalette,
+                                              trans = "log") + # log transform pred
                         coord_sf() +
-                        labs(color = "log(CV Phosphate)",
+                        labs(color = "CV Phosphate",
                              x = "Longitude",y = "Latitude") +
                         theme(axis.line=element_blank(),
                               axis.text = element_text(size = 10),
