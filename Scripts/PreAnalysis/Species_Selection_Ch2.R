@@ -16,16 +16,17 @@ chem <- read_csv(here("Data","Biogeochem", "Nutrient_Processed_CV.csv")) %>% sel
 ### PROCESS SPECIES
 # high groundwater influence
 survey <- survey %>%
-  filter(Location == "Varari") %>%
+  filter(Location == "Varari",
+         CowTagID != "V13") %>%
   filter(Taxa != "Sand" & Taxa != "Bare Rock" & Taxa != "Rubble") %>%
   left_join(meta) %>%
-  select(CowTagID, Taxa, SpeciesCounts, del15N:N_percent,dist_to_seep_m) %>%
-  mutate(dist_to_seep_m = if_else(CowTagID == "V13", dist_to_seep_m*-1, dist_to_seep_m))
+  select(CowTagID, Taxa, SpeciesCounts, del15N:N_percent,dist_to_seep_m)
 # view total richness across sites
 plot <- survey %>%
-  filter(CowTagID != "V13") %>%
+  filter(CowTagID != "V13",
+         CowTagID != "VSEEP") %>%
   group_by(CowTagID) %>%
-  count(Taxa) %>%
+  dplyr::count(Taxa) %>%
   summarise(total = sum(n)) %>%
   left_join(chem) %>%
   left_join(meta) %>%
@@ -39,14 +40,25 @@ plot
 # High SGD: 14, 17, 15, 11, 18
 # Low SGD: 1, 2, 3, 4, 16
 highsgd <- survey %>%
-  filter(CowTagID == "V14" | CowTagID == "V17" | CowTagID == "V15" |
+  filter(CowTagID == "V14" | CowTagID == "V15" |
            CowTagID == "V11" | CowTagID == "V18") %>%
   group_by(Taxa) %>%
   summarise(total = sum(SpeciesCounts)) %>%
+  ungroup() %>%
+  mutate(comTotal = sum(total),
+         pcover = total / comTotal) %>%
   arrange(desc(total)) %>%
   filter(Taxa != "Turf", Taxa != "Crustose Corallines", Taxa != "Heteractis magnifica") %>%
   rename(HighTaxa = Taxa)
 highsgd[1:10,]
+
+View(survey %>%
+  filter(CowTagID == "V14" | CowTagID == "V15" |
+           CowTagID == "V11" | CowTagID == "V18") %>%
+  mutate(total = sum(SpeciesCounts),
+         pcover = 100*SpeciesCounts / total) %>%
+  group_by(Taxa) %>%
+  summarise(totalCover = sum(pcover)))
 
 
 # low groundwater influence
@@ -56,10 +68,24 @@ lowsgd <- survey %>%
            CowTagID == "V4" | CowTagID == "V16") %>%
   group_by(Taxa) %>%
   summarise(total = sum(SpeciesCounts)) %>%
+  ungroup() %>%
+  mutate(comTotal = sum(total),
+         pcover = total / comTotal) %>%
   arrange(desc(total)) %>%
   filter(Taxa != "Turf", Taxa != "Crustose Corallines", Taxa != "Heteractis magnifica") %>%
   rename(LowTaxa = Taxa)
 lowsgd[1:10,]
+
+
+View(survey %>%
+       filter(CowTagID == "V2" | CowTagID == "V3" |
+                CowTagID == "V4" | CowTagID == "V16") %>%
+       mutate(total = sum(SpeciesCounts),
+              pcover = 100*SpeciesCounts / total) %>%
+       group_by(Taxa) %>%
+       summarise(totalCover = sum(pcover)))
+
+
 
 compareHighLow <- cbind(highsgd[1:10,], lowsgd[1:10,])
 
