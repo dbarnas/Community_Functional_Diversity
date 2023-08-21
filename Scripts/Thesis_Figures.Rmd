@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## The second chapter of Danielle Barnas's thesis to fulfill a  Masters of Science in Biology at CSU Northriddge
+## The second chapter of Danielle Barnas's thesis to fulfill a  Masters of Science in Biology at CSU Northridge
 
 ### TOC:
 - Figure 1  
@@ -44,6 +44,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 - [Supp Figure 4](#Substrate): Bar plot displaying proportional substrate cover at each survey location, arranged by increasing coefficient of variation of phosphate (µmol/L).  
 
+- [Slides Figure](#slides_species_selection): Species selection
 
 
 <a name = "MooreaMap"></a>
@@ -634,6 +635,10 @@ modTable <- modelTable %>%
   rename(Regression = Reg_Type,
          p = pVal,
          'Delta AICc' = delAICc) %>% 
+  separate(col=Parameter, into = c("Parameter", NA), sep = " +") %>% 
+  mutate(Parameter = if_else(Parameter == "Phosphate_umolL", "Phosphate", 
+                             if_else(Parameter == "Silicate_umolL", "Silicate",
+                                     if_else(Parameter == "NN_umolL", "Nitrate+Nitrite", Parameter)))) %>% 
   mutate(Y = factor(Y, levels = c("NbSpP", "NbFEsP", "Vol8D", "resSpp", "resFEp", "resVol")),
          Parameter = factor(Parameter,
                             levels = c("Rugosity", "Phosphate", "Nitrate+Nitrite", "pH", "Salinity", "Silicate", "Temperature"))) %>% 
@@ -732,9 +737,9 @@ resFric <- reg.Fric %>%
 
 ## plot richness and volume to rugosity
 rugPlot <- resFric %>%
-  rename('SR' = NbSpP, 'FER' = NbFEsP, 'FEV' = Vol8D) %>% 
-  pivot_longer(cols = c('SR', 'FER', 'FEV'), names_to = "Parameters", values_to = "Values") %>%
-  mutate(Parameters = factor(Parameters, levels = c('SR', 'FER', 'FEV'))) %>% 
+  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>% 
+  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
+  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>% 
   ggplot(aes(x = meanRugosity, y = Values)) +#, color = NN_umolL)) +
   geom_point() +
   geom_smooth(method = "lm", color = "black") +
@@ -1036,7 +1041,7 @@ ggsave(here("Output", "PaperFigures", "SuppFig5_Substrate.png"), subPlot, device
 
 <a name = "ReefSGD"></a>
 
-### Table/Figure X: SGD along the reef 
+### Supplemental Figure 1: SGD along the reef 
 
 ```{r}
 ############################
@@ -1209,18 +1214,18 @@ cvreef <- tabData %>%
   # primary points
   geom_point(aes(x = MeanParam, y = AllMean), color = "black", size = 3) +
   geom_errorbar(aes(ymin = AllMean-SE, ymax = AllMean+SE), width = 0.1) +
-  labs(x = "Coefficient of Variation", color = expression("Phosphate ("*mu*"mol/L)")) +
+  labs(y = "Coefficient of Variation of \nphysicochemical variables", color = expression("CV Phosphate ("*mu*"mol/L)")) +
   theme_classic() +
   theme(strip.background = element_rect(fill = "white"),
-        axis.title.y = element_blank(),
-        axis.title.x = element_text(size = 10),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 12),
         axis.text.x = element_blank(),
         axis.text.y = element_text(size = 10),
         axis.ticks.x = element_blank()) +
   scale_color_gradientn(colors = mypal) +
   #scale_color_manual(values = mypal2) +
-  facet_wrap(~Parameters, scales = "free_y") +
-  plot_annotation(tag_levels=list(c('C')))
+  facet_wrap(~Parameters, scales = "free_y") 
+  #plot_annotation(tag_levels=list(c('C')))
 cvreef
 ggsave(here("Output", "PaperFigures", "Fig2_Reef_CV_Biogeochem.png"), cvreef, device = "png", height = 5, width = 7)
 ```
@@ -1307,7 +1312,11 @@ summary(model2)
 #############################
 # DIVERSITY ~ PHOSPHATE LM
 #############################
-modelData <- resFric %>% select(NbSpP, NbFEsP, Vol8D, resSpp, resFEp, resVol, Phosphate_umolL)
+modelData <- resFric %>% 
+  left_join(alphatag) %>% 
+  left_join(myPhos) %>% 
+  drop_na(Phosphate_umolL) %>% 
+  dplyr::select(NbSpP, NbFEsP, Vol8D, resSpp, resFEp, resVol, Phosphate_umolL)
 summary(lm(data = modelData, Vol8D ~ poly(Phosphate_umolL,2)))
 summary(lm(data = modelData, resVol ~ poly(Phosphate_umolL,2)))
 ```
@@ -1348,9 +1357,9 @@ chem <- chem  %>%
   filter(Season == "Dry") %>%
   filter(Location == "Varari", CowTagID != "V13") %>%
   filter(CowTagID != "VSEEP") %>%
-  select(CowTagID, Parameters, CVSeasonal) %>%
+  dplyr::select(CowTagID, Parameters, CVSeasonal) %>%
   pivot_wider(names_from = Parameters, values_from = CVSeasonal) %>% 
-  select(CowTagID, Phosphate_umolL) %>% 
+  dplyr::select(CowTagID, Phosphate_umolL) %>% 
   mutate(rel = if_else(Phosphate_umolL > 0.16, "High", # D, C, N, H, A
                if_else(Phosphate_umolL < 0.05, "Low", # Q, E, F, B
                       "Moderate")))
@@ -1377,6 +1386,7 @@ chem <- chem  %>%
 library(tidyverse)
 library(here)
 library(vegan)
+library(patchwork)
 # library(geosphere)
 
 
@@ -1390,7 +1400,7 @@ chem <- read_csv(here("Data","Biogeochem","Nutrients_Processed_All.csv")) %>%
   filter(Season == "Dry") %>%
   filter(Location == "Varari", CowTagID != "V13") %>%
   filter(CowTagID != "VSEEP") %>%
-  select(CowTagID, Parameters, CVSeasonal)
+  dplyr::select(CowTagID, Parameters, CVSeasonal)
 
 alphatag <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
 
@@ -1407,7 +1417,7 @@ ab.sgd <- ab.sgd %>%
   left_join(alphatag) %>% 
   mutate(AlphaTag = factor(AlphaTag, levels = myorder)) %>% 
   arrange(AlphaTag) %>% 
-  select(-AlphaTag)
+  dplyr::select(-AlphaTag)
 
 mychem <- chem %>% 
   filter(Parameters == "NN_umolL" |
@@ -1421,7 +1431,7 @@ mychem <- chem %>%
   left_join(alphatag) %>% 
   mutate(AlphaTag = factor(AlphaTag, levels = myorder)) %>% 
   arrange(AlphaTag) %>% 
-  select(-AlphaTag)
+  dplyr::select(-AlphaTag)
 
 # move tag names to rownames and make data.frame class as needed
 mychem <- column_to_rownames(mychem,var = "CowTagID")
@@ -1517,8 +1527,7 @@ mmSR = ggplot(matSR, aes(y = aa, x = tt)) +
            legend.position = "top",
            legend.text = element_text(size = 10, face = "bold"),
            legend.title = element_text(size = 11, face = "bold")) +
-    scale_fill_continuous(high = "purple", low = "lightpink") +
-  geom_smooth(method = "lm", color= "black")
+    scale_fill_continuous(high = "purple", low = "lightpink")
 mmSR
 
 
@@ -1547,7 +1556,7 @@ ab.sgd <- ab.sgd %>%
   left_join(alphatag) %>% 
   mutate(AlphaTag = factor(AlphaTag, levels = myorder)) %>% 
   arrange(AlphaTag) %>% 
-  select(-AlphaTag)
+  dplyr::select(-AlphaTag)
 
 # environmental matrix for changing SGD
 mychem # same as above
@@ -1637,7 +1646,7 @@ mmFER
 ```
 ```{r}
 ## PATCH PLOTS
-Bray_Curtis_Plot <- mmSR + mmFER +
+Bray_Curtis_Plot <- mmSR / mmFER +
   plot_annotation(tag_levels = 'A')
 ggsave(here("Output", "PaperFigures", "Fig6_Composiiton_SGD.png"), Bray_Curtis_Plot, device = "png", height = 6, width = 6)
 
@@ -1687,9 +1696,9 @@ chem <- chem %>%
   filter(Season == "Dry") %>%
   filter(Location == "Varari", CowTagID != "V13") %>%
   filter(CowTagID != "VSEEP") %>%
-  select(CowTagID, Parameters, CVSeasonal) %>% 
+  dplyr::select(CowTagID, Parameters, CVSeasonal) %>% 
   left_join(alphatag) %>% 
-  select(-CowTagID) %>% 
+  dplyr::select(-CowTagID) %>% 
   filter(Parameters %in% keepParam)
   
 
@@ -1817,9 +1826,9 @@ chem <- chem %>%
   filter(Season == "Dry") %>%
   filter(Location == "Varari", CowTagID != "V13") %>%
   filter(CowTagID != "VSEEP") %>%
-  select(CowTagID, Parameters, CVSeasonal) %>% 
+  dplyr::select(CowTagID, Parameters, CVSeasonal) %>% 
   left_join(alphatag) %>% 
-  select(-CowTagID) %>% 
+  dplyr::select(-CowTagID) %>% 
   filter(Parameters %in% keepParam)
   
 
@@ -1828,7 +1837,7 @@ chem <- chem %>%
 #############################
 phos <- chem %>% filter(Parameters == "Phosphate_umolL") %>% 
   rename(phosphate = CVSeasonal) %>% 
-  select(-Parameters)
+  dplyr::select(-Parameters)
 
 data <- ab.sgd %>%  
   left_join(alphatag) %>% 
@@ -1838,7 +1847,7 @@ data <- ab.sgd %>%
   left_join(spe_fes.sgd) %>%
   group_by(CowTagID, FE) %>% 
   mutate(pcover = sum(pcover)) %>% 
-  select(-Taxa) %>% 
+  dplyr::select(-Taxa) %>% 
   distinct() %>% 
   ungroup()
 
@@ -1916,6 +1925,107 @@ modTable
 ```
 
 
+<a name = "slides_species_selection"></a>
+```{r, eval = FALSE, echo = FALSE}
+###############################
+# LOAD LIBRARIES
+###############################
+library(tidyverse)
+library(here)
+library(vegan)
+library(pairwiseAdonis)
+
+###############################
+# READ IN DATA
+###############################
+alphatag <- read_csv(here("Data","CowTag_to_AlphaTag.csv")) %>% mutate(AlphaTag = if_else(CowTagID == "VSEEP", "A-Seep",AlphaTag))
+traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
+comp <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv"))
+resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv"))
+# PCoA axes of traits
+fd.coord.sgd <- read.csv(here("Data","FE_4D_coord_dmb.csv"), row.names = 1) # class data.frame
+# FE with trait groups
+fes_traits.sgd <- read_csv(here("Data", "Distinct_FE.csv"))
+# species abundances (%) wide format
+myspecies <- read_csv(here("Data", "Species_Abundances_wide.csv"))
+# species and functional entities
+species_entities <- read_csv(here("Data", "Species_FE.csv"))
+
+
+###############################
+# FE ABUNDANCES
+###############################
+
+meta <- meta %>% # fill in seep rugosity value
+  mutate(meanRugosity = if_else(CowTagID == "VSEEP", 0.97, meanRugosity))
+
+chem <- chem %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari",
+         CowTagID != "V13") %>%
+  dplyr::select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+redchem <- chem %>% dplyr::select(CowTagID, Phosphate_umolL, NN_umolL)
+
+comp <- comp %>%
+  filter(Location == "Varari") %>%  # only analyze varari for now
+  filter(CowTagID != "V13")
+
+
+# pivot myspecies longer
+ab.conditions.sgd2 <- myspecies %>%
+  pivot_longer(names_to = "Taxa", values_to = "pCover", cols = 2:ncol(myspecies)) %>%
+  left_join(spe_fes.sgd) %>%
+  group_by(CowTagID, FE) %>%
+  summarise(pCover = sum(pCover)) %>%
+  ungroup()
+
+
+
+# set SGD influence factor as low, moderate, high levels
+
+VarResFric <- resFric %>%
+  left_join(alphatag) %>%
+  dplyr::select(AlphaTag, Vol8D)
+low <- VarResFric %>%
+  filter(AlphaTag == "B" | AlphaTag == "F" | AlphaTag == "E" | AlphaTag == "Q") %>%
+  mutate(Varcat = "Low")
+high <- VarResFric %>%
+  filter(AlphaTag == "D" | AlphaTag == "C" | AlphaTag == "N" | AlphaTag == "H" | AlphaTag == "A-Seep") %>%
+  mutate(Varcat = "High")
+LH <- rbind(low,high)
+
+LH <- LH %>% dplyr::select(-Vol8D)
+permData <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
+  full_join(ab.conditions.sgd2) %>%
+  dplyr::select(FE, CowTagID, pCover) %>%
+  left_join(alphatag) %>%
+  filter(AlphaTag != "A-Seep") %>%
+  dplyr::select(-CowTagID) %>% # using alpha tag as the identifier
+  pivot_wider(names_from = FE, values_from = pCover) %>%
+  left_join(LH) %>%
+  mutate(Varcat = if_else(is.na(Varcat), "Moderate", Varcat)) %>%
+  relocate(Varcat, .after = AlphaTag) %>%
+  dplyr::select(-AlphaTag)
+
+
+permanovamodel<-adonis2(permData[,-1]~Varcat, permData, permutations = 999,method="bray")
+permanovamodel
+
+#assume that the dispersion among data is the same in each group. We can test with assumption with a PermDisp test:
+disper<-vegdist(permData[,-1])
+betadisper(disper, permData$Varcat)
+#Look at the Average distance to median...these numbers should be reasonably similar
+#A rule of thumb is that one number should not be twice as high as any other
+
+#An option for doing post-hoc pairwise comparisons in R
+library(pairwiseAdonis)
+pairwise.adonis(permData[-1], permData$Varcat, perm=999)
+
+
+```
 
 
 
