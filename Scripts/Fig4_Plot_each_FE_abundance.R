@@ -64,6 +64,12 @@ AlphaOrder <- Full_data %>%
 AlphaOrder <- AlphaOrder$AlphaTag
 Full_data$AlphaTag <- factor(Full_data$AlphaTag, levels = AlphaOrder)
 
+
+
+##############################
+#  CREATE FUNCTIONS
+##############################
+
 myplot <- function(param, pal){
 
   my_data <- Full_data %>%
@@ -233,11 +239,11 @@ pt
 ppt <- ptplot(Taxon_Group, Phosphate_umolL) +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   theme(strip.background = element_rect(fill = "white")) +
-  labs(x = expression("Phosphate ("*mu*"mol/L)"), title = "Phyla")
+  labs(x = expression("CV Phosphate ("*mu*"mol/L)"), title = "Phyla")
 npt <- ptplot(Taxon_Group, NN_umolL) +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   theme(strip.background = element_rect(fill = "white")) +
-  labs(x = expression("Nitrate+Nitrite ("*mu*"mol/L)"), title = "Phyla")
+  labs(x = expression("CV Nitrate+Nitrite ("*mu*"mol/L)"), title = "Phyla")
 npt
 ppt
 ggsave(here("Output", "PaperFigures", "taxa_nn.png"), npt, device = "png", width = 6, height = 6)
@@ -285,11 +291,11 @@ pm
 ppm <- ptplot(Morph2, Phosphate_umolL) +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   theme(strip.background = element_rect(fill = "white")) +
-  labs(x = expression("Phosphate ("*mu*"mol/L)"), title = "Morphology")
+  labs(x = expression("CV Phosphate ("*mu*"mol/L)"), title = "Morphology")
 npm <- ptplot(Morph2, NN_umolL) +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   theme(strip.background = element_rect(fill = "white")) +
-  labs(x = expression("Nitrate+Nitrite ("*mu*"mol/L)"), title = "Morphology")
+  labs(x = expression("CV Nitrate+Nitrite ("*mu*"mol/L)"), title = "Morphology")
 npm
 ppm
 ggsave(here("Output", "PaperFigures", "morphology_phos.png"), ppm, device = "png", width = 6, height = 6)
@@ -375,11 +381,11 @@ pc
 ppc <- ptplot(Calc, Phosphate_umolL) +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   theme(strip.background = element_rect(fill = "white")) +
-  labs(x = expression("Phosphate ("*mu*"mol/L)"), title = "Calcification")
+  labs(x = expression("CV Phosphate ("*mu*"mol/L)"), title = "Calcification")
 npc <- ptplot(Calc, NN_umolL) +
   geom_smooth(method = "lm", formula = "y~x", color = "black") +
   theme(strip.background = element_rect(fill = "white")) +
-  labs(x = expression("Nitrate+Nitrite ("*mu*"mol/L)"), title = "Calcification")
+  labs(x = expression("CV Nitrate+Nitrite ("*mu*"mol/L)"), title = "Calcification")
 #npc2 <- ptplot(Calc, NN_umolL) + geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black")
 #pper + nper
 npc
@@ -439,11 +445,11 @@ pper <- ptplot(ER, Phosphate_umolL) +
   #geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   #geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
   theme(strip.background = element_rect(fill = "white")) +
-  labs(x = expression("Phosphate ("*mu*"mol/L)"), title = "Energetic Resource")
+  labs(x = expression("CV Phosphate ("*mu*"mol/L)"), title = "Energetic Resource")
 nper <- ptplot(ER, NN_umolL) +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
   theme(strip.background = element_rect(fill = "white")) +
-  labs(x = expression("Nitrate+Nitrite ("*mu*"mol/L)"), title = "Energetic Resource")
+  labs(x = expression("CV Nitrate+Nitrite ("*mu*"mol/L)"), title = "Energetic Resource")
 nper
 pper
 ggsave(here("Output", "PaperFigures", "ER_nn.png"), nper, device = "png", width = 6, height = 6)
@@ -484,16 +490,20 @@ TraitSignif <- mypval %>%
   filter(pvalue1 < 0.07 | pvalue2 < 0.07)
 write_csv(TraitSignif, here("Output", "PaperFigures", "Trait_pVal.csv"))
 
-plot1 <- (pm) /
+#######################
+# FIGURE 4 BARPLOT
+#######################
+
+Figure4 <- (pm) /
   (per + pc) /
   (pt) +
   plot_annotation(tag_levels = 'A') +
   theme(plot.tag = element_text(size = 10))
-plot1
+Figure4
 
 
- ggsave(here("Output", "PaperFigures", "Fig5_Plot_FEgroups.png"), plot1, width = 8, height = 10)
- ggsave(here("Output", "PaperFigures", "Plot_FEgroups_3.png"), plot1, width = 6, height = 6)
+ ggsave(here("Output", "PaperFigures", "Fig5_Plot_FEgroups.png"), Figure4, width = 8, height = 10)
+ ggsave(here("Output", "PaperFigures", "Plot_FEgroups_3.png"), Figure4, width = 6, height = 6)
 
  ggsave(here("Output", "PaperFigures", "Plot_Taxon_dist.png"), pt, width = 6, height = 3.5)
  ggsave(here("Output", "PaperFigures", "Plot_Taxon_dist.png"), pt2, width = 6, height = 3)
@@ -502,17 +512,13 @@ plot1
  ggsave(here("Output", "PaperFigures", "Plot_Calc_dist.png"), pc, width = 6, height = 3.5)
  ggsave(here("Output", "PaperFigures", "Plot_ER_dist.png"), per, width = 6, height = 3.5)
 
-pplot1 <- (ppm) / (pper + ppc) / (ppt) +
-  plot_annotation(tag_levels = 'A')
-pplot1
-ggsave(here("Output", "PaperFigures", "SuppFig5_Trait_LM.png"), pplot1, width = 8, height = 12)
+#######################
+# SUPPLEMENTAL FIGURE 4
+#######################
 
-
-####################################################
-####################################################
-
-
-
+SuppFig4 <- (ppm) / (pper + ppc) / (ppt)
+SuppFig4
+ggsave(here("Output", "PaperFigures", "SuppFig4_Trait_LM.png"),SuppFig4, width = 8, height = 12)
 
 
 ####################################################
@@ -739,3 +745,58 @@ View(Full_data %>%
   distinct(CowTagID, AlphaTag, totalRedundantFE, totalFE) %>%
   mutate(relativeRedundantFE = totalRedundantFE / totalFE * 100) %>%
   arrange(desc(relativeRedundantFE)))
+
+
+#############################
+# MACROALGAE ALONG GRADIENT
+#############################
+macroalg <- c("Turf", "Rhodophyta", "Chlorophyta", "Phaeophyta")
+
+Full_data %>%
+  filter(CowTagID != "VSEEP") %>%
+  mutate(Taxon_Group = if_else(Taxon_Group %in% macroalg, "Macroalgae", Taxon_Group)) %>%
+  group_by(CowTagID, AlphaTag, Phosphate_umolL, Taxon_Group) %>%
+  summarise(pCover = sum(pCover)) %>%
+  filter(Taxon_Group != "Cyanobacteria") %>%
+  ggplot(aes(x = Phosphate_umolL, y = pCover)) +
+  geom_point() +
+  #geom_smooth(method = "lm", formula = "y~poly(x,2)") +
+  facet_wrap(~Taxon_Group, scales = "free") +
+  theme_bw()+
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill = "white"),
+        axis.title = element_text(size = 15),
+        axis.text = element_text(size = 12),
+        strip.text = element_text(size = 15)) +
+  labs(x = "CV Phosphate", y = "% Cover")
+
+MAabundance <- Full_data %>%
+  filter(CowTagID != "VSEEP") %>%
+  mutate(Taxon_Group = if_else(Taxon_Group %in% macroalg, "Macroalgae", Taxon_Group)) %>%
+  group_by(CowTagID, AlphaTag, Phosphate_umolL, Taxon_Group) %>%
+  summarise(pCover = sum(pCover))
+
+summary(lm(data = MAabundance, pCover ~ poly(Phosphate_umolL,2)))
+
+### RICHNESS
+Full_data %>%
+  filter(CowTagID != "VSEEP") %>%
+  mutate(Taxon_Group = if_else(Taxon_Group %in% macroalg, "Macroalgae", Taxon_Group)) %>%
+  group_by(CowTagID, AlphaTag, Phosphate_umolL, Taxa, Taxon_Group) %>%
+  summarise(pCover = sum(pCover)) %>%
+  ungroup() %>%
+  count(CowTagID, AlphaTag, Phosphate_umolL, Taxa) %>%
+  group_by(CowTagID, AlphaTag, Phosphate_umolL) %>%
+  summarise(richness = sum(n)) %>%
+  ggplot(aes(x = Phosphate_umolL, y = richness)) +
+  geom_point(color = "red", size = 5) +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  theme_bw()+
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_text(size = 20),
+        axis.text = element_text(size = 18)) +
+  labs(x = "CV Phosphate", y = "Macroalgal Richness")
+
+

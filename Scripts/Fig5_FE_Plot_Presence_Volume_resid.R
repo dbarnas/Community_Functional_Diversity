@@ -257,7 +257,7 @@ ab.conditions.sgd <- ab.conditions.sgd2 %>%
 ## FACET ORDERED BY RESIDUAL VOLUME
 ## COLORED BY PHOSPHATE
 
-# Figure 2A. Overall distribution of FE abundance across the functional space colored by Phosphate_umolL
+# Figure 5A. Overall distribution of FE abundance across the functional space colored by Phosphate_umolL
 
 # order alpha tag by phosphate levels and volume residuals
 n.alphatag <- alphatag %>% mutate(nAlphaTag = factor(alphatag$AlphaTag, levels = names(alphapalette))) %>% select(-AlphaTag)
@@ -294,7 +294,69 @@ fig2bdist <- fig2.fd.sgd %>%
 
 fig2bdist
 
-ggsave(here("Output", "PaperFigures", "Fig4_Vol_Abund_PCoA_PO4.png"), fig2bdist, height = 6, width = 7)
+ggsave(here("Output", "PaperFigures", "Fig5a_Vol_Abund_PCoA_PO4.png"), fig2bdist, height = 6, width = 7)
+
+
+
+#####################################
+# FIGURE 5B FE POINTS PCOA
+#####################################
+
+fd.coord.sgd.fe <- read.csv(here("Data","FE_4D_coord_dmb.csv"), row.names = 1) # class data.frame
+
+### View location of each functional entity:
+fd.coord.sgd.tibble <- as_tibble(rownames_to_column(as.data.frame(fd.coord.sgd.fe))) %>%
+  rename(FE = "rowname")
+
+
+## View functional trait faceted figures
+fe_group_pcoa <- fd.coord.sgd.tibble %>%
+  separate(FE, into = c('Phyla','Morphology','Calcification','Energetic Resource'),
+           sep = ",", remove = F) %>%
+  pivot_longer(cols = 'Phyla':'Energetic Resource', names_to = "Group", values_to = "Trait")
+fe_group_pcoa$Group <- factor(fe_group_pcoa$Group,
+                              levels = c("Phyla", "Morphology", "Calcification", "Energetic Resource"))
+plot_fe_group_pcoa <- fe_group_pcoa %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(shape = 21, fill = "darkgrey") +
+  geom_text_repel(aes(label = Trait),
+                  size = 3,
+                  max.overlaps = 18) +
+  labs(x = "PCoA1", y = "PCoA2") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  facet_wrap(~Group)
+plot_fe_group_pcoa
+
+ggsave(here("Output", "PaperFigures", "Fig5b_FE_grouped_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
+
+
+#### PATCH PLOTS TOGETHER FOR FIGURE 5
+
+Figure5 <- fig2bdist / plot_fe_group_pcoa +
+  plot_annotation(tag_levels = "A")
+
+ggsave(here("Output", "PaperFigures", "Fig5_FEV_pcoa.png"),Figure5, device = "png", width = 6, height = 10)
+
+
+# just to get the Phosphate scale bar
+apal<-(pnw_palette("Bay"))
+redchem %>%
+  ggplot(aes(x = NN_umolL, y = Phosphate_umolL, color = Phosphate_umolL)) +
+  geom_point() +
+  scale_colour_gradientn(colours = apal) +
+  labs(color = "Phosphate (umol/L)") +
+  theme(legend.key.size = unit(2, 'cm'),
+        legend.text = element_text(size = 18),
+        legend.title = element_text(size = 20))
+
+
+#########################################################################################################
+#########################################################################################################
 
 
 #####################
@@ -318,7 +380,7 @@ blankPoly <- fig2.fd.sgd %>%
         axis.title = element_text(size = 14)) +
   scale_color_manual(values = "black")
 
-ggsave(here("Output", "PaperFigures", "Blank_polygon.png"), blankPoly, height = 6, width = 7)
+ggsave(here("Output","Blank_polygon.png"), blankPoly, height = 6, width = 7)
 
 
 
@@ -342,7 +404,7 @@ blankPoly_small <- fig2.fd.sgd %>%
         axis.title = element_text(size = 14)) +
   scale_color_manual(values = "black")
 
-ggsave(here("Output", "PaperFigures", "Blank_polygon_small.png"), blankPoly_small, height = 6, width = 7)
+ggsave(here("Output", "Blank_polygon_small.png"), blankPoly_small, height = 6, width = 7)
 
 
 #####################
@@ -352,23 +414,38 @@ library(vegan) # nMDS and permanova
 library(pairwiseAdonis)
 
 # to look at variation of FE dispersion, look at a distance matrix
-Alpha_FE <- ab.conditions.sgd2 %>% left_join(alphatag) %>% filter(pCover > 0) %>% select(AlphaTag, FE)
+Alpha_FE <- ab.conditions.sgd2 %>%
+  left_join(alphatag) %>%
+  filter(pCover > 0) %>%
+  select(AlphaTag, FE) %>%
+  distinct()
 Alpha_chem <- redchem %>%
   left_join(alphatag) %>%
-  select(AlphaTag, Phosphate_umolL)
+  select(AlphaTag, NN_umolL,Phosphate_umolL)
 
-dist(fd.coord.sgd, method = "euclidean")
-dist_FE <- as.data.frame(as.matrix(dist(fd.coord.sgd, method = "euclidean")))
+#dist(fd.coord.sgd %>% select(PC1, PC2), method = "euclidean")
+dist_FE <- as.data.frame(as.matrix(dist(fd.coord.sgd, method = "euclidean"))) # distance across 4D
 dist_chem <- rownames_to_column(dist_FE, var = "FE") %>%
   right_join(Alpha_FE) %>%
   filter(AlphaTag != "A-Seep") %>%
   pivot_longer(cols = 2:(ncol(.)-1), names_to = "crossFE", values_to = "distances") %>%
   group_by(AlphaTag) %>%
-  summarise(Avg_dist = mean(distances)) %>%
+  summarise(Avg_dist = mean(distances),
+            sd_dist = sd(distances),
+            se_dist = plotrix::std.error(distances)) %>%
   arrange(desc(Avg_dist)) %>%
-  left_join(Alpha_chem)
+  left_join(Alpha_chem) %>%
+  ungroup() %>%
+  mutate(comm_mean = mean(Avg_dist),
+         var_from_mean = Avg_dist - comm_mean)
 
-summary(lm(data = dist_chem, Avg_dist ~ poly(Phosphate_umolL,2)))
+summary(lm(data = dist_chem, var_from_mean ~ poly(NN_umolL,2)))
+
+ggplot(data = dist_chem,
+       aes(x = NN_umolL, y = Avg_dist)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_text_repel(aes(label = AlphaTag))
 
 ## check this using ANOSIM?
 ## look up other literature on this
@@ -379,37 +456,12 @@ VarResFric <- resFric %>%
   left_join(alphatag) %>%
   select(AlphaTag, Vol8D)
 low <- VarResFric %>%
-  filter(AlphaTag == "B" | AlphaTag == "F" | AlphaTag == "E" | AlphaTag == "Q" | AlphaTag == "K") %>%
+  filter(AlphaTag == "B" | AlphaTag == "F" | AlphaTag == "E" | AlphaTag == "Q") %>%
   mutate(Varcat = "Low")
 high <- VarResFric %>%
-  filter(AlphaTag == "D" | AlphaTag == "C" | AlphaTag == "N" | AlphaTag == "H") %>%
+  filter(AlphaTag == "D" | AlphaTag == "C" | AlphaTag == "N" | AlphaTag == "H" | AlphaTag == "A-Seep") %>%
   mutate(Varcat = "High")
 LH <- rbind(low,high)
-VarResFric <- VarResFric %>%
-  filter(AlphaTag != "A-Seep") %>%
-  left_join(LH) %>%
-  mutate(Varcat = if_else(is.na(Varcat), "Moderate", Varcat))
-
-### try the permanova
-LH <- LH %>% select(-Vol8D)
-permData <- fig2.fd.sgd %>%
-  filter(pCover > 0) %>%
-  left_join(LH) %>%
-  mutate(Varcat = if_else(is.na(Varcat), "Moderate", Varcat)) %>%
-  select(-c(CowTagID,pCover,AlphaTag,nAlphaTag,FE)) %>%
-  relocate(Varcat, .before = PC1)
-
-
-
-permanovamodel<-adonis2(permData[,-1]~Varcat, permData, permutations = 999, method="euclidean")
-permanovamodel
-#assume that the dispersion among data is the same in each group. We can test with assumption with a PermDisp test:
-disper<-vegdist(permData[,-1])
-betadisper(disper, permData$Varcat)
-library(pairwiseAdonis)
-pairwise.adonis(permData[-1], permData$Varcat, perm=999)
-
-
 
 ### try with abundances
 LH <- LH %>% select(-Vol8D)
@@ -418,7 +470,7 @@ permData <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
   select(FE, CowTagID, pCover) %>%
   left_join(alphatag) %>%
   filter(AlphaTag != "A-Seep") %>%
-  select(-CowTagID) %>%
+  select(-CowTagID) %>% # using alpha tag as the identifier
   pivot_wider(names_from = FE, values_from = pCover) %>%
   left_join(LH) %>%
   mutate(Varcat = if_else(is.na(Varcat), "Moderate", Varcat)) %>%
@@ -441,7 +493,6 @@ pairwise.adonis(permData[-1], permData$Varcat, perm=999)
 
 
 
-#### MODEL
 
 
 
@@ -495,7 +546,7 @@ pphos <- resFric %>%
 #           size = 3, vjust = -0.4)
 pphos
 
-ggsave(here("Output", "PaperFigures", "Supp_barplot_res_phosphate.png"), pphos, width = 6, height = 5)
+ggsave(here("Output", "xSupp_barplot_res_phosphate.png"), pphos, width = 6, height = 5)
 
 # RAW
 pphosRaw <- resFric %>%
@@ -520,11 +571,21 @@ pphosRaw <- resFric %>%
   theme(strip.background = element_rect(fill = "white"))
 pphosRaw
 
-ggsave(here("Output", "PaperFigures", "Supp_barplot_raw_phosphate.png"), pphosRaw, width = 6, height = 5)
+ggsave(here("Output", "xSupp_barplot_raw_phosphate.png"), pphosRaw, width = 6, height = 5)
 
 pphosPlots <- pphosRaw / pphos +
   plot_annotation(tag_levels = "A")
-ggsave(here("Output", "PaperFigures", "SuppFig2_barplot_phosphate.png"), pphosPlots, width = 5, height = 8)
+ggsave(here("Output", "xSuppFig2_barplot_phosphate.png"), pphosPlots, width = 5, height = 8)
+
+
+
+
+
+
+
+
+
+
 
 ###########################################################################
 ## SPECIES VOLUME AND NUTRIENTS
@@ -714,89 +775,11 @@ fig4B_species <- fig2.fd.sgd %>%
 
 fig4B_species
 
-ggsave(here("Output", "PaperFigures", "Fig_species_Vol_Abund_PCoA_PO4.png"), fig4B_species, height = 5, width = 7)
+ggsave(here("Output", "xFig_species_Vol_Abund_PCoA_PO4.png"), fig4B_species, height = 5, width = 7)
 
 ##########################################################################################
 ##########################################################################################
 
-## checking things with nyssa
-# model everything with and without normalizing to rugosity and send nyssa a Rmd of paired relationships with response variables
-# - normalized and not
-
-
-
-fd.coord.sgd.fe <- read.csv(here("Data","FE_4D_coord_dmb.csv"), row.names = 1) # class data.frame
-
-### View location of each functional entity:
-fd.coord.sgd.tibble <- as_tibble(rownames_to_column(as.data.frame(fd.coord.sgd.fe))) %>%
-  rename(FE = "rowname")
-
-# FE_pca_plot <- fd.coord.sgd.tibble %>%
-#   ggplot(aes(x = PC1, y = PC2)) +
-#   geom_point() +
-#   geom_text_repel(aes(label = FE), size = 3) +
-#   theme_bw() +
-#   theme(panel.grid = element_blank())
-
-## View functional trait faceted figures
-fe_group_pcoa <- fd.coord.sgd.tibble %>%
-  separate(FE, into = c('Phyla','Morphology','Calcification','Energetic Resource'),
-           sep = ",", remove = F) %>%
-  pivot_longer(cols = 'Phyla':'Energetic Resource', names_to = "Group", values_to = "Trait")
-fe_group_pcoa$Group <- factor(fe_group_pcoa$Group,
-                                   levels = c("Phyla", "Morphology", "Calcification", "Energetic Resource"))
-plot_fe_group_pcoa <- fe_group_pcoa %>%
-  ggplot(aes(x = PC1, y = PC2)) +
-  geom_point(shape = 21, fill = "darkgrey") +
-  geom_text_repel(aes(label = Trait),
-                  size = 3,
-                  max.overlaps = 18) +
-  labs(x = "PCoA1", y = "PCoA2") +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        strip.background = element_rect(fill = "white"),
-        strip.text = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        axis.text = element_text(size = 12)) +
-  facet_wrap(~Group)
-plot_fe_group_pcoa
-
-ggsave(here("Output", "PaperFigures", "Fig4_FE_grouped_pcoa.png"), plot_fe_group_pcoa, width = 6, height = 6)
-
-
-# ### View representative species for each functional entity
-# FE_representatives <- as_tibble(rownames_to_column(species_entities)) %>%
-#   rename(Species = "rowname") %>%
-#   left_join(fd.coord.sgd.tibble) %>%
-#   group_by(FE) %>%
-#   filter(row_number()==1)
-# FE_reps_pca_plot <- FE_representatives %>%
-#   ggplot(aes(x = PC1, y = PC2)) +
-#   geom_point() +
-#   geom_text_repel(aes(label = Species),
-#                   size = 3) +
-#   theme_bw() +
-#   theme(panel.grid = element_blank())
-
-
-#### PATCH PLOTS TOGETHER FOR FIGURE 4
-
-Figure4 <- fig2bdist / plot_fe_group_pcoa +
-  plot_annotation(tag_levels = "A")
-
-ggsave(here("Output", "PaperFigures", "Fig4_FEV_pcoa.png"),Figure4, device = "png", width = 6, height = 10)
-
-
-# just to get the Phosphate scale bar
-apal<-(pnw_palette("Bay"))
-redchem %>%
-  ggplot(aes(x = NN_umolL, y = Phosphate_umolL, color = Phosphate_umolL)) +
-  geom_point() +
-  scale_colour_gradientn(colours = apal) +
-  labs(color = "Phosphate (umol/L)") +
-  theme(legend.key.size = unit(2, 'cm'),
-        legend.text = element_text(size = 18),
-        legend.title = element_text(size = 20))
 
 
 
@@ -831,7 +814,7 @@ fig2b_cowtag_biplot <- fig2.fd.sgd %>%
 
 fig2b_cowtag_biplot
 
-ggsave(here("Output", "PaperFigures", "CowTag_biplot_pcoa.png"), fig2b_cowtag_biplot, width = 6, height = 6)
+ggsave(here("Output", "CowTag_biplot_pcoa.png"), fig2b_cowtag_biplot, width = 6, height = 6)
 
 ###########################################################################################################################
 ### Biplot showing one point per species id colored by nutrient values
@@ -856,7 +839,7 @@ fig2b_species_biplot <- fig2.fd.sgd %>%
 
 fig2b_species_biplot
 
-ggsave(here("Output", "PaperFigures", "Species_biplot_pcoa.png"), fig2b_species_biplot, width = 6, height = 6)
+ggsave(here("Output", "Species_biplot_pcoa.png"), fig2b_species_biplot, width = 6, height = 6)
 
 
 
@@ -956,7 +939,7 @@ nMDSplot <- ggplot(data = Data,
   scale_color_gradient(low = "red", high = "yellow")
 nMDSplot
 
-ggsave(here("Output", "PaperFigures", "FE_nmds_plot.png"), nMDSplot, width = 10, height = 10)
+ggsave(here("Output", "FE_nmds_plot.png"), nMDSplot, width = 10, height = 10)
 
 ### PERMANOVA
 richPermFull <- cbind(Groupb, FE_nmds_data) %>%  # bind cowTagIDs

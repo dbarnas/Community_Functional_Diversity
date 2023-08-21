@@ -41,24 +41,26 @@ resFric <- resFric %>%
   left_join(chem)
 
 
-
 ###############################
-# RESIDUAL MODELS (~ RUGOSITY)
+# DIVERSITY MODELS
 ###############################
 
 ### Calculate regressions against Rugosity
 
-#fit model: linear relationship
-# resModSpR <- lm(NbSp ~ meanRugosity, data=reg.Fric) # species richness
-# resModFER <- lm(NbFEs ~ meanRugosity, data=reg.Fric) # entity richness
-resModSpRp <- lm(NbSpP ~ poly(meanRugosity,2), data=resFric) # relative species richness
-resModFERp <- lm(NbFEsP ~ poly(meanRugosity,2), data=resFric) # relative entity richness
-resModVol <- lm(Vol8D ~ poly(meanRugosity,2), data=resFric) # relative entity volume
+ModSpRp <- lm(NbSpP ~ poly(meanRugosity,2), data=resFric) # relative species richness
+ModFERp <- lm(NbFEsP ~ poly(meanRugosity,2), data=resFric) # relative entity richness
+ModVol <- lm(Vol8D ~ poly(meanRugosity,2), data=resFric) # relative entity volume
 
 #view model summary
-summary(resModSpRp) # ** strong significance
-summary(resModFERp) # *** strong significance
-summary(resModVol) # * 0.49 weak significance
+summary(ModSpRp) # ** strong significance
+summary(ModFERp) # *** strong significance
+summary(ModVol) # * 0.49 weak significance
+
+
+
+###############################
+# RESIDUAL MODELS (~ SALINITY)
+###############################
 
 ### Calculate regressions against Salinity
 
@@ -70,19 +72,27 @@ salModFERp <- lm(NbFEsP ~ poly(Salinity,2), data=resFric) # relative entity rich
 salModVol <- lm(Vol8D ~ poly(Salinity,2), data=resFric) # relative entity volume
 
 #view model summary
-summary(salModSpRp) # ** strong significance
-summary(salModFERp) # *** strong significance
-summary(salModVol) # * 0.49 weak significance
+summary(salModSpRp)
+summary(salModFERp)
+summary(salModVol)
 
 
+salModSpRp <- lm(NbSpP ~ poly(Phosphate_umolL,2), data=resFric) # relative species richness
+salModFERp <- lm(NbFEsP ~ poly(Phosphate_umolL,2), data=resFric) # relative entity richness
+salModVol <- lm(Vol8D ~ poly(Phosphate_umolL,2), data=resFric) # relative entity volume
+
+#view model summary
+summary(salModSpRp) # .0499
+summary(salModFERp)# 0.061
+summary(salModVol) # 0.017
 
 
 
 ## plot richness and volume to rugosity
 SuppFig1H <- resFric %>%
-  rename("% SR" = NbSpP, "% FER" = NbFEsP, "% FEV" = Vol8D) %>%
-  pivot_longer(cols = c('% SR', '% FER','% FEV'), names_to = "Parameters", values_to = "Values") %>%
-  mutate(Parameters = factor(Parameters, levels = c('% SR', '% FER','% FEV'))) %>%
+  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>%
+  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
+  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>%
   ggplot(aes(x = meanRugosity, y = Values)) +#, color = NN_umolL)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
@@ -93,7 +103,8 @@ SuppFig1H <- resFric %>%
         axis.text = element_text(size = 12),
         axis.title = element_text(size = 14)) +
   labs(x = "Mean rugosity", y = "Relative Diversity") +
-  plot_annotation(tag_levels = list(c('H')))
+  ylim(0,80) +
+  plot_annotation(tag_levels = list(c('B')))
 
 ggsave(here("Output", "PaperFigures", "SuppFig1H_rugosity.png"), SuppFig1H, device = "png", height = 6, width = 6)
 
@@ -101,9 +112,9 @@ ggsave(here("Output", "PaperFigures", "SuppFig1H_rugosity.png"), SuppFig1H, devi
 
 ## plot richness and volume to salinity
 SuppFig1Hb <- resFric %>%
-  rename("% SR" = NbSpP, "% FER" = NbFEsP, "% FEV" = Vol8D) %>%
-  pivot_longer(cols = c('% SR', '% FER','% FEV'), names_to = "Parameters", values_to = "Values") %>%
-  mutate(Parameters = factor(Parameters, levels = c('% SR', '% FER','% FEV'))) %>%
+  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>%
+  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
+  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>%
   ggplot(aes(x = Salinity, y = Values)) +#, color = NN_umolL)) +
   geom_point() +
   geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
@@ -115,7 +126,8 @@ SuppFig1Hb <- resFric %>%
         axis.text.x = element_text(angle = 45,hjust = 1),
         axis.title = element_text(size = 14)) +
   labs(x = "CV Salinity", y = "Relative Diversity") +
-  plot_annotation(tag_levels = list(c('H')))
+  ylim(0,80) +
+  plot_annotation(tag_levels = list(c('B')))
 
 ggsave(here("Output", "PaperFigures", "SuppFig1H_salinity.png"), SuppFig1Hb, device = "png", height = 6, width = 6)
 
@@ -157,7 +169,7 @@ plotFun <- function(Y){
     geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
     facet_wrap(~Parameters, scales = "free_x") +
     theme_bw() +
-    labs(x = "Parameter Values", y = Y) +
+    labs(x = "CV SGD Parameter Values", y = Y) +
     theme(strip.background = element_rect(fill = "white"),
           strip.text = element_text(size = 12),
           axis.text.y = element_text(size = 9),
@@ -196,7 +208,7 @@ ggsave(here("Output", "PaperFigures", "SuppFig1DEF_regression.png"), resPlots, d
 #####################################################################
 
 g <- plotFun("meanRugosity") + labs(y = "Mean rugosity") +
-  plot_annotation(tag_levels = list(c('G')))
+  plot_annotation(tag_levels = list(c('A')))
 g
 ggsave(here("Output", "PaperFigures", "SuppFig1g_regression.png"), g, device = "png", width = 6, height = 6)
 
