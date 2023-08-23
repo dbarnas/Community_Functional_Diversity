@@ -15,18 +15,19 @@ knitr::opts_chunk$set(echo = TRUE)
 - Figure 1  
     - A: [Map of Moorea](#MooreaMap)
     - B: [Map of survey locations at Varari](#SurveyMap)
-    - C: [Conceptual diagram of species vs functional richness and FE volume](#Diagram)
 
 - [Figure 2](#DeltaAIC): Delta corrected AIC values for models testing SGD parameter influence on community diversity metrics (species richness, functional entity richness, and functional entity volume).  
 
 - [Figure 3](#PO4Regressions)  
     - Scatter plots displaying polynomial regressions of the coefficient of variation of phosphate (µmol/L) against community diversity metrics (species richness, functional entity richness, and functional entity volume).  
 
-- Figure 4
+- [Figure 4](#Fgroup): Bar plots of percent cover for functional traits within each functional group at survey locations, arranged by increasing coefficient of variation of phosphate (µmol/L).  
+    
+- Figure 5
     - A: [FEV PCoA](#FEVpcoa): PCoA analysis of functional entity presence at each survey location along the SGD gradient, colored and arranged by increasing coefficient of variation of phosphate (µmol/L).
-    - B: [Trait PCoA](#Traitpcoa): Traits from each functional entity displayed by functional groups along PCoA axes.  
+    - B: [Trait PCoA](#Traitpcoa): Traits from each functional entity displayed by functional groups along PCoA axes. 
+- [Figure 6](#ANOSIM): Pairwise scatter plot displaying linear regressions of dissimilarity matrices: SGD parameters on community composition along the reef, calculated from an analysis of similarity (ANOSIM).
 
-- [Figure 5](#Fgroup): Bar plots of percent cover for functional traits within each functional group at survey locations, arranged by increasing coefficient of variation of phosphate (µmol/L).  
     
 - [Table 1](#TermTable): List of terms and symbols
     
@@ -36,15 +37,22 @@ knitr::opts_chunk$set(echo = TRUE)
 
 - [Supp Table 2](#AICTable): Delta corrected AIC values for models testing SGD parameter influence on community diversity metrics (species richness, functional entity richness, and functional entity volume).  
 
-- [Supp Figure 1](#SGDDiversity): Scatter plots displaying polynomial regressions of the coefficient of variation of SGD parameters used for model testing against community diversity metrics (species richness, functional entity richness, and functional entity volume).  
+- [Supp Figure 1](#ReefSGD): Coefficient of variation of physicochemical parameters used in model selection are displayed in a scatter plot as points from survey locations across the reef colored by CV phosphate (PO43-) behind the black point showing parameter mean (SE).
 
-- [Supp Figure 2](#DiversityBar): Bar plots displaying community diversity metrics (raw relative percentage and rugosity-normalized residuals) at each survey location along the SGD gradient, colored and arranged by increasing coefficient of variation of phosphate (µmol/L).  
+- Supp Figure 2: 
+    - [A: ](#Rugosity_SGD) Scatter plots displaying polynomial regressions of the coefficient of variation of SGD parameters used for model testing against rugosity (A). 
+    - [B: ](#Diversity_Rugosity) Linear regression of relationship between diversity metrics and rugosity.
 
-- [Supp Figure 3](#TaxaAbundance): Bar plots displaying relative abundance of identified taxa at each survey location, arranged by increasing coefficient of variation of phosphate (µmol/L).  
+- [Supp Figure 3](#CVNutrients): Scatter plots displaying linear regressions of the coefficient of variation of silicate and salinity on CV nitrate+nitrite and phosphate.
 
-- [Supp Figure 4](#Substrate): Bar plot displaying proportional substrate cover at each survey location, arranged by increasing coefficient of variation of phosphate (µmol/L).  
+- [Supp Figure 4](#LMFunctionalTraits): Scatter plots displaying linear and polynomial regressions of individual functional traits within groups relative to increasing CV phosphate (µmol/L).
 
-- [Slides Figure](#slides_species_selection): Species selection
+- [Supp Figure 5](#FE_Sp_ratio): Relationship of functional entity richness to species richness along the gradient of CV phosphate (µmol/L), with and without the seepage point.
+
+- [Supp Figure 6](#Substrate): Bar plot displaying proportional substrate cover at each survey location, arranged by increasing coefficient of variation of phosphate (µmol/L).
+
+
+
 
 
 <a name = "MooreaMap"></a>
@@ -54,6 +62,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 
 ```
+
+
 
 
 <a name = "SurveyMap"></a>
@@ -111,11 +121,14 @@ modelTableData <- modelTable %>%
              if_else(Y == "NbFEsP", "% FER",
              if_else(Y == "Vol8D", "% FEV", Y)))))),
          Y = factor(Y, levels = c('% SR', '% FER', '% FEV', '% SR (res)', '% FER (res)', '% FEV (res)')),
-         Parameter = if_else(Parameter == "meanRugosity", "Rugosity", 
-                     if_else(Parameter == "Temperature", "Temperature", Parameter)),
-         Parameter = factor(Parameter, levels = c("Rugosity", "Phosphate", "Nitrate+Nitrite", "pH", "Salinity", "Silicate", "Temperature"))) %>%
+         #Parameter = if_else(Parameter == "meanRugosity", "Rugosity", Parameter),
+         Reg_Type = factor(Reg_Type, levels = c("Polynomial", "Linear")),
+         Parameter = factor(Parameter,
+                            levels = c("Rugosity", "Phosphate", "Nitrate+Nitrite", "pH", "Salinity", "Silicate", "Temperature",
+                                       "Phosphate + Rugosity", "Nitrate+Nitrite + Rugosity", "pH + Rugosity", "Salinity + Rugosity", "Silicate + Rugosity", "Temperature + Rugosity"))) %>%
   mutate(minAICc = min(AICc),
          deltaAICc = AICc - minAICc)
+
 ```
 ```{r}
 ###############################
@@ -124,8 +137,8 @@ modelTableData <- modelTable %>%
 mypal <- pnw_palette("Starfish", n = 2)
 
 # raw models
-AICplot <- modelTableData %>% 
-  filter(Y== "% SR" | Y == "% FER" | Y== "% FEV") %>% 
+AICplot <- modelTableData %>%
+  filter(Y== "% SR" | Y == "% FER" | Y== "% FEV") %>%
   ggplot(aes(x = deltaAICc, y = fct_reorder(Parameter, desc(Parameter)), fill = Reg_Type)) +
   geom_col(position = "dodge", color = "black") +
   facet_wrap(~Y) +
@@ -134,20 +147,20 @@ AICplot <- modelTableData %>%
        fill = "Regression") +
   theme_bw() +
   theme(strip.background = element_rect(fill = "white"),
-        strip.text = element_text(size = 12),
+        strip.text = element_text(size = 10),
         legend.position = "top",
         legend.title = element_text(size = 12),
         legend.text = element_text(size = 10),
         panel.grid = element_blank(),
-        axis.text = element_text(size = 12),
-        axis.title.y = element_text(size = 14),
+        axis.text = element_text(size = 10),
+        axis.title.y = element_blank(),
         axis.title.x = element_blank()) +
   scale_fill_manual(values = mypal) +
   geom_vline(xintercept = 2, linetype = "dashed", size = 0.7)
   
 # residual models
-AICplotres <- modelTableData %>% 
-  filter(Y== "% SR (res)" | Y == "% FER (res)" | Y== "% FEV (res)") %>% 
+AICplotres <- modelTableData %>%
+  filter(Y== "% SR (res)" | Y == "% FER (res)" | Y== "% FEV (res)") %>%
   ggplot(aes(x = deltaAICc, y = fct_reorder(Parameter, desc(Parameter)), fill = Reg_Type)) +
   geom_col(position = "dodge", color = "black") +
   facet_wrap(~Y) +
@@ -156,13 +169,14 @@ AICplotres <- modelTableData %>%
        fill = "Regression") +
   theme_bw() +
   theme(strip.background = element_rect(fill = "white"),
-        strip.text = element_text(size = 12),
+        strip.text = element_text(size = 10),
         legend.position = "top",
         legend.title = element_text(size = 12),
         legend.text = element_text(size = 10),
         panel.grid = element_blank(),
-        axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14)) +
+        axis.text = element_text(size = 10),
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(size = 14)) +
   scale_fill_manual(values = mypal) +
   geom_vline(xintercept = 2, linetype = "dashed", size = 0.7)
 
@@ -172,35 +186,6 @@ AICplotAll <- AICplot / AICplotres +
   plot_layout(guides = 'collect') & theme(legend.position = 'top')
 
 AICplotAll
-```
-```{r, echo = F, eval = F}
-compareAllAICc <- modelTableData %>% 
-  mutate(Div = if_else(Y== "% SR", "SR", if_else(Y == "resSpp", "SR",
-               if_else(Y== "% FER", "FER", if_else(Y== "resFEp", "FER",
-               if_else(Y== "% FEV", "FEV", if_else(Y== "resVol", "FEV", ""))))))) %>% 
-  group_by(Div) %>% 
-  select(-delAICc, -minAICc, -deltaAICc) %>% #calculate again with div groups
-  mutate(minAICc = min(AICc),
-         deltaAICc = AICc - minAICc)
-
-compareAllAICc %>% 
-  ggplot(aes(x = deltaAICc, y = fct_reorder(Parameter, desc(Parameter)), fill = Reg_Type)) +
-  geom_col(position = "dodge", color = "black") +
-  facet_wrap(~Y) +
-  labs(x = expression(Delta*"AICc"),
-       y= "Parameters",
-       fill = "Regression") +
-  theme_bw() +
-  theme(strip.background = element_rect(fill = "white"),
-        strip.text = element_text(size = 12),
-        legend.position = "top",
-        legend.title = element_text(size = 12),
-        legend.text = element_text(size = 10),
-        panel.grid = element_blank(),
-        axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14)) +
-  scale_fill_manual(values = mypal) +
-  geom_vline(xintercept = 2, linetype = "dashed", size = 0.7)
 ```
 
 
@@ -292,17 +277,14 @@ rug_Vol_plot <- plotfun(y = Vol8D) +
   theme(axis.title.x = element_blank()) +
   ylim(min = 0, max = 100)
 
+rugosityplot <- rug_SpR_plot + rug_FER_plot + rug_Vol_plot
 
-
+```
+```{r, eval = FALSE}
 ### p values
 summary(lm(data = resFric, resSpp ~ poly(Phosphate_umolL,2)))
 summary(lm(data = resFric, resFEp ~ poly(Phosphate_umolL,2)))
 summary(lm(data = resFric, resVol ~ poly(Phosphate_umolL,2)))
-
-
-
-
-rugosityplot <- rug_SpR_plot + rug_FER_plot + rug_Vol_plot
 
 ```
 ```{r, rugosityresplot}
@@ -368,6 +350,8 @@ fedata <- coord %>%
   left_join(fe)
 
 
+```
+```{r, eval = FALSE}
 anova(lm(data = fedata, PC1 ~ Taxon_Group)) # 8.9e-12
 anova(lm(data = fedata, PC2 ~ Taxon_Group)) # 0.027
 
@@ -383,7 +367,7 @@ summary(lm(data = fedata, PC1 ~ ER)) # <2.2e-16
 anova(lm(data = fedata, PC2 ~ ER)) # 0.16
 
 ```
-```{r}
+```{r, eval = F, echo = F}
 ###############################
 # PERMANOVA ON PRESENCE/ABSENCE
 ###############################
@@ -498,6 +482,9 @@ TermTable <- terms %>%
   row_spec(0, italic = TRUE, bold = TRUE, background = "white", hline_after = TRUE, color = "black", extra_css = "border-bottom: 1px solid;") %>% 
   row_spec(seq(1, nrow(terms)), extra_css = "border-bottom: 1px solid;")
 
+TermTable
+```
+```{r, eval=FALSE}
 TermTable %>% 
   as_image(file = here("Output", "Thesis_Figures_Output", "TermTable.png"))
 ```
@@ -548,9 +535,12 @@ TraitTable <- fgroups %>%
                 font_size = 20) %>% 
   row_spec(0, italic = TRUE, bold = TRUE) %>% 
   column_spec(1:4, background = "white")
+
+TraitTable
+```
+```{r, eval = FALSE}
 TraitTable %>% 
   as_image(file = here("Output", "Thesis_Figures_Output", "TraitTable.png"))
-
 ```
 
 
@@ -598,6 +588,10 @@ speciesTable <- species %>%
   row_spec(0, italic = TRUE, bold = TRUE) %>%  # header row
   column_spec(1, italic = TRUE) %>% 
   column_spec(1:5, background = "white")
+
+speciesTable
+```
+```{r, eval = FALSE}
 speciesTable %>% 
   as_image(file = here("Output", "Thesis_Figures_Output", "SpeciesTable.png"))
 ```
@@ -659,9 +653,13 @@ AICtable <- modTable %>%
   pack_rows("% SR", 1, 14) %>%
   pack_rows("% FER", 15, 28) %>%
   pack_rows("% FEV", 29, 42) %>%
-  column_spec(1:6, background = "white") %>% 
-  as_image(file = here("Output", "Thesis_Figures_Output", "AICtable.png"))
+  column_spec(1:6, background = "white")
 
+AICtable
+```
+```{r, eval = FALSE}
+AICtable %>% 
+  as_image(file = here("Output", "Thesis_Figures_Output", "AICtable.png"))
 ```
 ```{r}
 ###############################
@@ -677,362 +675,13 @@ AICtable_residuals <- modTable %>%
   pack_rows("% SR (residuals)", 1, 14) %>%
   pack_rows("% FER (residuals)", 15, 28) %>%
   pack_rows("% FEV (residuals)", 29, 42) %>%
-  column_spec(1:6, background = "white") %>% 
+  column_spec(1:6, background = "white")
+```
+```{r, eval = FALSE}
+AICtable_residuals %>% 
   as_image(file = here("Output", "Thesis_Figures_Output", "AICtable_residuals.png"))
 ```
 
-
-
-
-
-
-<a name = "SGDDiversity"></a>
-
-### Supplemental Figure 1: 
-
-```{r, rugPlot}
-###############################
-# LOAD LIBRARIES
-###############################
-library(tidyverse)
-library(here)
-library(ggrepel)
-library(patchwork)
-library(MuMIn)
-library(tidytext)
-
-
-
-###############################
-# READ IN DATA
-###############################
-Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
-resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv"))
-meta <- read_csv(here("Data", "Full_Metadata.csv"))
-chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
-  filter(Season == "Dry") %>%
-  filter(Location == "Varari", CowTagID != "V13") %>%
-  filter(CowTagID != "VSEEP") %>%
-  select(CowTagID, Parameters, CVSeasonal) %>%
-  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
-alphatag <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
-
-
-### Join Sp and FE and Vol4D with metadata
-reg.Fric <- resFric %>%
-  as_tibble() %>%
-  left_join(meta) %>%
-  filter(CowTagID != "VSEEP" &
-           CowTagID != "V13") %>% 
-  mutate(meanRugosity = 1-meanRugosity)
-
-
-
-
-###############################
-# RESIDUAL MODELS (~ RUGOSITY)
-###############################
-resFric <- reg.Fric %>%
-  left_join(chem)
-
-## plot richness and volume to rugosity
-rugPlot <- resFric %>%
-  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>% 
-  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
-  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>% 
-  ggplot(aes(x = meanRugosity, y = Values)) +#, color = NN_umolL)) +
-  geom_point() +
-  geom_smooth(method = "lm", color = "black") +
-  facet_wrap(~Parameters, scales = "free") +
-  theme_bw() +
-  theme(strip.background = element_rect(fill = "white"),
-        strip.text = element_text(face = "bold", size = 10))+
-  labs(x = "Mean Rugosity",
-       y = "Relative Abundance (%)")
-rugPlot
-
-```
-```{r, p1param}
-###############################
-# MODEL RESIDUALS ~ SGD PARAMETERS
-###############################
-
-#check residuals against other parameters
-p1param <- resFric %>%
-  rename('N+N (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
-         'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
-  select(-TA) %>%
-  pivot_longer(cols = c(Salinity:'N+N (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
-  ggplot(aes(x = Values, y = resSpp)) +
-  geom_point() +
-  geom_smooth(method = "lm", formula = "y~x", color = "black") +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
-  facet_wrap(~Parameters, scales = "free_x") +
-  theme_bw() +
-  labs(x = "Values", y = "% SR (rugosity-normalized)") +
-  theme(strip.background = element_rect(fill = "white"),
-        strip.text = element_text(face = "bold", size = 10))
-p1param
-```
-```{r, p2param}
-p2param <- resFric %>%
-  rename('N+N (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
-         'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
-  select(-TA) %>%
-  pivot_longer(cols = c(Salinity:'N+N (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
-  ggplot(aes(x = Values, y = resFEp)) +
-  geom_point() +
-  geom_smooth(method = "lm", formula = "y~x", color = "black") +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
-  facet_wrap(~Parameters, scales = "free_x") +
-  theme_bw() +
-  labs(x = "Values", y = "% FER (rugosity-normalized)") +
-  theme(strip.background = element_rect(fill = "white"),
-        strip.text = element_text(face = "bold", size = 10))
-p2param
-```
-```{r, p3param}
-p3param <- resFric %>%
-  rename('N+N (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
-         'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
-  select(-TA) %>%
-  pivot_longer(cols = c(Salinity:'N+N (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
-  ggplot(aes(x = Values, y = resVol)) +
-  geom_point() +
-  geom_smooth(method = "lm", formula = "y~x", color = "black") +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
-  facet_wrap(~Parameters, scales = "free_x") +
-  theme_bw() +
-  labs(x = "Values", y = "% FEV (rugosity-normalized)") +
-  theme(strip.background = element_rect(fill = "white"),
-        strip.text = element_text(face = "bold", size = 10))
-p3param
-```
-
-
-
-<a name = "DiversityBar"></a>
-
-### Supplemental Figure 2: 
-
-```{r}
-
-```
-
-
-
-
-<a name = "TaxaAbundance"></a>
-
-### Supplemental Figure 3: 
-
-```{r, Supp.Abundance.Plot}
-############################
-### LOAD LIBRARIES
-############################
-
-library(tidyverse)
-library(here)
-library(PNWColors)
-
-
-############################
-### READ IN DATA
-############################
-
-traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
-myspecies <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
-alphatag <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
-
-#meta <- read_csv(here("Data", "Full_Metadata.csv"))
-chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv"))
-
-
-############################
-### CLEAN DATA
-############################
-
-chem <- chem %>%
-  filter(Season == "Dry") %>%
-  filter(Location == "Varari",
-         #CowTagID != "VSEEP" &
-         CowTagID != "V13") %>%
-  select(CowTagID, Parameters, CVSeasonal) %>%
-  pivot_wider(names_from = Parameters, values_from = CVSeasonal) %>%
-  select(CowTagID, Phosphate_umolL) %>%
-  left_join(alphatag)
-
-AlphaOrder <- chem %>%
-  arrange(Phosphate_umolL)
-AlphaOrder <- AlphaOrder$AlphaTag
-
-myspecies <- myspecies %>%
-  filter(Location == "Varari", # only analyze varari for now
-         CowTagID != "V13") %>%
-  left_join(chem) %>%
-  mutate(AlphaTag = factor(AlphaTag, levels = AlphaOrder))
-
-traits <- traits %>%
-  select(Taxa, Taxon_Group, Morph2, Calc, ER)
-
-
-############################
-### ANALYZE SPECIES PRESENCE
-############################
-mypal <- pnw_palette("Bay", n = 13)
-
-# calculate percent cover of species including substrate points
-# to get actual abundance of species along gradient
-topSp <- myspecies %>%
-  select(CowTagID:SpeciesCounts, AlphaTag) %>% # remove unnecessary columns
-  select(-Date) %>%
-  group_by(CowTagID) %>%
-  mutate(totalCounts = sum(SpeciesCounts)) %>%
-  group_by(CowTagID, Taxa) %>%
-  mutate(SpeciesCounts = sum(SpeciesCounts)) %>% # add all of same species together
-  distinct() %>% # remove duplicates
-  ungroup() %>%
-  mutate(pCover = SpeciesCounts / totalCounts*100) %>%
-  distinct() %>%
-  filter(Taxa != "Sand" &
-           Taxa != "Bare Rock" &
-           Taxa != "Rubble")
-
-# put in zero values
-zerotopSp <- topSp %>%
-  pivot_wider(names_from = Taxa, values_from = pCover) %>%
-  mutate_at(.vars = 5:ncol(.), .funs= ~if_else(is.na(.),0,.)) %>%
-  pivot_longer(cols = 5:ncol(.), names_to = "Taxa", values_to = "pCover") %>% 
-    mutate(Taxa = if_else(Taxa == "Crustose Corallines", "CCA", Taxa))
-
-# relative abundance across sites, zeros included
-Supp.Abundance.Plot <- zerotopSp %>%
-  # adds line break into string for graphing
-  separate(Taxa, into = c("t1","t2"), sep = " ",) %>%
-  mutate(t3 = "\n",
-         t2 = if_else(is.na(t2),"",t2)) %>%
-  unite(t1,t3,t2, col = "Taxa", sep = "") %>%
-  ggplot(aes(x = AlphaTag, y = pCover)) +
-  geom_col(color = "black", fill = "grey",
-           position = "dodge", show.legend = FALSE) +
-  theme_bw() +
-  theme(panel.grid.major.x = element_blank(),
-        strip.background = element_rect(fill = "white"),
-        strip.text = element_text(size = 8),
-        axis.title = element_text(size = 13),
-        axis.text.x = element_text(size = 6),
-        axis.text.y = element_text(size = 8)) +
-  labs(x = "Survey Location",
-       y = "Relative Abundance (%)") +
-  scale_y_continuous(n.breaks = 3) +
-  facet_wrap(~Taxa, scales = "free_y", ncol = 5)
-ggsave(here("Output", "PaperFigures", "Supp.Abundance.Plot.png"), Supp.Abundance.Plot, device = "png", width = 7, height = 11)
-
-Supp.Abundance.Plot
-```
-```{r}
-#### running some stats on these species
-modData <- topSp %>% 
-  select(-CowTagID, -SpeciesCounts, -totalCounts) %>% 
-  left_join(chem)
-  
-summary(lm(data = modData,
-           pCover~Taxa))
-summary(lm(data = modData,
-   pCover ~ poly(Phosphate_umolL,2)*Taxa))
-
-summary(lm(data = modData %>% filter(),
-   pCover ~ poly(Phosphate_umolL,2)*Taxa))
-
-model<-lm(data = modData %>% filter(Taxa != "Porites rus" & Taxa != "Turbinaria ornata" &
-                                       Taxa != "Turf" & Taxa != "Pocillopora acuta"),
-   pCover ~ Taxa)
-summary(model)
-library(agricolae)
-HSD.test(model, "Taxa", console = T)
-
-
-
-zerotopSp  %>% filter(Taxa == "Porites rus" | Taxa == "Turbinaria ornata" |
-                      Taxa == "Turf" | Taxa == "Pocillopora acuta" |
-                      Taxa == "CCA" | Taxa == "Dictyota bartayresiana") %>% 
-  ggplot(aes(x = AlphaTag,y = pCover)) +
-  geom_point() +
-  facet_wrap(~Taxa, scales = "free_y")
-```
-
-
-
-
-
-
-<a name = "Substrate"></a>
-
-### Supplemental Figure 4: Substrate cover
-
-```{r}
-############################
-### LOAD LIBRARIES
-############################
-library(tidyverse)
-library(here)
-library(PNWColors)
-
-
-
-############################
-### READ IN DATA
-############################
-sub <- read_csv(here("Data", "Surveys", "Substrate_2022.csv"))
-alpha <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
-chem <- read_csv(here("Data", "Biogeochem", "Nutrients_Processed_All.csv"))
-
-
-############################
-### PROCESS DATA FOR FIGURE
-############################
-sub <- sub %>% 
-  right_join(alpha) %>% 
-  select(AlphaTag, LiveCoral:Sand) %>% 
-  pivot_longer(cols = c(LiveCoral:Sand), names_to = "substrate", values_to = "values") %>% 
-  group_by(AlphaTag) %>% 
-  mutate(total = sum(values),
-         pcover = values/total*100) %>% 
-  select(AlphaTag, substrate, pcover)
-
-chem <- chem %>% 
-  right_join(alpha) %>% 
-  filter(Season == "Dry") %>% 
-  select(AlphaTag, Parameters, CVSeasonal) %>% 
-  filter(Parameters == "Phosphate_umolL") %>% 
-  arrange(CVSeasonal)
-myorder <- chem$AlphaTag
-
-sub <- sub %>% 
-  mutate(AlphaTag = factor(AlphaTag, levels = myorder),
-         substrate = if_else(substrate == "LiveCoral", "Live Coral", 
-                     if_else(substrate == "DeadCoral", "Dead Coral", substrate)))
-
-
-sub %>% filter(AlphaTag == "D")
-
-############################
-### VISUALIZATION
-############################
-mypal <- pnw_palette("Starfish", n=7)[c(3,6,4,7)]
-
-subPlot <- sub %>% 
-  ggplot(aes(x = AlphaTag, y = pcover)) +
-  geom_col(aes(fill = substrate), position = "stack") +
-  scale_fill_manual(values = mypal) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        axis.text = element_text(size = 10),
-        axis.title = element_text(size = 13)) +
-  labs(x = "Survey Locations", y = "% Cover", fill = "Substrate")
-ggsave(here("Output", "PaperFigures", "SuppFig5_Substrate.png"), subPlot, device = "png", width = 6, height = 6)
-
-```
 
 
 
@@ -1159,7 +808,8 @@ tabData <- dataChem %>%
   mutate(Parameters = if_else(Parameters == "NN_umolL", "Nitrate+Nitrite",
                      if_else(Parameters == "Phosphate_umolL", "Phosphate",
                      if_else(Parameters == "Silicate_umolL", "Silicate", Parameters))))
-  
+```
+```{r, echo = FALSE, eval = FALSE}
 mypal <- pnw_palette("Starfish", n=7)[c(4, 7)]
 
 AugChem %>% 
@@ -1227,11 +877,423 @@ cvreef <- tabData %>%
   facet_wrap(~Parameters, scales = "free_y") 
   #plot_annotation(tag_levels=list(c('C')))
 cvreef
+```
+```{r, eval = FALSE}
 ggsave(here("Output", "PaperFigures", "Fig2_Reef_CV_Biogeochem.png"), cvreef, device = "png", height = 5, width = 7)
 ```
 
-CHECKING STATS ALONG NUTRIENT SGD GRADIENT
+
+
+
+
+### Supplemental Figure 2: 
+
+```{r, rugPlot}
+###############################
+# LOAD LIBRARIES
+###############################
+library(tidyverse)
+library(here)
+library(ggrepel)
+library(patchwork)
+library(MuMIn)
+library(tidytext)
+
+
+
+###############################
+# READ IN DATA
+###############################
+Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
+resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv"))
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari", CowTagID != "V13") %>%
+  filter(CowTagID != "VSEEP") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+alphatag <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
+
+
+### Join Sp and FE and Vol4D with metadata
+reg.Fric <- resFric %>%
+  as_tibble() %>%
+  left_join(meta) %>%
+  filter(CowTagID != "VSEEP" &
+           CowTagID != "V13") %>% 
+  mutate(meanRugosity = 1-meanRugosity)
+
+
+
+
+###############################
+# RESIDUAL MODELS (~ RUGOSITY)
+###############################
+resFric <- reg.Fric %>%
+  left_join(chem)
+```
+
+
+
+<a name = "Rugosity_SGD"></a>
+
+### Supplemental Figure 2a:
+
+```{r, Supp2A}
+supp2A <- resFric %>%
+  rename('N+N (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
+         'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
+  select(-TA) %>%
+  pivot_longer(cols = c(Salinity:'N+N (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = Values, y = meanRugosity)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
+  facet_wrap(~Parameters, scales = "free_x") +
+  theme_bw() +
+  labs(x = "Values", y = "% Mean rugosity") +
+  theme(strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", size = 10),
+        axis.text.x = element_text(angle = 30, hjust=1))
+supp2A
+```
+
+<a name = "Diversity_Rugosity"></a>
+
+### Supplemental Figure 2b: 
 ```{r}
+## plot richness and volume to rugosity
+rugPlot <- resFric %>%
+  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>% 
+  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
+  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>% 
+  ggplot(aes(x = meanRugosity, y = Values)) +#, color = NN_umolL)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "black", formula = "y~poly(x,2)") +
+  facet_wrap(~Parameters, scales = "free") +
+  theme_bw() +
+  theme(strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", size = 10))+
+  labs(x = "Mean Rugosity",
+       y = "Relative Abundance (%)")
+rugPlot
+
+```
+
+
+```{r, p1param, eval = FALSE, echo = FALSE}
+###############################
+# MODEL RESIDUALS ~ SGD PARAMETERS
+###############################
+
+#check residuals against other parameters
+p1param <- resFric %>%
+  rename('N+N (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
+         'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
+  select(-TA) %>%
+  pivot_longer(cols = c(Salinity:'N+N (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = Values, y = resSpp)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
+  facet_wrap(~Parameters, scales = "free_x") +
+  theme_bw() +
+  labs(x = "Values", y = "% SR (rugosity-normalized)") +
+  theme(strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", size = 10))
+p1param
+```
+```{r, p2param, eval = FALSE, echo = FALSE}
+p2param <- resFric %>%
+  rename('N+N (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
+         'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
+  select(-TA) %>%
+  pivot_longer(cols = c(Salinity:'N+N (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = Values, y = resFEp)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
+  facet_wrap(~Parameters, scales = "free_x") +
+  theme_bw() +
+  labs(x = "Values", y = "% FER (rugosity-normalized)") +
+  theme(strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", size = 10))
+p2param
+```
+```{r, p3param, echo = FALSE, eval = FALSE}
+p3param <- resFric %>%
+  rename('N+N (umol/L)' = NN_umolL, 'Phosphate (umol/L)' = Phosphate_umolL,
+         'Silicate (umol/L)' = Silicate_umolL, 'Temperature (C)' = Temperature) %>%
+  select(-TA) %>%
+  pivot_longer(cols = c(Salinity:'N+N (umol/L)'), names_to = "Parameters", values_to = "Values") %>%
+  ggplot(aes(x = Values, y = resVol)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "red") +
+  facet_wrap(~Parameters, scales = "free_x") +
+  theme_bw() +
+  labs(x = "Values", y = "% FEV (rugosity-normalized)") +
+  theme(strip.background = element_rect(fill = "white"),
+        strip.text = element_text(face = "bold", size = 10))
+p3param
+```
+
+
+
+
+<a name = "CVNutrients"></a>
+
+### Supplemental Figure 3: 
+
+```{r}
+
+###############################
+# LOAD LIBRARIES
+###############################
+library(tidyverse)
+library(here)
+library(ggrepel)
+library(patchwork)
+library(MuMIn)
+library(tidytext)
+
+
+
+###############################
+# READ IN DATA
+###############################
+Fric <- read_csv(here("Data", "Sp_FE_Vol.csv"))
+resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv"))
+meta <- read_csv(here("Data", "Full_Metadata.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari", CowTagID != "V13") %>%
+  #filter(CowTagID != "VSEEP") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+alphatag <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
+
+
+### Join Sp and FE and Vol4D with metadata
+resFric <- resFric %>%
+  as_tibble() %>%
+  left_join(meta) %>%
+  filter(CowTagID != "VSEEP" &
+           CowTagID != "V13") %>%
+  mutate(meanRugosity = 1-meanRugosity) %>%  # instead of lower values indicating higher structure, now high value indicate high structure
+  left_join(chem)
+
+```
+```{r}
+###############################
+# VISUALIZATION
+###############################
+
+supp3a <- resFric %>% 
+  select(CowTagID, Salinity, Phosphate_umolL, Silicate_umolL, NN_umolL) %>% 
+  pivot_longer(cols = c(NN_umolL, Phosphate_umolL), names_to = "param", values_to = "values") %>% 
+  ggplot(aes(x = Silicate_umolL, y = values)) +
+  geom_point(color = "black") +
+  geom_smooth(method = "lm", color = "black") +
+  theme_bw() +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = "Silicate (umol/L)",
+       y = "CV (umol/L)") +
+  facet_wrap(~param, scales = "free_y")
+
+supp3b <- resFric %>% 
+  select(CowTagID, Salinity, Phosphate_umolL, Silicate_umolL, NN_umolL) %>% 
+  pivot_longer(cols = c(NN_umolL, Phosphate_umolL), names_to = "param", values_to = "values") %>% 
+  ggplot(aes(x = Salinity, y = values)) +
+  geom_point(color = "black") +
+  geom_smooth(method = "lm", color = "black") +
+  theme_bw() +
+  theme(strip.background = element_rect(fill = "white")) +
+  labs(x = "Salinity (psu)",
+       y = "CV (umol/L)") +
+  facet_wrap(~param, scales = "free_y")
+
+supp3a / supp3b +
+  plot_annotation(tag_levels = "A")
+```
+
+
+
+
+
+<a name = "LMFunctionalTraits"></a>
+
+### Supplemental Figure 4: Linear regressions of functional traits along CV Phosphate gradient
+
+```{r}
+
+```
+
+
+
+
+
+<a name = "FE_Sp_ratio"></a>
+
+### Supplemental Figure 5: Ratio of functional entity richness to species richness along CV Phosphate gardient
+
+```{r}
+###############################
+# LOAD LIBRARIES
+###############################
+library(tidyverse)
+library(here)
+
+
+
+
+###############################
+# READ IN DATA
+###############################
+meta <- read_csv(here("Data","Full_metadata.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv")) %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari",
+         CowTagID != "V13") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal)
+resFric <- read_csv(here("Data", "Sp_FE_Vol_res.csv")) %>%
+  as_tibble() %>%
+  left_join(meta) %>%
+  left_join(chem) %>%
+  filter(#CowTagID != "VSEEP",
+    CowTagID != "V13")
+
+
+###############################
+# PROCESS DATA
+###############################
+
+### Calculate Ratios
+resFric %>% mutate(FE_SP = NbFEs / NbSp) %>% select(CowTagID,NbFEs, NbSp, FE_SP)
+
+
+
+###############################
+# VISUALIZE
+###############################
+
+### Without seepage point
+pRat <- resFric %>%
+  filter(CowTagID != "VSEEP") %>%
+  ggplot(aes(x = Phosphate_umolL,
+             y = NbFEs / NbSp)) +
+  geom_point(size = 2.5) +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  theme_bw() +
+  theme(axis.title.y = element_text(size = 14),
+        axis.text = element_text(size = 12),
+        axis.title.x = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  labs(y = "FER / SR")
+
+### With seepage point
+pRatSeep <- resFric %>%
+  ggplot(aes(x = Phosphate_umolL,
+             y = NbFEs / NbSp)) +
+  geom_point(size = 2.5) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12)) +
+  theme(panel.grid = element_blank()) +
+  labs(y = "FER / SR",
+       x = expression("CV Phosphate ("*mu*"mol/L)"))
+
+### Patch
+SpFERatio <- (pRat / pRatSeep) +
+   plot_annotation(tag_levels = 'A')
+```
+
+
+
+
+
+
+<a name = "Substrate"></a>
+
+### Supplemental Figure 6: Substrate cover
+
+```{r}
+############################
+### LOAD LIBRARIES
+############################
+library(tidyverse)
+library(here)
+library(PNWColors)
+
+
+
+############################
+### READ IN DATA
+############################
+sub <- read_csv(here("Data", "Surveys", "Substrate_2022.csv"))
+alpha <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
+chem <- read_csv(here("Data", "Biogeochem", "Nutrients_Processed_All.csv"))
+
+
+############################
+### PROCESS DATA FOR FIGURE
+############################
+sub <- sub %>% 
+  right_join(alpha) %>% 
+  select(AlphaTag, LiveCoral:Sand) %>% 
+  pivot_longer(cols = c(LiveCoral:Sand), names_to = "substrate", values_to = "values") %>% 
+  group_by(AlphaTag) %>% 
+  mutate(total = sum(values),
+         pcover = values/total*100) %>% 
+  select(AlphaTag, substrate, pcover)
+
+chem <- chem %>% 
+  right_join(alpha) %>% 
+  filter(Season == "Dry") %>% 
+  select(AlphaTag, Parameters, CVSeasonal) %>% 
+  filter(Parameters == "Phosphate_umolL") %>% 
+  arrange(CVSeasonal)
+myorder <- chem$AlphaTag
+
+sub <- sub %>% 
+  mutate(AlphaTag = factor(AlphaTag, levels = myorder),
+         substrate = if_else(substrate == "LiveCoral", "Live Coral", 
+                     if_else(substrate == "DeadCoral", "Dead Coral", substrate)))
+
+
+
+############################
+### VISUALIZATION
+############################
+mypal <- pnw_palette("Starfish", n=7)[c(3,6,4,7)]
+
+subPlot <- sub %>% 
+  ggplot(aes(x = AlphaTag, y = pcover)) +
+  geom_col(aes(fill = substrate), position = "stack") +
+  scale_fill_manual(values = mypal) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 13)) +
+  labs(x = "Survey Locations", y = "% Cover", fill = "Substrate")
+```
+```{r, eval = FALSE}
+ggsave(here("Output", "PaperFigures", "SuppFig5_Substrate.png"), subPlot, device = "png", width = 6, height = 6)
+```
+
+
+
+
+
+
+
+```{r, eval = FALSE, echo = FALSE}
+### CHECKING STATS ALONG NUTRIENT SGD GRADIENT
+
 #############################
 # LOAD LIBRARIES
 #############################
@@ -1321,8 +1383,10 @@ summary(lm(data = modelData, Vol8D ~ poly(Phosphate_umolL,2)))
 summary(lm(data = modelData, resVol ~ poly(Phosphate_umolL,2)))
 ```
 
-nMDS and perMANOVA
-```{r}
+
+```{r, eval = FALSE, echo = FALSE}
+### nMDS and perMANOVA
+
 ############################
 # LOAD LIBRARIES
 #############################
@@ -1379,6 +1443,10 @@ chem <- chem  %>%
 
 
 # ANOSIM
+
+<a name = "ANOSIM"></a>
+
+### Figure 6: Analysis of Similarity
 ```{r}
 #############################
 # LOAD LIBRARIES
@@ -1449,17 +1517,19 @@ set.seed(7)
 
 
 
-
+```
+```{r, eval = FALSE}
 #############################
 # Normalize before scaling
 #############################
-hist(log(mychem$Salinity + 0.0001)) # left
+hist(log(mychem$Salinity + 0.0001)) # left skew before transformation
 hist(mychem$Silicate_umolL)
 hist(mychem$NN_umolL)
 hist(mychem$Phosphate_umolL)
 hist(mychem$Temperature)
-hist(log(mychem$pH + 0.0001)) # left
-
+hist(log(mychem$pH + 0.0001)) # left skew before transformation
+```
+```{r}
 mychem <- mychem %>% 
   mutate(Salinity = log(Salinity + 0.0001),
          pH = log(pH + 0.0001))
@@ -1611,7 +1681,7 @@ abund_chemFER
 
 ```
 
-# Pairwise scatterplot
+### Pairwise scatterplot
 ```{r}
 #### The point of this figure will be to visualize the correlation between two corresponding matrices of data. Each point in these pairwise scatter plots will represent the difference between two samples 
 
@@ -1648,9 +1718,11 @@ mmFER
 ## PATCH PLOTS
 Bray_Curtis_Plot <- mmSR / mmFER +
   plot_annotation(tag_levels = 'A')
-ggsave(here("Output", "PaperFigures", "Fig6_Composiiton_SGD.png"), Bray_Curtis_Plot, device = "png", height = 6, width = 6)
 
 Bray_Curtis_Plot
+```
+```{r, eval = FALSE}
+ggsave(here("Output", "PaperFigures", "Fig6_Composiiton_SGD.png"), Bray_Curtis_Plot, device = "png", height = 6, width = 6)
 ```
 
 
@@ -1661,7 +1733,7 @@ Bray_Curtis_Plot
 
 
 
-# Species along SGD gradient
+### Species along SGD gradient
 
 ```{r}
 #############################
@@ -1919,9 +1991,6 @@ for(i in myDep){
 }
 
 modTable
-
-
-  
 ```
 
 
@@ -2026,6 +2095,153 @@ pairwise.adonis(permData[-1], permData$Varcat, perm=999)
 
 
 ```
+
+
+
+
+
+### Taxa Abundances
+
+```{r, Supp.Abundance.Plot}
+############################
+### LOAD LIBRARIES
+############################
+
+library(tidyverse)
+library(here)
+library(PNWColors)
+
+
+############################
+### READ IN DATA
+############################
+
+traits <- read_csv(here("Data", "Surveys","Distinct_Taxa.csv"))
+myspecies <- read_csv(here("Data", "Surveys", "Species_Composition_2022.csv"))
+alphatag <- read_csv(here("Data", "CowTag_to_AlphaTag.csv"))
+
+#meta <- read_csv(here("Data", "Full_Metadata.csv"))
+chem <- read_csv(here("Data","Biogeochem", "Nutrients_Processed_All.csv"))
+
+
+############################
+### CLEAN DATA
+############################
+
+chem <- chem %>%
+  filter(Season == "Dry") %>%
+  filter(Location == "Varari",
+         #CowTagID != "VSEEP" &
+         CowTagID != "V13") %>%
+  select(CowTagID, Parameters, CVSeasonal) %>%
+  pivot_wider(names_from = Parameters, values_from = CVSeasonal) %>%
+  select(CowTagID, Phosphate_umolL) %>%
+  left_join(alphatag)
+
+AlphaOrder <- chem %>%
+  arrange(Phosphate_umolL)
+AlphaOrder <- AlphaOrder$AlphaTag
+
+myspecies <- myspecies %>%
+  filter(Location == "Varari", # only analyze varari for now
+         CowTagID != "V13") %>%
+  left_join(chem) %>%
+  mutate(AlphaTag = factor(AlphaTag, levels = AlphaOrder))
+
+traits <- traits %>%
+  select(Taxa, Taxon_Group, Morph2, Calc, ER)
+
+
+############################
+### ANALYZE SPECIES PRESENCE
+############################
+mypal <- pnw_palette("Bay", n = 13)
+
+# calculate percent cover of species including substrate points
+# to get actual abundance of species along gradient
+topSp <- myspecies %>%
+  select(CowTagID:SpeciesCounts, AlphaTag) %>% # remove unnecessary columns
+  select(-Date) %>%
+  group_by(CowTagID) %>%
+  mutate(totalCounts = sum(SpeciesCounts)) %>%
+  group_by(CowTagID, Taxa) %>%
+  mutate(SpeciesCounts = sum(SpeciesCounts)) %>% # add all of same species together
+  distinct() %>% # remove duplicates
+  ungroup() %>%
+  mutate(pCover = SpeciesCounts / totalCounts*100) %>%
+  distinct() %>%
+  filter(Taxa != "Sand" &
+           Taxa != "Bare Rock" &
+           Taxa != "Rubble")
+
+# put in zero values
+zerotopSp <- topSp %>%
+  pivot_wider(names_from = Taxa, values_from = pCover) %>%
+  mutate_at(.vars = 5:ncol(.), .funs= ~if_else(is.na(.),0,.)) %>%
+  pivot_longer(cols = 5:ncol(.), names_to = "Taxa", values_to = "pCover") %>% 
+    mutate(Taxa = if_else(Taxa == "Crustose Corallines", "CCA", Taxa))
+
+# relative abundance across sites, zeros included
+Supp.Abundance.Plot <- zerotopSp %>%
+  # adds line break into string for graphing
+  separate(Taxa, into = c("t1","t2"), sep = " ",) %>%
+  mutate(t3 = "\n",
+         t2 = if_else(is.na(t2),"",t2)) %>%
+  unite(t1,t3,t2, col = "Taxa", sep = "") %>%
+  ggplot(aes(x = AlphaTag, y = pCover)) +
+  geom_col(color = "black", fill = "grey",
+           position = "dodge", show.legend = FALSE) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(size = 8),
+        axis.title = element_text(size = 13),
+        axis.text.x = element_text(size = 6),
+        axis.text.y = element_text(size = 8)) +
+  labs(x = "Survey Location",
+       y = "Relative Abundance (%)") +
+  scale_y_continuous(n.breaks = 3) +
+  facet_wrap(~Taxa, scales = "free_y", ncol = 5)
+
+Supp.Abundance.Plot
+```
+```{r, eval = FALSE}
+ggsave(here("Output", "PaperFigures", "Supp.Abundance.Plot.png"), Supp.Abundance.Plot, device = "png", width = 7, height = 11)
+```
+```{r, eval = FALSE, echo = FALSE}
+#### running some stats on these species
+modData <- topSp %>% 
+  select(-CowTagID, -SpeciesCounts, -totalCounts) %>% 
+  left_join(chem)
+  
+summary(lm(data = modData,
+           pCover~Taxa))
+summary(lm(data = modData,
+   pCover ~ poly(Phosphate_umolL,2)*Taxa))
+
+summary(lm(data = modData %>% filter(),
+   pCover ~ poly(Phosphate_umolL,2)*Taxa))
+
+model<-lm(data = modData %>% filter(Taxa != "Porites rus" & Taxa != "Turbinaria ornata" &
+                                       Taxa != "Turf" & Taxa != "Pocillopora acuta"),
+   pCover ~ Taxa)
+summary(model)
+library(agricolae)
+HSD.test(model, "Taxa", console = T)
+
+
+
+zerotopSp  %>% filter(Taxa == "Porites rus" | Taxa == "Turbinaria ornata" |
+                      Taxa == "Turf" | Taxa == "Pocillopora acuta" |
+                      Taxa == "CCA" | Taxa == "Dictyota bartayresiana") %>% 
+  ggplot(aes(x = AlphaTag,y = pCover)) +
+  geom_point() +
+  facet_wrap(~Taxa, scales = "free_y")
+```
+
+
+
+
 
 
 
