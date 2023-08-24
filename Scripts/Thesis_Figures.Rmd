@@ -5,8 +5,8 @@ date: "2023-06-15"
 output: html_document
 ---
 
-```{r setup, include=FALSE, warning = FALSE, message = FALSE, comment = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, comment = FALSE)
 ```
 
 ## The second chapter of Danielle Barnas's thesis to fulfill a  Masters of Science in Biology at CSU Northridge
@@ -676,6 +676,8 @@ AICtable_residuals <- modTable %>%
   pack_rows("% FER (residuals)", 15, 28) %>%
   pack_rows("% FEV (residuals)", 29, 42) %>%
   column_spec(1:6, background = "white")
+
+AICtable_residuals
 ```
 ```{r, eval = FALSE}
 AICtable_residuals %>% 
@@ -1210,6 +1212,8 @@ pRatSeep <- resFric %>%
 ### Patch
 SpFERatio <- (pRat / pRatSeep) +
    plot_annotation(tag_levels = 'A')
+
+SpFERatio
 ```
 
 
@@ -1280,6 +1284,8 @@ subPlot <- sub %>%
         axis.text = element_text(size = 10),
         axis.title = element_text(size = 13)) +
   labs(x = "Survey Locations", y = "% Cover", fill = "Substrate")
+
+subPlot
 ```
 ```{r, eval = FALSE}
 ggsave(here("Output", "PaperFigures", "SuppFig5_Substrate.png"), subPlot, device = "png", width = 6, height = 6)
