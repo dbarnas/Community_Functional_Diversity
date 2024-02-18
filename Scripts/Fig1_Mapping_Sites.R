@@ -4,6 +4,7 @@
 ##### Edited on: 2/25/2023 #####
 
 ##### LOAD LIBRARIES #####
+#install.packages("maptools", repos = "https://packagemanager.posit.co/cran/2023-10-13") # maptools removed from CRAN as of 11/2023
 library(here)
 library(tidyverse)
 library(ggmap)

@@ -811,6 +811,9 @@ tabData <- dataChem %>%
                      if_else(Parameters == "Phosphate_umolL", "Phosphate",
                      if_else(Parameters == "Silicate_umolL", "Silicate", Parameters))))
 ```
+
+
+
 ```{r, echo = FALSE, eval = FALSE}
 mypal <- pnw_palette("Starfish", n=7)[c(4, 7)]
 
