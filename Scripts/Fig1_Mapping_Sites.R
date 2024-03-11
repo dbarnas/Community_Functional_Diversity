@@ -196,9 +196,14 @@ Varari_kriging <- allchem %>%
                         theme(axis.line=element_blank(),
                               axis.text = element_text(size = 10),
                               axis.title = element_text(size = 15),
-                              legend.position = "top",
+                              #legend.position = "right",
                               panel.grid.major = element_line(color = 'white', linetype = "dashed",size = 0.5),
-                              plot.background=element_rect(fill='white')) +
+                              plot.background=element_rect(fill='white'),
+                              legend.position = c(.25, .99),
+                              legend.justification = c("right", "top"),
+                              legend.box.just = "right",
+                              #legend.margin = margin(6, 6, 6, 6)
+                              ) +
                         # add arrow outline
                         geom_segment(aes(xend = -149.9001, yend = -17.53988,
                                          x = -149.8997, y = -17.54014),
@@ -218,10 +223,10 @@ krigPlot <- Varari_kriging$plots[[1]]
 krigPlot
 
 
-for(i in 1:length(Varari_kriging$plots)){
-  try({
-    ggsave(plot = Varari_kriging$plots[[i]], file = here("Output","PaperFigures","Kriging_V_Map.png"), height = 6, width = 6, device = "png")}, silent = TRUE)
-}
+# for(i in 1:length(Varari_kriging$plots)){
+#   try({
+#     ggsave(plot = Varari_kriging$plots[[i]], file = here("Output","PaperFigures","Kriging_V_Map.png"), height = 6, width = 6, device = "png")}, silent = TRUE)
+# }
 
 
 
@@ -234,6 +239,6 @@ mymaps <- krigPlot + inset_element(MooreaMapPlot, left = 0.5, bottom = 0.5, righ
   theme(plot.tag = element_text(size = c(15,15)))
 mymaps
 
-ggsave(here("Output","PaperFigures","Figure1_Maps.png"),mymaps, height = 6, width = 6, device = "png")
+ggsave(here("Output","PaperFigures","Figure1_Maps.jpeg"),mymaps, height = 6, width = 6, device = "jpeg")
 
 
