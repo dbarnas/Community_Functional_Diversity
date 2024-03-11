@@ -264,13 +264,13 @@ n.alphatag <- alphatag %>% mutate(nAlphaTag = factor(alphatag$AlphaTag, levels =
 alphatag$AlphaTag <- factor(alphatag$AlphaTag, levels = myOrder)
 
 ## relative abundance in ggplot
-fig2.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
+fig5.fd.sgd <- rownames_to_column(as.data.frame(fd.coord.sgd), var = "FE") %>%
   full_join(ab.conditions.sgd2) %>%
   left_join(alphatag) %>%
   left_join(n.alphatag) %>%
   arrange(AlphaTag)
 
-fig2bdist <- fig2.fd.sgd %>%
+fig5adist <- fig5.fd.sgd %>%
   filter(pCover > 0) %>%
   ggplot(aes(x = PC1, y = PC2)) +
   geom_point(aes(size = pCover,
@@ -292,7 +292,7 @@ fig2bdist <- fig2.fd.sgd %>%
   scale_fill_manual(values = alphapalette) +
   scale_color_manual(values = mypalette)
 
-fig2bdist
+fig5adist
 
 ggsave(here("Output", "PaperFigures", "Fig5a_Vol_Abund_PCoA_PO4.png"), fig2bdist, height = 6, width = 7)
 
