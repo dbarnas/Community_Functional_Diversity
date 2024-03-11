@@ -87,62 +87,9 @@ summary(salModFERp)# 0.061
 summary(salModVol) # 0.017
 
 
-
-## plot richness and volume to rugosity
-SuppFig1H <- resFric %>%
-  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>%
-  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
-  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>%
-  ggplot(aes(x = meanRugosity, y = Values)) +#, color = NN_umolL)) +
-  geom_point() +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
-  facet_wrap(~Parameters, scales = "fixed") +
-  theme_bw() +
-  theme(strip.background = element_rect(fill = "white"),
-        panel.grid.major = element_blank(),
-        axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14)) +
-  labs(x = "Mean rugosity", y = "Relative Diversity") +
-  ylim(0,80) +
-  plot_annotation(tag_levels = list(c('B')))
-
-ggsave(here("Output", "PaperFigures", "SuppFig1H_rugosity.png"), SuppFig1H, device = "png", height = 6, width = 6)
-
-
-
-## plot richness and volume to salinity
-SuppFig1Hb <- resFric %>%
-  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>%
-  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
-  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>%
-  ggplot(aes(x = Salinity, y = Values)) +#, color = NN_umolL)) +
-  geom_point() +
-  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
-  facet_wrap(~Parameters, scales = "fixed") +
-  theme_bw() +
-  theme(strip.background = element_rect(fill = "white"),
-        panel.grid.major = element_blank(),
-        axis.text = element_text(size = 12),
-        axis.text.x = element_text(angle = 45,hjust = 1),
-        axis.title = element_text(size = 14)) +
-  labs(x = "CV Salinity", y = "Relative Diversity") +
-  ylim(0,80) +
-  plot_annotation(tag_levels = list(c('B')))
-
-ggsave(here("Output", "PaperFigures", "SuppFig1H_salinity.png"), SuppFig1Hb, device = "png", height = 6, width = 6)
-
-
-
-## WHEN SEEP IS REMOVED, DIST TO SEEP IS NO LONGER SIGNIFICANT FOR ALL PARAMETERS
-## PHOSPHATE AND NN SIGNIFICANT FOR ALL (POLYNOMIAL): increase Rich and Vol with elevating NN and Phosphate, then rich and vol drop off
-## SpR: increase with increasing ammonia and visible humidics
-## Vol: Decrease with increasing M_C, Inc with Inc Ammonia, Inc with elevating Salinity, then vol drops again
-
-
-
 ###############################
 # MODEL RESIDUALS ~ SGD PARAMETERS
-# Supplemental Figure 1A-F
+# Supplemental Figure 2A-B
 ###############################
 
 #check residuals against other parameters
@@ -179,38 +126,14 @@ plotFun <- function(Y){
   return(plot)
 }
 
+########################################
+### Rugosity LM (Supplemental Figure 2A)
+########################################
 
-a <- plotFun("NbSpP") + labs(y = "% SR") + theme(axis.title.x = element_blank())
-b <- plotFun("NbFEsP") + labs(y = "% FER") + theme(axis.title.x = element_blank())
-c <- plotFun("Vol8D") + labs(y = "% FEV")
-
-d <- plotFun("resSpp") + labs(y = "% SR (residuals)") + theme(axis.title.x = element_blank())
-e <- plotFun("resFEp") + labs(y = "% FER (residuals)") + theme(axis.title.x = element_blank())
-f <- plotFun("resVol") + labs(y = "% FEV (residuals)")
-
-rawPlots <- a/b/c +
-  plot_annotation(tag_levels = list(c('A', 'B', 'C')))
-resPlots <- d/e/f +
-  plot_annotation(tag_levels = list(c('D', 'E', 'F')))
-
-ggsave(here("Output", "PaperFigures", "SuppFig1ABC_regression.png"), rawPlots, device = "png", width = 7, height = 11)
-ggsave(here("Output", "PaperFigures", "SuppFig1DEF_regression.png"), resPlots, device = "png", width = 7, height = 11)
-
-# ggsave(here("Output", "PaperFigures", "LM_param_resSpp.png"), d, height = 6, width = 6)
-# ggsave(here("Output", "PaperFigures", "LM_param_resFEp.png"), e, height = 6, width = 6)
-# ggsave(here("Output", "PaperFigures", "LM_param_resVol.png"), f, height = 6, width = 6)
-
-
-
-
-#####################################################################
-### Rugosity LM (Supplemental Figure 1G)
-#####################################################################
-
-g <- plotFun("meanRugosity") + labs(y = "Mean rugosity") +
+SuppFig2A <- plotFun("meanRugosity") + labs(y = "Mean rugosity") +
   plot_annotation(tag_levels = list(c('A')))
-g
-ggsave(here("Output", "PaperFigures", "SuppFig1g_regression.png"), g, device = "png", width = 6, height = 6)
+SuppFig2A
+ggsave(here("Output", "PaperFigures", "SuppFig2A_regression.png"), SuppFig2A, device = "png", width = 6, height = 6)
 
 # modeling
 moddata <- funData %>%
@@ -220,17 +143,91 @@ moddata <- funData %>%
 mymod <- lm(data = moddata %>% rename(NN = 'Nitrate+Nitrite'),
             meanRugosity ~ Phosphate)
 anova(mymod)
-# Silicate, NN, pH (poly),
 
-#Now let's check our assumptions
+#check our assumptions
 plot(mymod)
 library(car)
 qqp(mymod)
 resid1<-residuals(mymod)
-qqp(resid1, "norm") # numbers indicate outliers
-#library(agricolae)
-#HSD.test(mymod, "Silicate", console=TRUE)
+qqp(resid1, "norm")
 
+########################################
+## plot richness and volume to rugosity
+## (Supplemental Figure 2B)
+########################################
+SuppFig2B <- resFric %>%
+  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>%
+  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
+  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>%
+  ggplot(aes(x = meanRugosity, y = Values)) +#, color = NN_umolL)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  facet_wrap(~Parameters, scales = "fixed") +
+  theme_bw() +
+  theme(strip.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14)) +
+  labs(x = "Mean rugosity", y = "Relative Diversity") +
+  ylim(0,80) +
+  plot_annotation(tag_levels = list(c('B')))
+
+ggsave(here("Output", "PaperFigures", "SuppFig2B_rugosity.png"), SuppFig2B, device = "png", height = 6, width = 6)
+
+
+########################################
+## plot richness and volume to salinity
+## (Supplemental Figure 2C)
+########################################
+SuppFig2C <- resFric %>%
+  rename('%Sp Richness' = NbSpP, '%FE Richness' = NbFEsP, '%FE Volume' = Vol8D) %>%
+  pivot_longer(cols = c('%Sp Richness', '%FE Richness', '%FE Volume'), names_to = "Parameters", values_to = "Values") %>%
+  mutate(Parameters = factor(Parameters, levels = c('%Sp Richness', '%FE Richness', '%FE Volume'))) %>%
+  ggplot(aes(x = Salinity, y = Values)) +#, color = NN_umolL)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = "y~poly(x,2)", color = "black") +
+  facet_wrap(~Parameters, scales = "fixed") +
+  theme_bw() +
+  theme(strip.background = element_rect(fill = "white"),
+        panel.grid.major = element_blank(),
+        axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45,hjust = 1),
+        axis.title = element_text(size = 14)) +
+  labs(x = "CV Salinity", y = "Relative Diversity") +
+  ylim(0,80) +
+  plot_annotation(tag_levels = list(c('C')))
+
+ggsave(here("Output", "PaperFigures", "SuppFig2C_salinity.png"), SuppFig2C, device = "png", height = 6, width = 6)
+
+
+
+## WHEN SEEP IS REMOVED, DIST TO SEEP IS NO LONGER SIGNIFICANT FOR ALL PARAMETERS
+## PHOSPHATE AND NN SIGNIFICANT FOR ALL (POLYNOMIAL): increase Rich and Vol with elevating NN and Phosphate, then rich and vol drop off
+## SpR: increase with increasing ammonia and visible humidics
+## Vol: Decrease with increasing M_C, Inc with Inc Ammonia, Inc with elevating Salinity, then vol drops again
+
+
+
+
+
+## Other checks
+###############################
+# MODEL RESIDUALS ~ SGD PARAMETERS
+# Supplemental Figure 1A-F
+###############################
+
+a <- plotFun("NbSpP") + labs(y = "% Sp Richness") + theme(axis.title.x = element_blank())
+b <- plotFun("NbFEsP") + labs(y = "% FE Richness") + theme(axis.title.x = element_blank())
+c <- plotFun("Vol8D") + labs(y = "% FE Volume")
+
+d <- plotFun("resSpp") + labs(y = "% Sp Richness (res)") + theme(axis.title.x = element_blank())
+e <- plotFun("resFEp") + labs(y = "% FE Richness (res)") + theme(axis.title.x = element_blank())
+f <- plotFun("resVol") + labs(y = "% FE Volume (res)")
+
+rawPlots <- a/b/c +
+  plot_annotation(tag_levels = list(c('A', 'B', 'C')))
+resPlots <- d/e/f +
+  plot_annotation(tag_levels = list(c('D', 'E', 'F')))
 
 
 #####################################################################
