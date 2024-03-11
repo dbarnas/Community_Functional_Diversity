@@ -13,6 +13,7 @@ library(ggrepel)
 library(patchwork)
 library(MuMIn)
 library(tidytext)
+library(car)
 
 
 
@@ -146,7 +147,6 @@ anova(mymod)
 
 #check our assumptions
 plot(mymod)
-library(car)
 qqp(mymod)
 resid1<-residuals(mymod)
 qqp(resid1, "norm")
@@ -171,6 +171,7 @@ SuppFig2B <- resFric %>%
   labs(x = "Mean rugosity", y = "Relative Diversity") +
   ylim(0,80) +
   plot_annotation(tag_levels = list(c('B')))
+SuppFig2B
 
 ggsave(here("Output", "PaperFigures", "SuppFig2B_rugosity.png"), SuppFig2B, device = "png", height = 6, width = 6)
 
@@ -196,8 +197,9 @@ SuppFig2C <- resFric %>%
   labs(x = "CV Salinity", y = "Relative Diversity") +
   ylim(0,80) +
   plot_annotation(tag_levels = list(c('C')))
+SuppFig2C
 
-ggsave(here("Output", "PaperFigures", "SuppFig2C_salinity.png"), SuppFig2C, device = "png", height = 6, width = 6)
+#ggsave(here("Output", "PaperFigures", "SuppFig2C_salinity.png"), SuppFig2C, device = "png", height = 6, width = 6)
 
 
 
@@ -236,9 +238,9 @@ resPlots <- d/e/f +
 
 
 
-#####################################################################
+##########################
 ### PHOSPHATE
-#####################################################################
+##########################
 
 plotfun <-function(data = resFric %>% left_join(alphatag), y){
 
@@ -279,19 +281,6 @@ rug_Vol_plot <- plotfun(y = Vol8D) +
 
 rugosityplot <- rug_SpR_plot + rug_FER_plot + rug_Vol_plot
 rugosityplot
-#
-# ## Relative non-normalized richness
-# rug_SpR_plot <- plotfun(y = NbSpP) + labs(y = "% SR", x = "")+
-#   ylim(min = 0, max = 100)
-# rug_SpR_plot
-#
-# rug_FER_plot <- plotfun(y = NbFEsP) + labs(y = "% FER", x = "")+
-#   ylim(min = 0, max = 100)
-# rug_FER_plot
-#
-# rug_Vol_plot <- plotfun(y = Vol8D) + labs(y = "% FEV", x = "")+
-#   ylim(min = 0, max = 100)
-# rug_Vol_plot
 
 
 ## Relative richness and volume residuals
@@ -313,45 +302,17 @@ rug_res_Vol_plot <- plotfun(y = resVol) +
 rugosityresplot <- rug_res_SpRp_plot + rug_res_FERp_plot + rug_res_Vol_plot
 rugosityresplot
 
-# ## Relative richness and volume residuals
-# rug_res_SpRp_plot <- plotfun(y = resSpp) +
-#   geom_hline(yintercept = 0, linetype = "dashed") +
-#   labs(y = "% SR (Rugosity-normalized)",
-#        x = "CV Phosphate (umol/L)")
-# rug_res_SpRp_plot
-#
-# rug_res_FERp_plot <- plotfun(y = resFEp) +
-#   geom_hline(yintercept = 0, linetype = "dashed") +
-#   labs(y = "% FER (Rugosity-normalized)",
-#        x = "CV Phosphate (umol/L)")
-# rug_res_FERp_plot
-#
-# rug_res_Vol_plot <- plotfun(y = resVol) +
-#   geom_hline(yintercept = 0, linetype = "dashed") +
-#   labs(y = "% FEV (Rugosity-normalized)",
-#        x = "CV Phosphate (umol/L)")
-# rug_res_Vol_plot
 
 
-
-### Save patched plots
-# plot1 <- rug_SpR_plot + rug_FER_plot + rug_Vol_plot
-# plot1
-# #ggsave(here("Output", "PaperFigures", "lm_relative_raw_Phos.png"), plot1, height = 6, width = 10)
-#
-#
-# plot2 <- rug_res_SpRp_plot + rug_res_FERp_plot + rug_res_Vol_plot
-# plot2
-#ggsave(here("Output", "PaperFigures", "lm_relative_residuals_Phos.png"), plot2, height = 6, width = 10)
 
 divPlots <- rugosityplot / rugosityresplot +
   plot_annotation(tag_levels = 'A')
 divPlots
-ggsave(here("Output", "PaperFigures", "Fig3_LM_diversity_Phosphate.png"), divPlots, height = 6, width = 10)
+#ggsave(here("Output", "PaperFigures", "Fig3_LM_diversity_Phosphate.png"), divPlots, height = 6, width = 10)
 
-#####################################################################
+##########################
 ### NITRATES + NITRITES
-#####################################################################
+##########################
 
 ## Raw richness residuals
 rug_res_SpR_plot <- resFric %>%
@@ -366,7 +327,9 @@ rug_res_SpR_plot <- resFric %>%
   theme(panel.grid = element_blank()) +
   labs(y = "SR (Rugosity-normalized)",
        x = "CV of NN (umol/L)")
-rug_res_SpR_plot
+
+
+
 
 rug_res_FER_plot <- resFric %>%
   ggplot(aes(x = NN_umolL,
@@ -380,7 +343,8 @@ rug_res_FER_plot <- resFric %>%
   theme(panel.grid = element_blank()) +
   labs(y = "FER (Rugosity-normalized)",
        x = "CV of NN (umol/L)")
-rug_res_FER_plot
+
+
 
 ## Relative richness and volume residuals
 rug_res_SpRp_plot <- resFric %>%
@@ -395,7 +359,7 @@ rug_res_SpRp_plot <- resFric %>%
   theme(panel.grid = element_blank()) +
   labs(y = "Relative SR (%, Rugosity-normalized)",
        x = "CV of NN (umol/L)")
-rug_res_SpRp_plot
+
 
 rug_res_FERp_plot <- resFric %>%
   ggplot(aes(x = NN_umolL,
@@ -409,7 +373,7 @@ rug_res_FERp_plot <- resFric %>%
   theme(panel.grid = element_blank()) +
   labs(y = "Relative FER (%, Rugosity-normalized)",
        x = "CV of NN (umol/L)")
-rug_res_FERp_plot
+
 
 rug_res_Vol_plot <- resFric %>%
   ggplot(aes(x = NN_umolL,
@@ -423,20 +387,10 @@ rug_res_Vol_plot <- resFric %>%
   theme(panel.grid = element_blank()) +
   labs(y = "Relative FE Volume (%, Rugosity-normalized)",
        x = "CV of NN (umol/L)")
-rug_res_Vol_plot
 
 
-
-### Save patched plots
-plot1 <- rug_res_SpR_plot + rug_res_FER_plot
-plot1
-#ggsave(here("Output", "PaperFigures", "lm_rich_residuals_NN.png"), plot1, height = 6, width = 10)
-
-
-plot2 <- rug_res_SpRp_plot + rug_res_FERp_plot + rug_res_Vol_plot
-plot2
-
-#ggsave(here("Output", "PaperFigures", "lm_relative_residuals_NN.png"), plot2, height = 6, width = 10)
+(rug_res_SpR_plot + rug_res_FER_plot + rug_res_SpRp_plot)
+(rug_res_FERp_plot + rug_res_Vol_plot)
 
 
 
@@ -464,7 +418,7 @@ pRat <- resFric %>%
   ggplot(aes(x = Phosphate_umolL,
              y = NbFEs / NbSp)) +
   geom_point(size = 2.5) +
-  geom_smooth(method = "lm", formula = "y~x", color = "black") +
+  #geom_smooth(method = "lm", formula = "y~x", color = "black") +
   theme_bw() +
   theme(axis.title.y = element_text(size = 14),
         axis.text = element_text(size = 12),
@@ -488,33 +442,11 @@ pRatSeep <- resFric %>%
 
 SpFERatio <- (pRat / pRatSeep) +
    plot_annotation(tag_levels = 'A')
+SpFERatio
 
-ggsave(here("Output", "PaperFigures", "Sp_FE_Ratio.png"), SpFERatio, device = "png", width = 6, height = 6)
+#ggsave(here("Output", "PaperFigures", "Sp_FE_Ratio.png"), SpFERatio, device = "png", width = 6, height = 6)
+
 
 summary(lm(data = resFric %>% filter(CowTagID != "VSEEP"), (NbFEs / NbSp) ~ Phosphate_umolL))
 summary(lm(data = resFric, (NbFEs / NbSp) ~ Phosphate_umolL))
-## Can use the three values above, and also community composition: either relative abundance or presence-absence
-## then can do a permanova / nMDS of community comp with the volume / FErichness
 
-
-
-### checking if volume is significantly different across a nutrient cutoff point
-summary(lm(data = resFric %>%
-             filter(CowTagID != "VSEEP") %>%
-             select(CowTagID, resSp:resVol, NN_umolL, Phosphate_umolL) %>%
-             mutate(relNut = if_else(NN_umolL < 0.23, "lowN",
-                                     if_else(NN_umolL > 0.48,"highN", "midN"))),
-           resVol ~ relNut))
-# 0.23 - 0.48
-# 0.23 - 1 (including seep)
-# 0.23 - 0.4
-
-
-# check nutrients against silicate
-summary(lm(Phosphate_umolL ~ Salinity ,data = resFric %>% filter(CowTagID != "VSEEP")))
-resFric %>%
-  filter(CowTagID != "VSEEP") %>%
-  ggplot(aes(x = Silicate_umolL, y = Phosphate_umolL)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_bw()
